@@ -1,0 +1,382 @@
+// Schema para SIGAM - Sistema Integral de Gestión Alimentaria Municipal
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  ADMIN
+  LOGISTICA
+  OPERADOR_PROGRAMA
+  VISOR
+}
+
+enum MovimientoTipo {
+  INGRESO
+  EGRESO
+  AJUSTE
+  TRANSFERENCIA
+}
+
+enum EntregaEstado {
+  PENDIENTE
+  GENERADA
+  ENTREGADA
+  CANCELADA
+}
+
+enum RemitoEstado {
+  BORRADOR
+  CONFIRMADO
+  ENVIADO
+  PENDIENTE_STOCK
+}
+
+// ============================================================================
+// USUARIOS Y AUTENTICACIÓN
+// ============================================================================
+
+model Usuario {
+  id         Int      @id @default(autoincrement())
+  nombre     String
+  email      String   @unique
+  password   String
+  rol        Role
+  activo     Boolean  @default(true)
+  programa   Programa? @relation(fields: [programaId], references: [id])
+  programaId Int?
+  
+  movimientos Movimiento[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([email])
+}
+
+// ============================================================================
+// PROGRAMAS
+// ============================================================================
+
+model Programa {
+  id             Int      @id @default(autoincrement())
+  nombre         String   @unique
+  descripcion    String?
+  tipo           String   // REGULAR, PARTICULAR, DIARIO
+  usaCronograma  Boolean  @default(false)
+  usaPlantilla   Boolean  @default(true)
+  descuentaStock Boolean  @default(true)
+  activo         Boolean  @default(true)
+  
+  // Relaciones
+  plantillas        Plantilla[]
+  usuarios          Usuario[]
+  beneficiarios     Beneficiario[]
+  movimientos       Movimiento[]
+  entregas          EntregaProgramada[]
+  remitos           Remito[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activo])
+}
+
+// ============================================================================
+// BENEFICIARIOS (ESPACIOS, COMEDORES, ORGANIZACIONES, CASOS PARTICULARES)
+// ============================================================================
+
+model Beneficiario {
+  id                 Int      @id @default(autoincrement())
+  nombre             String
+  tipo               String   // ESPACIO, ORGANIZACION, CASO_PARTICULAR, COMEDOR
+  direccion          String?
+  localidad          String?
+  telefono           String?
+  responsableNombre  String?
+  responsableDNI     String?
+  lat                Float?
+  lng                Float?
+  frecuenciaEntrega  String?  // MENSUAL, BIMESTRAL, EVENTUAL
+  activo             Boolean  @default(true)
+  observaciones      String?
+  
+  // Programa al que pertenece
+  programa           Programa? @relation(fields: [programaId], references: [id])
+  programaId         Int?
+  
+  // Relaciones
+  entregas           EntregaProgramada[]
+  remitos            Remito[]
+  movimientos        Movimiento[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activo])
+  @@index([programaId])
+  @@index([localidad])
+}
+
+// ============================================================================
+// DEPÓSITOS (LOGISTICA Y CITA)
+// ============================================================================
+
+model Deposito {
+  id        Int     @id @default(autoincrement())
+  codigo    String  @unique    // 'LOGISTICA' | 'CITA'
+  nombre    String
+  direccion String?
+  telefono  String?
+  activo    Boolean @default(true)
+  
+  // Relaciones de stock
+  stockItems Stock[]
+  
+  // Movimientos desde este depósito
+  movimientosDesde Movimiento[] @relation("MovimientoDesde")
+  
+  // Movimientos hacia este depósito
+  movimientosHacia Movimiento[] @relation("MovimientoHacia")
+  
+  // Remitos desde este depósito
+  remitos Remito[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([codigo])
+}
+
+// ============================================================================
+// ARTÍCULOS E INVENTARIO
+// ============================================================================
+
+model Articulo {
+  id             Int     @id @default(autoincrement())
+  nombre         String  @unique
+  descripcion    String?
+  categoria      String?
+  pesoUnitarioKg Float?  // Peso por unidad en kilogramos
+  stockMinimo    Float?  // Alerta de stock mínimo
+  activo         Boolean @default(true)
+  
+  // Relaciones
+  plantillaItems PlantillaItem[]
+  remitoItems    RemitoItem[]
+  movimientos    Movimiento[]
+  stockItems     Stock[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activo])
+  @@index([categoria])
+}
+
+// ============================================================================
+// STOCK POR DEPÓSITO
+// ============================================================================
+
+model Stock {
+  id         Int      @id @default(autoincrement())
+  articulo   Articulo @relation(fields: [articuloId], references: [id])
+  articuloId Int
+  deposito   Deposito @relation(fields: [depositoId], references: [id])
+  depositoId Int
+  cantidad   Float    @default(0)
+  
+  updatedAt DateTime @updatedAt
+
+  @@unique([articuloId, depositoId])
+  @@index([depositoId])
+  @@index([articuloId])
+}
+
+// ============================================================================
+// MOVIMIENTOS DE STOCK (TRAZABILIDAD COMPLETA)
+// ============================================================================
+
+model Movimiento {
+  id              Int            @id @default(autoincrement())
+  tipo            MovimientoTipo
+  cantidad        Float
+  observaciones   String?
+  fecha           DateTime       @default(now())
+  
+  // Artículo
+  articulo        Articulo       @relation(fields: [articuloId], references: [id])
+  articuloId      Int
+  
+  // Usuario que realizó el movimiento
+  usuario         Usuario?       @relation(fields: [usuarioId], references: [id])
+  usuarioId       Int?
+  
+  // Programa asociado
+  programa        Programa?      @relation(fields: [programaId], references: [id])
+  programaId      Int?
+  
+  // Beneficiario asociado
+  beneficiario    Beneficiario?  @relation(fields: [beneficiarioId], references: [id])
+  beneficiarioId  Int?
+  
+  // Remito asociado
+  remito          Remito?        @relation(fields: [remitoId], references: [id])
+  remitoId        Int?
+  
+  // Depósito origen (para EGRESO y TRANSFERENCIA)
+  depositoDesde   Deposito?      @relation("MovimientoDesde", fields: [depositoDesdeId], references: [id])
+  depositoDesdeId Int?
+  
+  // Depósito destino (para INGRESO y TRANSFERENCIA)
+  depositoHacia   Deposito?      @relation("MovimientoHacia", fields: [depositoHaciaId], references: [id])
+  depositoHaciaId Int?
+
+  @@index([fecha])
+  @@index([tipo])
+  @@index([articuloId])
+  @@index([remitoId])
+  @@index([programaId])
+}
+
+// ============================================================================
+// PLANTILLAS DE ENTREGA
+// ============================================================================
+
+model Plantilla {
+  id          Int             @id @default(autoincrement())
+  nombre      String
+  descripcion String?
+  activo      Boolean         @default(true)
+  
+  // Programa al que pertenece
+  programa    Programa        @relation(fields: [programaId], references: [id])
+  programaId  Int
+  
+  // Items de la plantilla
+  items       PlantillaItem[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([programaId])
+  @@index([activo])
+}
+
+model PlantillaItem {
+  id           Int       @id @default(autoincrement())
+  plantilla    Plantilla @relation(fields: [plantillaId], references: [id], onDelete: Cascade)
+  plantillaId  Int
+  articulo     Articulo  @relation(fields: [articuloId], references: [id])
+  articuloId   Int
+  cantidadBase Float     // Cantidad por defecto
+
+  @@index([plantillaId])
+  @@index([articuloId])
+}
+
+// ============================================================================
+// CRONOGRAMA Y ENTREGAS PROGRAMADAS
+// ============================================================================
+
+model EntregaProgramada {
+  id               Int           @id @default(autoincrement())
+  beneficiario     Beneficiario  @relation(fields: [beneficiarioId], references: [id])
+  beneficiarioId   Int
+  programa         Programa      @relation(fields: [programaId], references: [id])
+  programaId       Int
+  fechaProgramada  DateTime
+  estado           EntregaEstado @default(PENDIENTE)
+  observaciones    String?
+  
+  // Remito generado (cuando pasa a GENERADA)
+  remito           Remito?       @relation(fields: [remitoId], references: [id])
+  remitoId         Int?          @unique
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([estado])
+  @@index([fechaProgramada])
+  @@index([beneficiarioId])
+  @@index([programaId])
+}
+
+// ============================================================================
+// REMITOS
+// ============================================================================
+
+model Remito {
+  id              Int           @id @default(autoincrement())
+  numero          String        @unique  // Formato: PA 1001649
+  fecha           DateTime      @default(now())
+  estado          RemitoEstado  @default(BORRADOR)
+  totalKg         Float?
+  observaciones   String?
+  
+  // Programa y Beneficiario
+  programa        Programa?     @relation(fields: [programaId], references: [id])
+  programaId      Int?
+  beneficiario    Beneficiario? @relation(fields: [beneficiarioId], references: [id])
+  beneficiarioId  Int?
+  
+  // Depósito de origen
+  deposito        Deposito      @relation(fields: [depositoId], references: [id])
+  depositoId      Int
+  
+  // Items del remito
+  items           RemitoItem[]
+  
+  // Movimientos de stock generados
+  movimientos     Movimiento[]
+  
+  // Entrega programada asociada (si existe)
+  entrega         EntregaProgramada?
+  
+  // Email enviado
+  emailEnviado    Boolean       @default(false)
+  fechaEnvio      DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([estado])
+  @@index([fecha])
+  @@index([numero])
+  @@index([beneficiarioId])
+  @@index([programaId])
+  @@index([depositoId])
+}
+
+model RemitoItem {
+  id         Int      @id @default(autoincrement())
+  remito     Remito   @relation(fields: [remitoId], references: [id], onDelete: Cascade)
+  remitoId   Int
+  articulo   Articulo @relation(fields: [articuloId], references: [id])
+  articuloId Int
+  cantidad   Float
+  pesoKg     Float?   // Peso total en kg (cantidad * pesoUnitario)
+
+  @@index([remitoId])
+  @@index([articuloId])
+}
+
+// ============================================================================
+// CORRELATIVOS (para numeración de remitos)
+// ============================================================================
+
+model Correlativo {
+  id     Int    @id @default(autoincrement())
+  clave  String @unique  // 'remito_pa'
+  ultimo Int    @default(1001648)
+  
+  updatedAt DateTime @updatedAt
+}
