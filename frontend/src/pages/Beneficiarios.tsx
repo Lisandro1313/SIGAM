@@ -14,12 +14,19 @@ import {
   Chip,
   IconButton,
   TablePagination,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
-import { Add as AddIcon, LocationOn as LocationIcon, Edit as EditIcon } from '@mui/icons-material';
+import { Add as AddIcon, LocationOn as LocationIcon, Edit as EditIcon, Assignment as RelevamientoIcon } from '@mui/icons-material';
 import api from '../services/api';
 import BeneficiarioForm from '../components/BeneficiarioForm';
 import SearchBar from '../components/SearchBar';
 import ExportExcelButton from '../components/ExportExcelButton';
+import { useAuthStore } from '../stores/authStore';
+import { puedeHacer } from '../utils/permisos';
 
 export default function BeneficiariosPage() {
   const [beneficiarios, setBeneficiarios] = useState<any[]>([]);
@@ -29,6 +36,17 @@ export default function BeneficiariosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  // Relevamiento dialog (TRABAJADORA_SOCIAL)
+  const [relevamientoOpen, setRelevamientoOpen] = useState(false);
+  const [relevamientoTarget, setRelevamientoTarget] = useState<any>(null);
+  const [observaciones, setObservaciones] = useState('');
+  const [savingRelevamiento, setSavingRelevamiento] = useState(false);
+
+  const { user } = useAuthStore();
+  const puedeEditar = user ? puedeHacer(user.rol, 'beneficiarios.editar') : false;
+  const puedeCrear  = user ? puedeHacer(user.rol, 'beneficiarios.crear')  : false;
+  const puedeRelevamiento = user ? puedeHacer(user.rol, 'beneficiarios.relevamiento') : false;
 
   useEffect(() => {
     loadBeneficiarios();
@@ -53,6 +71,26 @@ export default function BeneficiariosPage() {
   const handleCloseForm = () => {
     setFormOpen(false);
     setSelectedBeneficiario(null);
+  };
+
+  const handleAbrirRelevamiento = (beneficiario: any) => {
+    setRelevamientoTarget(beneficiario);
+    setObservaciones(beneficiario.observaciones || '');
+    setRelevamientoOpen(true);
+  };
+
+  const handleGuardarRelevamiento = async () => {
+    if (!relevamientoTarget) return;
+    setSavingRelevamiento(true);
+    try {
+      await api.patch(`/beneficiarios/${relevamientoTarget.id}/relevamiento`, { observaciones });
+      setRelevamientoOpen(false);
+      loadBeneficiarios();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingRelevamiento(false);
+    }
   };
 
   if (loading) {
@@ -91,23 +129,27 @@ export default function BeneficiariosPage() {
           Beneficiarios
         </Typography>
         <Box display="flex" gap={2}>
-          <ExportExcelButton
-            data={beneficiarios.map((b) => ({
-              nombre: b.nombre,
-              tipo: b.tipo,
-              localidad: b.localidad,
-              direccion: b.direccion,
-              telefono: b.telefono,
-              programa: b.programa?.nombre || '-',
-              frecuencia: b.frecuenciaEntrega,
-            }))}
-            fileName="beneficiarios"
-            sheetName="Beneficiarios"
-            label="Exportar"
-          />
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
-            Nuevo Beneficiario
-          </Button>
+          {puedeEditar && (
+            <ExportExcelButton
+              data={beneficiarios.map((b) => ({
+                nombre: b.nombre,
+                tipo: b.tipo,
+                localidad: b.localidad,
+                direccion: b.direccion,
+                telefono: b.telefono,
+                programa: b.programa?.nombre || '-',
+                frecuencia: b.frecuenciaEntrega,
+              }))}
+              fileName="beneficiarios"
+              sheetName="Beneficiarios"
+              label="Exportar"
+            />
+          )}
+          {puedeCrear && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
+              Nuevo Beneficiario
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -166,16 +208,28 @@ export default function BeneficiariosPage() {
                   />
                 </TableCell>
                 <TableCell align="center">
-                  {beneficiario.latitud && beneficiario.longitud ? (
+                  {beneficiario.lat && beneficiario.lng ? (
                     <LocationIcon color="success" />
                   ) : (
                     <LocationIcon color="disabled" />
                   )}
                 </TableCell>
                 <TableCell align="center">
-                  <IconButton size="small" onClick={() => handleEdit(beneficiario)}>
-                    <EditIcon />
-                  </IconButton>
+                  {puedeEditar && (
+                    <IconButton size="small" onClick={() => handleEdit(beneficiario)}>
+                      <EditIcon />
+                    </IconButton>
+                  )}
+                  {puedeRelevamiento && !puedeEditar && (
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      title="Cargar relevamiento"
+                      onClick={() => handleAbrirRelevamiento(beneficiario)}
+                    >
+                      <RelevamientoIcon />
+                    </IconButton>
+                  )}
                 </TableCell>
               </TableRow>
             ))
@@ -204,6 +258,37 @@ export default function BeneficiariosPage() {
         }}
         beneficiario={selectedBeneficiario}
       />
+
+      {/* Dialog relevamiento */}
+      <Dialog open={relevamientoOpen} onClose={() => setRelevamientoOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Relevamiento — {relevamientoTarget?.nombre}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Actualizar observaciones y datos de relevamiento del beneficiario.
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={5}
+            label="Observaciones"
+            value={observaciones}
+            onChange={(e) => setObservaciones(e.target.value)}
+            placeholder="Situación habitacional, necesidades, novedades..."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRelevamientoOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleGuardarRelevamiento}
+            disabled={savingRelevamiento}
+          >
+            {savingRelevamiento ? <CircularProgress size={24} /> : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

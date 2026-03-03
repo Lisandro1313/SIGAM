@@ -6,14 +6,23 @@ import {
   CardContent,
   Typography,
   CircularProgress,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
 } from '@mui/material';
 import {
   People as PeopleIcon,
   Receipt as ReceiptIcon,
-  Inventory as InventoryIcon,
   Category as CategoryIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -61,22 +70,31 @@ export default function Dashboard() {
       icon: <CategoryIcon sx={{ fontSize: 40 }} />,
       color: '#f57c00',
     },
-    {
-      title: 'Stock Total',
-      value: data?.stockTotal || 0,
-      icon: <InventoryIcon sx={{ fontSize: 40 }} />,
-      color: '#7b1fa2',
-    },
   ];
+
+  const getEstadoColor = (estado: string) => {
+    switch (estado) {
+      case 'CONFIRMADO':
+        return 'success';
+      case 'ENVIADO':
+        return 'info';
+      case 'PENDIENTE':
+        return 'warning';
+      default:
+        return 'default';
+    }
+  };
 
   return (
     <Box>
       <Typography variant="h4" gutterBottom fontWeight="bold">
         Dashboard
       </Typography>
-      <Grid container spacing={3} mt={2}>
+      
+      {/* Tarjetas de resumen */}
+      <Grid container spacing={3} mt={1}>
         {cards.map((card, index) => (
-          <Grid item xs={12} sm={6} md={3} key={index}>
+          <Grid item xs={12} sm={6} md={4} key={index}>
             <Card elevation={2}>
               <CardContent>
                 <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -96,12 +114,105 @@ export default function Dashboard() {
         ))}
       </Grid>
 
-      <Box mt={3}>
-        <Typography variant="h6" gutterBottom>
-          Bienvenido a SIGAM
+      {/* Remitos del día */}
+      <Box mt={4}>
+        <Typography variant="h6" gutterBottom fontWeight="bold">
+          Remitos del Día - {format(new Date(), "EEEE d/M", { locale: es })}
         </Typography>
+        <TableContainer component={Paper} elevation={2}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Nº Remito</TableCell>
+                <TableCell>Beneficiario</TableCell>
+                <TableCell>Programa</TableCell>
+                <TableCell align="right">Peso (kg)</TableCell>
+                <TableCell align="center">Estado</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(!data?.remitosDelDia || data.remitosDelDia.length === 0) ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center">
+                    <Typography variant="body2" color="text.secondary">
+                      No hay remitos para hoy
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                data.remitosDelDia.map((remito: any) => (
+                  <TableRow key={remito.id} hover>
+                    <TableCell>{remito.numero}</TableCell>
+                    <TableCell>{remito.beneficiario}</TableCell>
+                    <TableCell>{remito.programa}</TableCell>
+                    <TableCell align="right">{remito.totalKg.toFixed(2)}</TableCell>
+                    <TableCell align="center">
+                      <Chip 
+                        label={remito.estado} 
+                        size="small" 
+                        color={getEstadoColor(remito.estado)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+
+      {/* Programas */}
+      <Box mt={4}>
+        <Typography variant="h6" gutterBottom fontWeight="bold">
+          Programas Alimentarios
+        </Typography>
+        <Grid container spacing={2}>
+          {(!data?.programas || data.programas.length === 0) ? (
+            <Grid item xs={12}>
+              <Paper elevation={1} sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  No hay programas activos
+                </Typography>
+              </Paper>
+            </Grid>
+          ) : (
+            data.programas.map((programa: any) => (
+              <Grid item xs={12} sm={6} md={4} key={programa.id}>
+                <Card elevation={2}>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary" fontWeight="bold">
+                      {programa.nombre}
+                    </Typography>
+                    <Box display="flex" justifyContent="space-between" mt={2}>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Beneficiarios
+                        </Typography>
+                        <Typography variant="h5" fontWeight="bold">
+                          {programa.beneficiarios}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Remitos
+                        </Typography>
+                        <Typography variant="h5" fontWeight="bold">
+                          {programa.remitos}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))
+          )}
+        </Grid>
+      </Box>
+
+      <Box mt={4}>
         <Typography variant="body2" color="text.secondary">
-          Sistema Integral de Gestión Alimentaria Municipal - Secretaría de Desarrollo Social
+          SIGAM - Sistema Integral de Gestión Alimentaria Municipal<br />
+          Secretaría de Desarrollo Social
         </Typography>
       </Box>
     </Box>

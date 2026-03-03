@@ -35,13 +35,13 @@ export default function BeneficiarioForm({
     direccion: beneficiario?.direccion || '',
     localidad: beneficiario?.localidad || '',
     telefono: beneficiario?.telefono || '',
-    email: beneficiario?.email || '',
     responsableNombre: beneficiario?.responsableNombre || '',
-    responsableDni: beneficiario?.responsableDni || '',
-    latitud: beneficiario?.latitud || null,
-    longitud: beneficiario?.longitud || null,
+    responsableDNI: beneficiario?.responsableDNI || '',
+    lat: beneficiario?.lat || null,
+    lng: beneficiario?.lng || null,
     frecuenciaEntrega: beneficiario?.frecuenciaEntrega || 'EVENTUAL',
     programaId: beneficiario?.programaId || null,
+    observaciones: beneficiario?.observaciones || '',
     activo: beneficiario?.activo ?? true,
   });
 
@@ -65,8 +65,8 @@ export default function BeneficiarioForm({
     try {
       const data = {
         ...formData,
-        latitud: formData.latitud ? parseFloat(formData.latitud as any) : null,
-        longitud: formData.longitud ? parseFloat(formData.longitud as any) : null,
+        lat: formData.lat ? parseFloat(formData.lat as any) : null,
+        lng: formData.lng ? parseFloat(formData.lng as any) : null,
       };
 
       if (beneficiario) {
@@ -155,16 +155,6 @@ export default function BeneficiarioForm({
                 margin="normal"
               />
             </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleChange('email', e.target.value)}
-                margin="normal"
-              />
-            </Grid>
             <Grid item xs={12} md={8}>
               <TextField
                 fullWidth
@@ -179,8 +169,8 @@ export default function BeneficiarioForm({
               <TextField
                 fullWidth
                 label="Responsable - DNI"
-                value={formData.responsableDni}
-                onChange={(e) => handleChange('responsableDni', e.target.value)}
+                value={formData.responsableDNI}
+                onChange={(e) => handleChange('responsableDNI', e.target.value)}
                 margin="normal"
                 required
               />
@@ -190,8 +180,8 @@ export default function BeneficiarioForm({
                 fullWidth
                 label="Latitud"
                 type="number"
-                value={formData.latitud || ''}
-                onChange={(e) => handleChange('latitud', e.target.value)}
+                value={formData.lat || ''}
+                onChange={(e) => handleChange('lat', e.target.value)}
                 margin="normal"
                 inputProps={{ step: 0.000001 }}
                 helperText="Coordenada GPS (opcional)"
@@ -202,8 +192,8 @@ export default function BeneficiarioForm({
                 fullWidth
                 label="Longitud"
                 type="number"
-                value={formData.longitud || ''}
-                onChange={(e) => handleChange('longitud', e.target.value)}
+                value={formData.lng || ''}
+                onChange={(e) => handleChange('lng', e.target.value)}
                 margin="normal"
                 inputProps={{ step: 0.000001 }}
                 helperText="Coordenada GPS (opcional)"
@@ -241,6 +231,20 @@ export default function BeneficiarioForm({
                 ))}
               </TextField>
             </Grid>
+            {formData.tipo === 'CASO_PARTICULAR' && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Relevamiento / Observaciones"
+                  value={formData.observaciones}
+                  onChange={(e) => handleChange('observaciones', e.target.value)}
+                  margin="normal"
+                  multiline
+                  rows={3}
+                  helperText="Detalles de la visita de trabajadora social, estado de aprobación, prioridad, etc."
+                />
+              </Grid>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions>

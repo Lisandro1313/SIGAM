@@ -8,6 +8,8 @@ interface User {
   email: string;
   rol: string;
   programa?: any;
+  depositoId?: number;
+  deposito?: any;
 }
 
 interface AuthState {

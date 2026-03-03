@@ -52,10 +52,10 @@ export class CreateBeneficiarioDto {
   @IsOptional()
   frecuenciaEntrega?: string; // MENSUAL, BIMESTRAL, EVENTUAL
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
   @IsInt()
-  @IsNotEmpty()
-  programaId: number;
+  @IsOptional()
+  programaId?: number;
 
   @ApiProperty({ required: false })
   @IsString()

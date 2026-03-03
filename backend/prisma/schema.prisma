@@ -14,10 +14,12 @@ datasource db {
 // ============================================================================
 
 enum Role {
-  ADMIN
-  LOGISTICA
-  OPERADOR_PROGRAMA
-  VISOR
+  ADMIN                // Políticas Alimentarias - acceso total
+  LOGISTICA            // Stock, depósitos, transferencias
+  OPERADOR_PROGRAMA    // Beneficiarios, remitos de su programa
+  TRABAJADORA_SOCIAL   // Solo relevamiento (observaciones) de beneficiarios
+  ASISTENCIA_CRITICA   // Solo sus propios remitos (chapas, materiales, etc.)
+  VISOR                // Solo lectura: dashboard y reportes
 }
 
 enum MovimientoTipo {
@@ -39,6 +41,7 @@ enum RemitoEstado {
   CONFIRMADO
   ENVIADO
   PENDIENTE_STOCK
+  ENTREGADO
 }
 
 // ============================================================================
@@ -54,7 +57,9 @@ model Usuario {
   activo     Boolean  @default(true)
   programa   Programa? @relation(fields: [programaId], references: [id])
   programaId Int?
-  
+  deposito   Deposito? @relation(fields: [depositoId], references: [id])
+  depositoId Int?
+
   movimientos Movimiento[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -148,8 +153,11 @@ model Deposito {
   movimientosHacia Movimiento[] @relation("MovimientoHacia")
   
   // Remitos desde este depósito
-  remitos Remito[]
-  
+  remitos  Remito[]
+
+  // Usuarios asignados (LOGISTICA)
+  usuarios Usuario[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -344,7 +352,12 @@ model Remito {
   // Email enviado
   emailEnviado    Boolean       @default(false)
   fechaEnvio      DateTime?
-  
+
+  // Entrega física
+  entregadoAt    DateTime?
+  entregadoNota  String?
+  entregadoFoto  String?   // path relativo: uploads/remitos/foto.jpg
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

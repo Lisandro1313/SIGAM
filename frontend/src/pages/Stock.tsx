@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAuthStore } from '../stores/authStore';
 import {
   Box,
   Button,
@@ -26,6 +27,9 @@ import StockIngresoForm from '../components/StockIngresoForm';
 import StockTransferForm from '../components/StockTransferForm';
 
 export default function StockPage() {
+  const { user } = useAuthStore();
+  const soloLectura = !!(user?.depositoId);
+
   const [stock, setStock] = useState<any[]>([]);
   const [depositos, setDepositos] = useState<any[]>([]);
   const [selectedDeposito, setSelectedDeposito] = useState(0);
@@ -89,20 +93,24 @@ export default function StockPage() {
           Stock
         </Typography>
         <Box display="flex" gap={2}>
-          <Button
-            variant="outlined"
-            startIcon={<TransferIcon />}
-            onClick={() => setTransferFormOpen(true)}
-          >
-            Transferir
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setIngresoFormOpen(true)}
-          >
-            Registrar Ingreso
-          </Button>
+          {!soloLectura && (
+            <Button
+              variant="outlined"
+              startIcon={<TransferIcon />}
+              onClick={() => setTransferFormOpen(true)}
+            >
+              Transferir
+            </Button>
+          )}
+          {!soloLectura && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setIngresoFormOpen(true)}
+            >
+              Registrar Ingreso
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -117,7 +125,7 @@ export default function StockPage() {
           value={selectedDeposito}
           onChange={(_, value) => setSelectedDeposito(value)}
         >
-          {depositos.map((deposito, index) => (
+          {depositos.map((deposito, _index) => (
             <Tab key={deposito.id} label={deposito.nombre} />
           ))}
         </Tabs>
@@ -132,10 +140,10 @@ export default function StockPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Código</TableCell>
                 <TableCell>Artículo</TableCell>
+                <TableCell>Categoría</TableCell>
                 <TableCell align="right">Cantidad</TableCell>
-                <TableCell>Unidad</TableCell>
+                <TableCell>Peso Unit.</TableCell>
                 <TableCell align="right">Stock Mínimo</TableCell>
                 <TableCell align="center">Estado</TableCell>
               </TableRow>
@@ -149,12 +157,12 @@ export default function StockPage() {
                     hover
                     sx={{ bgcolor: isBajo ? 'warning.light' : 'inherit' }}
                   >
-                    <TableCell>{item.articulo.codigo}</TableCell>
-                    <TableCell>{item.articulo.descripcion}</TableCell>
+                    <TableCell><strong>{item.articulo.nombre}</strong></TableCell>
+                    <TableCell>{item.articulo.categoria || '-'}</TableCell>
                     <TableCell align="right">
                       <strong>{item.cantidad}</strong>
                     </TableCell>
-                    <TableCell>{item.articulo.unidadMedida}</TableCell>
+                    <TableCell>{item.articulo.pesoUnitarioKg ? `${item.articulo.pesoUnitarioKg} kg/u` : '-'}</TableCell>
                     <TableCell align="right">{item.articulo.stockMinimo}</TableCell>
                     <TableCell align="center">
                       {isBajo ? (

@@ -81,16 +81,16 @@ export default function ReportesPage() {
       {/* Kilos por Mes */}
       <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>
-          Kilos Distribuidos por Mes (Últimos 12 meses)
+          Kilos Distribuidos (Últimos 6 meses)
         </Typography>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={kilosPorMes}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="mes" />
+            <XAxis dataKey="mesNombre" />
             <YAxis />
-            <Tooltip />
+            <Tooltip formatter={(v: any) => [`${v.toFixed(2)} kg`, 'Total Kg']} />
             <Legend />
-            <Bar dataKey="totalKg" fill="#1976d2" name="Total Kg" />
+            <Bar dataKey="totalKilos" fill="#1976d2" name="Total Kg" />
           </BarChart>
         </ResponsiveContainer>
       </Paper>
@@ -109,7 +109,7 @@ export default function ReportesPage() {
                     {programa.programa}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Entregas: {programa.entregas} | Kilos: {programa.totalKg.toFixed(2)}
+                    Remitos: {programa.cantidadRemitos} | Kilos: {(programa.totalKilos || 0).toFixed(2)}
                   </Typography>
                 </CardContent>
               </Card>
@@ -136,7 +136,7 @@ export default function ReportesPage() {
                     <TableRow key={index}>
                       <TableCell>{articulo.articulo}</TableCell>
                       <TableCell align="right">
-                        <strong>{articulo.totalDistribuido}</strong>
+                        <strong>{articulo.cantidadTotal}</strong>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -161,7 +161,6 @@ export default function ReportesPage() {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Código</TableCell>
                       <TableCell>Artículo</TableCell>
                       <TableCell>Depósito</TableCell>
                       <TableCell align="right">Stock Actual</TableCell>
@@ -171,12 +170,9 @@ export default function ReportesPage() {
                   <TableBody>
                     {stockBajo.map((item, index) => (
                       <TableRow key={index} sx={{ bgcolor: 'warning.light' }}>
-                        <TableCell>{item.articulo.codigo}</TableCell>
-                        <TableCell>{item.articulo.descripcion}</TableCell>
+                        <TableCell>{item.articulo}</TableCell>
                         <TableCell>{item.deposito}</TableCell>
-                        <TableCell align="right">
-                          <strong>{item.stockActual}</strong>
-                        </TableCell>
+                        <TableCell align="right"><strong>{item.stockActual}</strong></TableCell>
                         <TableCell align="right">{item.stockMinimo}</TableCell>
                       </TableRow>
                     ))}

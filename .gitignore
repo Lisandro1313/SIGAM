@@ -41,7 +41,13 @@ prisma/migrations/dev.db*
 backend/generated/
 frontend/build/
 
-# PDFs generados
+# Archivos subidos (fotos firmadas, PDFs) - no commitear
+# Las carpetas se mantienen con .gitkeep para crearse al clonar
+uploads/*
+!uploads/.gitkeep
+!uploads/remitos
+uploads/remitos/*
+!uploads/remitos/.gitkeep
 backend/uploads/
 backend/pdfs/
 

@@ -18,8 +18,11 @@ export class ReportesController {
 
   @Get('kilos-por-mes')
   @ApiOperation({ summary: 'Total de kilos entregados por mes' })
-  kilosPorMes(@Query('mes') mes: string, @Query('anio') anio: string) {
-    return this.reportesService.kilosPorMes(parseInt(mes), parseInt(anio));
+  kilosPorMes(@Query('mes') mes?: string, @Query('anio') anio?: string) {
+    return this.reportesService.kilosPorMes(
+      mes ? parseInt(mes) : undefined,
+      anio ? parseInt(anio) : undefined,
+    );
   }
 
   @Get('entregas-por-localidad')

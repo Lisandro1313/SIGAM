@@ -25,7 +25,7 @@ import {
   Typography,
   CircularProgress,
 } from '@mui/material';
-import { Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Add as AddIcon, PlaylistAdd as PlantillaIcon } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
 
@@ -51,13 +51,16 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
 
   // Step 1: Datos básicos
   const [beneficiarios, setBeneficiarios] = useState<any[]>([]);
+  const [programas, setProgramas] = useState<any[]>([]);
   const [depositos, setDepositos] = useState<any[]>([]);
   const [beneficiarioId, setBeneficiarioId] = useState('');
+  const [programaId, setProgramaId] = useState('');
   const [depositoId, setDepositoId] = useState('');
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
 
   // Step 2: Items
   const [articulos, setArticulos] = useState<any[]>([]);
+  const [plantillas, setPlantillas] = useState<any[]>([]);
   const [items, setItems] = useState<RemitoItem[]>([]);
   const [selectedArticuloId, setSelectedArticuloId] = useState('');
   const [cantidad, setCantidad] = useState('');
@@ -67,6 +70,8 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
       loadBeneficiarios();
       loadDepositos();
       loadArticulos();
+      loadProgramas();
+      loadPlantillas();
     }
   }, [open]);
 
@@ -76,6 +81,15 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
       setBeneficiarios(response.data.filter((b: any) => b.activo));
     } catch (error) {
       console.error('Error cargando beneficiarios:', error);
+    }
+  };
+
+  const loadProgramas = async () => {
+    try {
+      const response = await api.get('/programas');
+      setProgramas(response.data.filter((p: any) => p.activo));
+    } catch (error) {
+      console.error('Error cargando programas:', error);
     }
   };
 
@@ -95,6 +109,29 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
     } catch (error) {
       console.error('Error cargando artículos:', error);
     }
+  };
+
+  const loadPlantillas = async () => {
+    try {
+      const response = await api.get('/plantillas');
+      setPlantillas(response.data);
+    } catch (error) {
+      console.error('Error cargando plantillas:', error);
+    }
+  };
+
+  const handleCargarPlantilla = (plantillaId: string) => {
+    if (!plantillaId) return;
+    const plantilla = plantillas.find((p) => p.id === parseInt(plantillaId));
+    if (!plantilla) return;
+    const nuevosItems: RemitoItem[] = plantilla.items.map((item: any) => ({
+      articuloId: item.articulo.id,
+      articuloNombre: item.articulo.nombre,
+      cantidad: item.cantidadBase,
+      pesoKg: (item.articulo.pesoUnitarioKg || 0) * item.cantidadBase,
+    }));
+    setItems(nuevosItems);
+    showNotification(`Plantilla "${plantilla.nombre}" cargada (${nuevosItems.length} artículos)`, 'success');
   };
 
   const handleNext = () => {
@@ -128,9 +165,9 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
 
     const newItem: RemitoItem = {
       articuloId: articulo.id,
-      articuloNombre: articulo.descripcion,
+      articuloNombre: articulo.nombre,
       cantidad: parseFloat(cantidad),
-      pesoKg: articulo.pesoUnitarioKg * parseFloat(cantidad),
+      pesoKg: (articulo.pesoUnitarioKg || 0) * parseFloat(cantidad),
     };
 
     setItems([...items, newItem]);
@@ -148,7 +185,7 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
       await api.post('/remitos', {
         beneficiarioId: parseInt(beneficiarioId),
         depositoId: parseInt(depositoId),
-        fecha: new Date(fecha),
+        programaId: programaId ? parseInt(programaId) : undefined,
         items: items.map((item) => ({
           articuloId: item.articuloId,
           cantidad: item.cantidad,
@@ -168,6 +205,7 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
   const handleClose = () => {
     setActiveStep(0);
     setBeneficiarioId('');
+    setProgramaId('');
     setDepositoId('');
     setFecha(new Date().toISOString().split('T')[0]);
     setItems([]);
@@ -175,6 +213,7 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
     setCantidad('');
     onClose();
   };
+
 
   const totalKg = items.reduce((sum, item) => sum + item.pesoKg, 0);
 
@@ -196,7 +235,13 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
               <InputLabel>Beneficiario</InputLabel>
               <Select
                 value={beneficiarioId}
-                onChange={(e) => setBeneficiarioId(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBeneficiarioId(val);
+                  // Auto-completar programa del beneficiario
+                  const b = beneficiarios.find((b) => b.id === parseInt(val));
+                  if (b?.programaId) setProgramaId(String(b.programaId));
+                }}
                 label="Beneficiario"
               >
                 {beneficiarios.map((b) => (
@@ -212,7 +257,19 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
               <Select value={depositoId} onChange={(e) => setDepositoId(e.target.value)} label="Depósito">
                 {depositos.map((d) => (
                   <MenuItem key={d.id} value={d.id}>
-                    {d.nombre} - {d.tipo}
+                    {d.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>Programa</InputLabel>
+              <Select value={programaId} onChange={(e) => setProgramaId(e.target.value)} label="Programa">
+                <MenuItem value="">Sin programa</MenuItem>
+                {programas.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    {p.nombre}
                   </MenuItem>
                 ))}
               </Select>
@@ -232,6 +289,34 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
 
         {activeStep === 1 && (
           <Box sx={{ mt: 2 }}>
+            {/* Selector de plantilla */}
+            <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'primary.50' }}>
+              <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <PlantillaIcon fontSize="small" color="primary" />
+                Cargar desde plantilla (opcional)
+              </Typography>
+              <FormControl fullWidth size="small">
+                <InputLabel>Seleccionar plantilla...</InputLabel>
+                <Select
+                  value=""
+                  onChange={(e) => handleCargarPlantilla(e.target.value)}
+                  label="Seleccionar plantilla..."
+                >
+                  {plantillas
+                    .filter((p) => !programaId || p.programaId === parseInt(programaId) || !p.programaId)
+                    .map((p) => (
+                      <MenuItem key={p.id} value={p.id}>
+                        {p.nombre} ({p.items.length} artículos)
+                        {p.programa ? ` — ${p.programa.nombre}` : ''}
+                      </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
+              <Typography variant="caption" color="text.secondary">
+                Al seleccionar una plantilla se reemplaza la lista actual
+              </Typography>
+            </Paper>
+
             <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
               <FormControl fullWidth>
                 <InputLabel>Artículo</InputLabel>
@@ -242,7 +327,7 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
                 >
                   {articulos.map((a) => (
                     <MenuItem key={a.id} value={a.id}>
-                      {a.codigo} - {a.descripcion}
+                      {a.nombre}{a.categoria ? ` (${a.categoria})` : ''}
                     </MenuItem>
                   ))}
                 </Select>

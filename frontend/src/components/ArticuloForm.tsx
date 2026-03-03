@@ -7,7 +7,6 @@ import {
   Button,
   TextField,
   CircularProgress,
-  MenuItem,
 } from '@mui/material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
@@ -17,6 +16,7 @@ interface ArticuloFormProps {
   onClose: () => void;
   onSuccess: () => void;
   articulo?: any;
+  readOnly?: boolean;
 }
 
 export default function ArticuloForm({
@@ -24,16 +24,16 @@ export default function ArticuloForm({
   onClose,
   onSuccess,
   articulo,
+  readOnly = false,
 }: ArticuloFormProps) {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotificationStore();
   const [formData, setFormData] = useState({
-    codigo: articulo?.codigo || '',
+    nombre: articulo?.nombre || '',
     descripcion: articulo?.descripcion || '',
-    unidadMedida: articulo?.unidadMedida || 'UNIDAD',
+    categoria: articulo?.categoria || '',
     pesoUnitarioKg: articulo?.pesoUnitarioKg || 0,
     stockMinimo: articulo?.stockMinimo || 100,
-    activo: articulo?.activo ?? true,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,19 +67,19 @@ export default function ArticuloForm({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
-        {articulo ? 'Editar Artículo' : 'Nuevo Artículo'}
+        {readOnly ? 'Detalle de Artículo' : (articulo ? 'Editar Artículo' : 'Nuevo Artículo')}
       </DialogTitle>
       <form onSubmit={handleSubmit}>
         <DialogContent>
           <TextField
             fullWidth
-            label="Código"
-            value={formData.codigo}
-            onChange={(e) => handleChange('codigo', e.target.value)}
+            label="Nombre"
+            value={formData.nombre}
+            onChange={(e) => handleChange('nombre', e.target.value)}
             margin="normal"
             required
-            disabled={!!articulo}
-            helperText={articulo ? 'El código no se puede modificar' : ''}
+            disabled={!!articulo || readOnly}
+            helperText={articulo ? 'El nombre no se puede modificar' : ''}
           />
           <TextField
             fullWidth
@@ -87,23 +87,19 @@ export default function ArticuloForm({
             value={formData.descripcion}
             onChange={(e) => handleChange('descripcion', e.target.value)}
             margin="normal"
-            required
+            multiline
+            rows={2}
+            disabled={readOnly}
           />
           <TextField
-            select
             fullWidth
-            label="Unidad de Medida"
-            value={formData.unidadMedida}
-            onChange={(e) => handleChange('unidadMedida', e.target.value)}
+            label="Categoría"
+            value={formData.categoria}
+            onChange={(e) => handleChange('categoria', e.target.value)}
             margin="normal"
-            required
-          >
-            <MenuItem value="UNIDAD">Unidad</MenuItem>
-            <MenuItem value="KG">Kilogramos</MenuItem>
-            <MenuItem value="LITRO">Litros</MenuItem>
-            <MenuItem value="PAQUETE">Paquete</MenuItem>
-            <MenuItem value="CAJA">Caja</MenuItem>
-          </TextField>
+            placeholder="Ej: Alimentos, Lácteos, Granos, etc."
+            disabled={readOnly}
+          />
           <TextField
             fullWidth
             label="Peso Unitario (kg)"
@@ -114,6 +110,7 @@ export default function ArticuloForm({
             inputProps={{ step: 0.01, min: 0 }}
             required
             helperText="Peso en kilogramos de una unidad"
+            disabled={readOnly}
           />
           <TextField
             fullWidth
@@ -125,15 +122,20 @@ export default function ArticuloForm({
             inputProps={{ min: 0 }}
             required
             helperText="Cantidad mínima antes de mostrar alerta"
+            disabled={readOnly}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={onClose} disabled={loading}>
-            Cancelar
-          </Button>
-          <Button type="submit" variant="contained" disabled={loading}>
-            {loading ? <CircularProgress size={24} /> : 'Guardar'}
-          </Button>
+          {readOnly ? (
+            <Button onClick={onClose} variant="outlined">Cerrar</Button>
+          ) : (
+            <>
+              <Button onClick={onClose} disabled={loading}>Cancelar</Button>
+              <Button type="submit" variant="contained" disabled={loading}>
+                {loading ? <CircularProgress size={24} /> : 'Guardar'}
+              </Button>
+            </>
+          )}
         </DialogActions>
       </form>
     </Dialog>

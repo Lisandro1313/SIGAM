@@ -1,14 +1,25 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // CORS para desarrollo
+  // Servir archivos estáticos (fotos de remitos, etc.)
+  // Tanto en dev (src/) como en prod (dist/) sube dos niveles hasta la raíz del proyecto
+  app.useStaticAssets(join(__dirname, '..', '..', 'uploads'), { prefix: '/uploads' });
+
+  // CORS
+  const allowedOrigins = [
+    process.env.FRONTEND_URL || 'http://localhost:5173',
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ].filter(Boolean);
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
   });
 

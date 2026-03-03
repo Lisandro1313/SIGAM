@@ -13,14 +13,19 @@ import {
   TableRow,
   Chip,
   IconButton,
+  Alert,
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, VisibilityOutlined as ViewIcon } from '@mui/icons-material';
 import api from '../services/api';
 import ArticuloForm from '../components/ArticuloForm';
 import SearchBar from '../components/SearchBar';
 import ExportExcelButton from '../components/ExportExcelButton';
+import { useAuthStore } from '../stores/authStore';
 
 export default function ArticulosPage() {
+  const { user } = useAuthStore();
+  const soloLectura = !!(user?.depositoId);
+
   const [articulos, setArticulos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -62,8 +67,9 @@ export default function ArticulosPage() {
 
   const filteredArticulos = articulos.filter(
     (articulo) =>
-      articulo.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      articulo.descripcion.toLowerCase().includes(searchTerm.toLowerCase())
+      articulo.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      articulo.descripcion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      articulo.categoria?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -79,17 +85,25 @@ export default function ArticulosPage() {
             sheetName="Artículos"
             label="Exportar"
           />
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
-            Nuevo Artículo
-          </Button>
+          {!soloLectura && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
+              Nuevo Artículo
+            </Button>
+          )}
         </Box>
       </Box>
+
+      {soloLectura && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Vista de solo lectura
+        </Alert>
+      )}
 
       <Box mb={3} maxWidth={400}>
         <SearchBar
           value={searchTerm}
           onChange={setSearchTerm}
-          placeholder="Buscar por código o descripción..."
+          placeholder="Buscar por nombre, descripción o categoría..."
         />
       </Box>
 
@@ -97,9 +111,9 @@ export default function ArticulosPage() {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Código</TableCell>
+              <TableCell>Nombre</TableCell>
               <TableCell>Descripción</TableCell>
-              <TableCell>Unidad</TableCell>
+              <TableCell>Categoría</TableCell>
               <TableCell align="right">Peso Unit. (kg)</TableCell>
               <TableCell align="right">Stock Mínimo</TableCell>
               <TableCell align="center">Estado</TableCell>
@@ -118,11 +132,11 @@ export default function ArticulosPage() {
             ) : (
               filteredArticulos.map((articulo) => (
               <TableRow key={articulo.id} hover>
-                <TableCell>{articulo.codigo}</TableCell>
-                <TableCell>{articulo.descripcion}</TableCell>
-                <TableCell>{articulo.unidadMedida}</TableCell>
-                <TableCell align="right">{articulo.pesoUnitarioKg.toFixed(2)}</TableCell>
-                <TableCell align="right">{articulo.stockMinimo}</TableCell>
+                <TableCell><strong>{articulo.nombre}</strong></TableCell>
+                <TableCell>{articulo.descripcion || '-'}</TableCell>
+                <TableCell>{articulo.categoria || '-'}</TableCell>
+                <TableCell align="right">{articulo.pesoUnitarioKg?.toFixed(2) || '0.00'}</TableCell>
+                <TableCell align="right">{articulo.stockMinimo || 0}</TableCell>
                 <TableCell align="center">
                   <Chip
                     label={articulo.activo ? 'Activo' : 'Inactivo'}
@@ -131,9 +145,15 @@ export default function ArticulosPage() {
                   />
                 </TableCell>
                 <TableCell align="center">
-                  <IconButton size="small" onClick={() => handleEdit(articulo)}>
-                    <EditIcon />
-                  </IconButton>
+                  {soloLectura ? (
+                    <IconButton size="small" onClick={() => handleEdit(articulo)} title="Ver detalle">
+                      <ViewIcon />
+                    </IconButton>
+                  ) : (
+                    <IconButton size="small" onClick={() => handleEdit(articulo)}>
+                      <EditIcon />
+                    </IconButton>
+                  )}
                 </TableCell>
               </TableRow>
             ))
@@ -146,10 +166,11 @@ export default function ArticulosPage() {
         open={formOpen}
         onClose={handleCloseForm}
         onSuccess={() => {
-          loadArticulos();
+          if (!soloLectura) loadArticulos();
           handleCloseForm();
         }}
         articulo={selectedArticulo}
+        readOnly={soloLectura}
       />
     </Box>
   );

@@ -13,7 +13,7 @@ export class AuthService {
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.prisma.usuario.findUnique({
       where: { email },
-      include: { programa: true },
+      include: { programa: true, deposito: true },
     });
 
     if (!user) {
@@ -40,6 +40,7 @@ export class AuthService {
       sub: user.id,
       rol: user.rol,
       programaId: user.programaId,
+      depositoId: user.depositoId,
     };
 
     return {
@@ -50,6 +51,8 @@ export class AuthService {
         email: user.email,
         rol: user.rol,
         programa: user.programa,
+        depositoId: user.depositoId,
+        deposito: user.deposito,
       },
     };
   }
@@ -57,7 +60,7 @@ export class AuthService {
   async validateUserById(userId: number) {
     const user = await this.prisma.usuario.findUnique({
       where: { id: userId },
-      include: { programa: true },
+      include: { programa: true, deposito: true },
     });
 
     if (!user || !user.activo) {

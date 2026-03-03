@@ -127,7 +127,7 @@ export default function StockIngresoForm({
             <MenuItem value={0}>Seleccionar artículo</MenuItem>
             {articulos.map((articulo) => (
               <MenuItem key={articulo.id} value={articulo.id}>
-                {articulo.codigo} - {articulo.descripcion}
+                {articulo.nombre}{articulo.categoria ? ` (${articulo.categoria})` : ''}
               </MenuItem>
             ))}
           </TextField>

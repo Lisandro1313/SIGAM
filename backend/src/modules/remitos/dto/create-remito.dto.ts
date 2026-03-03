@@ -18,10 +18,10 @@ class RemitoItemDto {
 }
 
 export class CreateRemitoDto {
-  @ApiProperty()
+  @ApiProperty({ required: false })
   @IsInt()
-  @IsNotEmpty()
-  programaId: number;
+  @IsOptional()
+  programaId?: number;
 
   @ApiProperty()
   @IsInt()

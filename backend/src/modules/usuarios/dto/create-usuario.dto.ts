@@ -14,12 +14,17 @@ export class CreateUsuarioDto {
   @MinLength(6)
   password: string;
 
-  @ApiProperty({ enum: ['ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'VISOR'] })
-  @IsEnum(['ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'VISOR'])
+  @ApiProperty({ enum: ['ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR'] })
+  @IsEnum(['ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR'])
   rol: string;
 
   @ApiProperty({ required: false })
   @IsInt()
   @IsOptional()
   programaId?: number;
+
+  @ApiProperty({ required: false, description: 'Para rol LOGISTICA: depósito asignado' })
+  @IsInt()
+  @IsOptional()
+  depositoId?: number;
 }

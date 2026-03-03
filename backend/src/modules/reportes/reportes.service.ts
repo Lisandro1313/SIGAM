@@ -6,35 +6,43 @@ import { startOfMonth, endOfMonth } from 'date-fns';
 export class ReportesService {
   constructor(private prisma: PrismaService) {}
 
-  // Reporte: Kilos entregados por mes
-  async kilosPorMes(mes: number, anio: number) {
-    const fecha = new Date(anio, mes - 1, 1);
-    const inicio = startOfMonth(fecha);
-    const fin = endOfMonth(fecha);
+  // Reporte: Kilos entregados por mes (retorna los últimos N meses si no se especifica)
+  async kilosPorMes(mes?: number, anio?: number) {
+    // Si se pasan parámetros válidos, retorna un solo mes
+    if (mes && anio && !isNaN(mes) && !isNaN(anio)) {
+      const fecha = new Date(anio, mes - 1, 1);
+      const inicio = startOfMonth(fecha);
+      const fin = endOfMonth(fecha);
+      const remitos = await this.prisma.remito.findMany({
+        where: { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } },
+        select: { totalKg: true },
+      });
+      const totalKilos = remitos.reduce((sum, r) => sum + (r.totalKg || 0), 0);
+      return [{ mes, anio, totalKilos, cantidadRemitos: remitos.length }];
+    }
 
-    const remitos = await this.prisma.remito.findMany({
-      where: {
-        fecha: {
-          gte: inicio,
-          lte: fin,
-        },
-        estado: {
-          in: ['CONFIRMADO', 'ENVIADO'],
-        },
-      },
-      select: {
-        totalKg: true,
-      },
-    });
-
-    const totalKilos = remitos.reduce((sum, r) => sum + (r.totalKg || 0), 0);
-
-    return {
-      mes,
-      anio,
-      totalKilos,
-      cantidadRemitos: remitos.length,
-    };
+    // Sin parámetros: últimos 6 meses
+    const resultados = [];
+    const hoy = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      const inicio = startOfMonth(fecha);
+      const fin = endOfMonth(fecha);
+      const remitos = await this.prisma.remito.findMany({
+        where: { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } },
+        select: { totalKg: true },
+      });
+      const totalKilos = remitos.reduce((sum, r) => sum + (r.totalKg || 0), 0);
+      const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      resultados.push({
+        mes: fecha.getMonth() + 1,
+        mesNombre: MESES[fecha.getMonth()],
+        anio: fecha.getFullYear(),
+        totalKilos,
+        cantidadRemitos: remitos.length,
+      });
+    }
+    return resultados;
   }
 
   // Reporte: Entregas por localidad
@@ -244,9 +252,49 @@ export class ReportesService {
       },
     });
 
-    const stockTotal = await this.prisma.stock.aggregate({
-      _sum: {
-        cantidad: true,
+    // Obtener remitos del día actual
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const manana = new Date(hoy);
+    manana.setDate(manana.getDate() + 1);
+
+    const remitosDelDia = await this.prisma.remito.findMany({
+      where: {
+        fecha: {
+          gte: hoy,
+          lt: manana,
+        },
+      },
+      include: {
+        beneficiario: {
+          select: {
+            nombre: true,
+          },
+        },
+        programa: {
+          select: {
+            nombre: true,
+          },
+        },
+      },
+      orderBy: {
+        fecha: 'desc',
+      },
+    });
+
+    // Obtener lista de programas con beneficiarios
+    const programas = await this.prisma.programa.findMany({
+      where: { activo: true },
+      include: {
+        _count: {
+          select: {
+            beneficiarios: true,
+            remitos: true,
+          },
+        },
+      },
+      orderBy: {
+        nombre: 'asc',
       },
     });
 
@@ -255,7 +303,20 @@ export class ReportesService {
       programasActivos,
       depositos: depositosCount,
       remitosDelMes,
-      stockTotal: stockTotal._sum.cantidad || 0,
+      remitosDelDia: remitosDelDia.map(r => ({
+        id: r.id,
+        numero: r.numero,
+        beneficiario: r.beneficiario?.nombre || 'N/A',
+        programa: r.programa?.nombre || 'Sin programa',
+        totalKg: r.totalKg,
+        estado: r.estado,
+      })),
+      programas: programas.map(p => ({
+        id: p.id,
+        nombre: p.nombre,
+        beneficiarios: p._count.beneficiarios,
+        remitos: p._count.remitos,
+      })),
     };
   }
 }

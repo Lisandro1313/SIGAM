@@ -8,7 +8,7 @@ import { CreateRemitoDto } from './dto/create-remito.dto';
 import { ConfirmarRemitoDto } from './dto/confirmar-remito.dto';
 import { MovimientoTipo, RemitoEstado } from '@prisma/client';
 import { PdfService } from './services/pdf.service';
-import { EmailService } from './services/email.service';
+import { EmailService, OpcionesEnvio } from './services/email.service';
 
 @Injectable()
 export class RemitosService {
@@ -219,56 +219,47 @@ export class RemitosService {
   }
 
   // Enviar remito por email
-  async enviarPorEmail(id: number) {
+  async enviarPorEmail(id: number, opciones: OpcionesEnvio = {}) {
     const remito = await this.prisma.remito.findUnique({
       where: { id },
       include: {
-        items: {
-          include: {
-            articulo: true,
-          },
-        },
+        items: { include: { articulo: true } },
         beneficiario: true,
         programa: true,
         deposito: true,
       },
     });
 
-    if (!remito) {
-      throw new NotFoundException('Remito no encontrado');
-    }
+    if (!remito) throw new NotFoundException('Remito no encontrado');
 
-    if (remito.estado !== RemitoEstado.CONFIRMADO) {
+    if (remito.estado !== RemitoEstado.CONFIRMADO && remito.estado !== RemitoEstado.ENVIADO) {
       throw new BadRequestException('Solo se pueden enviar remitos confirmados');
     }
 
-    // Generar PDF
     const pdfBuffer = await this.pdfService.generarRemitoPdf(remito);
+    await this.emailService.enviarRemito(remito, pdfBuffer, opciones);
 
-    // Enviar por email
-    await this.emailService.enviarRemito(remito, pdfBuffer);
-
-    // Marcar como enviado
     await this.prisma.remito.update({
       where: { id },
-      data: {
-        emailEnviado: true,
-        fechaEnvio: new Date(),
-        estado: RemitoEstado.ENVIADO,
-      },
+      data: { emailEnviado: true, fechaEnvio: new Date(), estado: RemitoEstado.ENVIADO },
     });
 
     return { success: true, message: 'Remito enviado correctamente' };
   }
 
   // Listar remitos con filtros
-  async findAll(filtros: any) {
+  async findAll(filtros: any, usuarioDepositoId?: number) {
     const where: any = {};
+
+    // LOGISTICA: solo ve los remitos de su depósito
+    if (usuarioDepositoId) {
+      where.depositoId = usuarioDepositoId;
+    }
 
     if (filtros.estado) where.estado = filtros.estado;
     if (filtros.programaId) where.programaId = parseInt(filtros.programaId);
     if (filtros.beneficiarioId) where.beneficiarioId = parseInt(filtros.beneficiarioId);
-    if (filtros.depositoId) where.depositoId = parseInt(filtros.depositoId);
+    if (filtros.depositoId && !usuarioDepositoId) where.depositoId = parseInt(filtros.depositoId);
     
     if (filtros.fechaDesde || filtros.fechaHasta) {
       where.fecha = {};
@@ -321,6 +312,35 @@ export class RemitosService {
     }
 
     return remito;
+  }
+
+  // Marcar remito como entregado (con nota y foto opcional)
+  async marcarEntregado(id: number, nota?: string, fotoPath?: string) {
+    const remito = await this.prisma.remito.findUnique({ where: { id } });
+
+    if (!remito) throw new NotFoundException('Remito no encontrado');
+
+    if (remito.estado !== RemitoEstado.CONFIRMADO && remito.estado !== RemitoEstado.ENVIADO) {
+      throw new BadRequestException(
+        'Solo se pueden marcar como entregados remitos confirmados o enviados',
+      );
+    }
+
+    return this.prisma.remito.update({
+      where: { id },
+      data: {
+        estado: RemitoEstado.ENTREGADO,
+        entregadoAt: new Date(),
+        entregadoNota: nota || null,
+        entregadoFoto: fotoPath || null,
+      },
+      include: {
+        beneficiario: true,
+        programa: true,
+        deposito: true,
+        items: { include: { articulo: true } },
+      },
+    });
   }
 
   // Eliminar remito (solo si está en BORRADOR)

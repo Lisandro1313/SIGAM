@@ -28,13 +28,10 @@ export class UsuariosService {
         email: userData.email,
         password: hashedPassword,
         rol: userData.rol as Role,
-        ...(programaId && {
-          programa: {
-            connect: { id: programaId }
-          }
-        }),
+        ...(programaId && { programa: { connect: { id: programaId } } }),
+        ...(userData.depositoId && { deposito: { connect: { id: userData.depositoId } } }),
       },
-      include: { programa: true },
+      include: { programa: true, deposito: true },
     });
 
     const { password: _, ...result } = usuario;
@@ -43,7 +40,7 @@ export class UsuariosService {
 
   async findAll() {
     const usuarios = await this.prisma.usuario.findMany({
-      include: { programa: true },
+      include: { programa: true, deposito: true },
     });
 
     return usuarios.map(({ password, ...user }) => user);
@@ -52,7 +49,7 @@ export class UsuariosService {
   async findOne(id: number) {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id },
-      include: { programa: true },
+      include: { programa: true, deposito: true },
     });
 
     if (!usuario) {
@@ -89,10 +86,21 @@ export class UsuariosService {
       }
     }
 
+    // depositoId puede venir en userData, manejarlo con connect/disconnect
+    if ('depositoId' in updateUsuarioDto) {
+      const depId = (updateUsuarioDto as any).depositoId;
+      delete data.depositoId;
+      if (depId === null || depId === undefined) {
+        data.deposito = { disconnect: true };
+      } else {
+        data.deposito = { connect: { id: depId } };
+      }
+    }
+
     const updated = await this.prisma.usuario.update({
       where: { id },
       data,
-      include: { programa: true },
+      include: { programa: true, deposito: true },
     });
 
     const { password: _, ...result } = updated;

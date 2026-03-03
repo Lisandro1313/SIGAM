@@ -94,18 +94,6 @@ export default function LoginPage() {
               Secretaría de Desarrollo Social - Municipalidad de La Plata
             </Typography>
           </Box>
-
-          <Box mt={2} p={2} bgcolor="grey.100" borderRadius={1}>
-            <Typography variant="caption" display="block" gutterBottom>
-              <strong>Demo:</strong>
-            </Typography>
-            <Typography variant="caption" display="block">
-              Email: admin@municipalidad.gob.ar
-            </Typography>
-            <Typography variant="caption" display="block">
-              Password: admin123
-            </Typography>
-          </Box>
         </Paper>
       </Container>
     </Box>
