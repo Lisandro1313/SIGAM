@@ -1,8 +1,12 @@
 import axios from 'axios';
 
-const api = axios.create({
-  baseURL: '/api',
-});
+// En desarrollo usa el proxy de Vite (/api)
+// En producción usa la variable VITE_API_URL apuntando al backend de Render
+const baseURL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
+
+const api = axios.create({ baseURL });
 
 // Lee el token desde donde sea que esté guardado
 function getToken(): string | null {

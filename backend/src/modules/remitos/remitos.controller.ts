@@ -88,7 +88,7 @@ export class RemitosController {
   @UseInterceptors(
     FileInterceptor('foto', {
       storage: diskStorage({
-        destination: join(__dirname, '..', '..', '..', '..', 'uploads', 'remitos'),
+        destination: join(process.cwd(), 'uploads', 'remitos'),
         filename: (_req, file, cb) => {
           const unique = Date.now() + '-' + Math.round(Math.random() * 1e6);
           cb(null, `remito-${unique}${extname(file.originalname)}`);

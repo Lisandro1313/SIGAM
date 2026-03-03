@@ -1,0 +1,52 @@
+services:
+  # ─── BACKEND (API NestJS) ────────────────────────────────────────────────────
+  - type: web
+    name: sigam-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && node dist/main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false          # Se carga desde Supabase — pegar en Render dashboard
+      - key: JWT_SECRET
+        sync: false          # Generar uno seguro — pegar en Render dashboard
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: FRONTEND_URL
+        sync: false          # URL del frontend en Render — pegar después del deploy
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: DEPOSITO_EMAIL_LOGISTICA
+        sync: false
+      - key: DEPOSITO_EMAIL_CITA
+        sync: false
+      - key: PORT
+        value: 3000
+    plan: free
+
+  # ─── FRONTEND (React/Vite como Static Site) ──────────────────────────────────
+  - type: web
+    name: sigam-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false          # URL del backend en Render — pegar después del deploy del backend
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html  # SPA routing
+    plan: free
