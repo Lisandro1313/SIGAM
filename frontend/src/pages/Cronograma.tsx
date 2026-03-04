@@ -1,229 +1,360 @@
-import { useState } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Box,
-  Button,
-  Typography,
-  Paper,
-  Grid,
-  TextField,
-  MenuItem,
-  Alert,
-  CircularProgress,
+  Box, Typography, Paper, IconButton, Button, TextField,
+  Autocomplete, Tooltip, Chip, CircularProgress, Select,
+  MenuItem, FormControl, Tab, Tabs,
 } from '@mui/material';
 import {
-  CalendarMonth as CalendarIcon,
-  PlayArrow as GenerateIcon,
+  ChevronLeft, ChevronRight, Add as AddIcon, Delete as DeleteIcon,
+  Receipt as ReceiptIcon, Today as TodayIcon, PlaylistAdd as PasteIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
+import { useNotificationStore } from '../stores/notificationStore';
+
+interface Beneficiario {
+  id: number; nombre: string; tipo: string;
+  direccion?: string; localidad?: string; telefono?: string;
+  responsableNombre?: string; kilosHabitual?: number;
+  programa?: { id: number; nombre: string }; programaId?: number;
+}
+interface Deposito { id: number; codigo: string; nombre: string; }
+interface Programa { id: number; nombre: string; tipo: string; }
+interface FilaData {
+  id?: number; tempId: string; beneficiario: Beneficiario | null;
+  hora: string; kilos: string; responsableRetiro: string;
+  depositoId: number; estado?: string;
+  remito?: { id: number; numero: string; estado: string } | null;
+  saving?: boolean;
+}
+interface DiaEntry { fecha: string; filas: FilaData[]; }
+
+const DIAS_ES = ['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado'];
+const MESES_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const COLORES_DIA = ['#1565C0','#2E7D32','#6A1B9A','#00695C','#E65100','#AD1457','#283593'];
+const COLORES_TAB = ['#1565C0','#2E7D32','#6A1B9A','#00695C','#E65100','#AD1457','#283593','#4527A0','#00838F'];
+
+function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
+function startOfWeek(d: Date) {
+  const day = d.getDay();
+  const l = new Date(d); l.setDate(d.getDate() + (day===0?-6:1-day)); l.setHours(0,0,0,0); return l;
+}
+function addDays(d: Date, n: number) { const r=new Date(d); r.setDate(d.getDate()+n); return r; }
+function formatFechaHeader(s: string) {
+  const [y,m,d] = s.split('-').map(Number);
+  const dt = new Date(y,m-1,d);
+  return `${DIAS_ES[dt.getDay()]} ${d} de ${MESES_ES[m-1]} ${y}`;
+}
+function makeTempId() { return 'tmp_'+Math.random().toString(36).slice(2); }
+
+const COLS = [
+  { label:'NOMBRE DEL ESPACIO', w:220 }, { label:'REFERENTE', w:155 },
+  { label:'HORA', w:75 }, { label:'DIRECCION', w:175 },
+  { label:'KILOS', w:75 }, { label:'TELEFONO', w:120 },
+  { label:'DEPOSITO', w:115 }, { label:'RESPONSABLE DEL RETIRO', w:200 },
+  { label:'', w:90 },
+];
+const GRID = COLS.map(c=>`${c.w}px`).join(' ');
+const MINW = COLS.reduce((a,c)=>a+c.w,0);
 
 export default function CronogramaPage() {
-  const [mes, setMes] = useState(new Date().getMonth() + 1);
-  const [anio, setAnio] = useState(new Date().getFullYear());
-  const [depositoId, setDepositoId] = useState(1);
+  const { showNotification } = useNotificationStore();
+  const [semanaInicio, setSemanaInicio] = useState<Date>(()=>startOfWeek(new Date()));
+  const [dias, setDias] = useState<DiaEntry[]>([]);
+  const [todosLosBens, setTodosLosBens] = useState<Beneficiario[]>([]);
+  const [depositos, setDepositos] = useState<Deposito[]>([]);
+  const [programas, setProgramas] = useState<Programa[]>([]);
+  const [depDefault, setDepDefault] = useState<number>(1);
+  const [tabIdx, setTabIdx] = useState(0);  // 0 = Todos, 1+ = programa
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const timers = useRef<Record<string,ReturnType<typeof setTimeout>>>({});
 
-  const handleGenerarCronograma = async () => {
+  const semanaFin = addDays(semanaInicio, 6);
+  const semanaLabel = `${semanaInicio.getDate()} ${MESES_ES[semanaInicio.getMonth()]} - ${semanaFin.getDate()} ${MESES_ES[semanaFin.getMonth()]} ${semanaFin.getFullYear()}`;
+
+  // Programa del tab activo (null = Todos)
+  const programaActivo: Programa | null = tabIdx === 0 ? null : programas[tabIdx-1] ?? null;
+
+  // Beneficiarios filtrados por programa activo
+  const bens: Beneficiario[] = programaActivo
+    ? todosLosBens.filter(b => b.programaId === programaActivo.id)
+    : todosLosBens;
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/depositos'),
+      api.get('/beneficiarios?limit=500'),
+      api.get('/programas'),
+    ]).then(([depR, benR, proR]) => {
+      setDepositos(depR.data);
+      if (depR.data.length > 0) setDepDefault(depR.data[0].id);
+      setTodosLosBens(benR.data?.data ?? benR.data);
+      setProgramas(proR.data.filter((p:any) => p.activo));
+    }).catch(()=>{});
+  }, []);
+
+  useEffect(() => { loadPlanilla(); }, [semanaInicio, tabIdx, programas]);
+
+  async function loadPlanilla() {
+    setLoading(true);
     try {
-      setLoading(true);
-      setResult(null);
-      const response = await api.post('/cronograma/generar-mensual', {
-        mes,
-        anio,
+      const desde = toDateStr(semanaInicio);
+      const hasta = toDateStr(semanaFin);
+      const params = new URLSearchParams({ desde, hasta });
+      if (programaActivo) params.set('programaId', String(programaActivo.id));
+      const r = await api.get(`/cronograma/planilla?${params}`);
+      const map: Record<string,FilaData[]> = {};
+      (r.data as any[]).forEach(e => {
+        const fecha = e.fechaProgramada.slice(0,10);
+        if (!map[fecha]) map[fecha]=[];
+        map[fecha].push({
+          id: e.id, tempId: String(e.id),
+          beneficiario: e.beneficiario ?? null,
+          hora: e.hora ?? '',
+          kilos: e.kilos != null ? String(e.kilos) : (e.beneficiario?.kilosHabitual ?? ''),
+          responsableRetiro: e.responsableRetiro ?? '',
+          depositoId: depDefault, estado: e.estado, remito: e.remito ?? null,
+        });
       });
-      setResult({
-        type: 'success',
-        message: `Se crearon ${response.data.entregasCreadas} entregas programadas`,
-      });
-    } catch (error: any) {
-      setResult({
-        type: 'error',
-        message: error.response?.data?.message || 'Error al generar cronograma',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+      const nuevoDias: DiaEntry[] = [];
+      for (let i=0; i<6; i++) {
+        const fecha = toDateStr(addDays(semanaInicio,i));
+        nuevoDias.push({ fecha, filas: map[fecha] ?? [] });
+      }
+      setDias(nuevoDias);
+    } catch { showNotification('Error cargando planilla','error'); }
+    finally { setLoading(false); }
+  }
 
-  const handleGenerarRemitosMasivos = async () => {
+  const setFila = useCallback((fecha:string, tid:string, partial:Partial<FilaData>) => {
+    setDias(prev=>prev.map(d=>d.fecha!==fecha?d:{...d,filas:d.filas.map(f=>f.tempId!==tid?f:{...f,...partial})}));
+  }, []);
+  const removeFila = useCallback((fecha:string, tid:string) => {
+    setDias(prev=>prev.map(d=>d.fecha!==fecha?d:{...d,filas:d.filas.filter(f=>f.tempId!==tid)}));
+  }, []);
+
+  function scheduleSave(fecha:string, fila:FilaData) {
+    const key=fila.tempId;
+    if (timers.current[key]) clearTimeout(timers.current[key]);
+    timers.current[key]=setTimeout(()=>saveFila(fecha,fila),800);
+  }
+  async function saveFila(fecha:string, fila:FilaData) {
+    if (!fila.beneficiario) return;
+    setFila(fecha,fila.tempId,{saving:true});
     try {
-      setLoading(true);
-      setResult(null);
-      const response = await api.post('/cronograma/generar-remitos-masivos', {
-        mes,
-        anio,
-        depositoId,
-      });
-      const { remitosGenerados, errores } = response.data;
-      setResult({
-        type: errores.length > 0 ? 'warning' : 'success',
-        message: `Se generaron ${remitosGenerados.length} remitos. ${
-          errores.length > 0 ? `${errores.length} con errores.` : ''
-        }`,
-        details: errores,
-      });
-    } catch (error: any) {
-      setResult({
-        type: 'error',
-        message: error.response?.data?.message || 'Error al generar remitos',
-      });
-    } finally {
-      setLoading(false);
+      if (!fila.id) {
+        const r = await api.post('/cronograma/fila',{
+          beneficiarioId: fila.beneficiario.id,
+          fechaProgramada: fecha,
+          programaId: fila.beneficiario.programaId ?? programaActivo?.id ?? undefined,
+          hora: fila.hora||undefined,
+          kilos: fila.kilos?parseFloat(fila.kilos):undefined,
+          responsableRetiro: fila.responsableRetiro||undefined,
+        });
+        setFila(fecha,fila.tempId,{id:r.data.id,saving:false});
+      } else {
+        await api.patch(`/cronograma/fila/${fila.id}`,{
+          hora: fila.hora||undefined,
+          kilos: fila.kilos?parseFloat(fila.kilos):undefined,
+          responsableRetiro: fila.responsableRetiro||undefined,
+        });
+        setFila(fecha,fila.tempId,{saving:false});
+      }
+    } catch(e:any) {
+      setFila(fecha,fila.tempId,{saving:false});
+      showNotification(e.response?.data?.message??'Error guardando','error');
     }
-  };
+  }
 
-  const meses = [
-    'Enero',
-    'Febrero',
-    'Marzo',
-    'Abril',
-    'Mayo',
-    'Junio',
-    'Julio',
-    'Agosto',
-    'Septiembre',
-    'Octubre',
-    'Noviembre',
-    'Diciembre',
-  ];
+  function handleSelectBen(fecha:string, fila:FilaData, b:Beneficiario|null) {
+    // Auto-fill kilos desde kilosHabitual del beneficiario
+    const kilosAuto = b?.kilosHabitual ? String(b.kilosHabitual) : fila.kilos;
+    const upd = {...fila, beneficiario:b, kilos:kilosAuto};
+    setFila(fecha,fila.tempId,{beneficiario:b, kilos:kilosAuto});
+    if (b) scheduleSave(fecha,upd);
+  }
+  function handleField(fecha:string, fila:FilaData, field:'hora'|'kilos'|'responsableRetiro', val:string) {
+    const upd = {...fila,[field]:val};
+    setFila(fecha,fila.tempId,{[field]:val});
+    if (fila.beneficiario) scheduleSave(fecha,upd);
+  }
+
+  async function handleEliminar(fecha:string, fila:FilaData) {
+    if (fila.remito){showNotification('Tiene remito, no se puede eliminar','error');return;}
+    if (fila.id) {
+      try { await api.delete(`/cronograma/fila/${fila.id}`); }
+      catch(e:any){showNotification(e.response?.data?.message??'Error','error');return;}
+    }
+    removeFila(fecha,fila.tempId);
+  }
+  async function handleGenerarRemito(fecha:string, fila:FilaData) {
+    if (!fila.id){showNotification('Selecciona un beneficiario primero','warning');return;}
+    if (fila.remito){showNotification(`Remito ${fila.remito.numero} ya existe`,'info');return;}
+    setFila(fecha,fila.tempId,{saving:true});
+    try {
+      const r = await api.post(`/cronograma/fila/${fila.id}/generar-remito`,{depositoId:fila.depositoId});
+      setFila(fecha,fila.tempId,{saving:false,estado:'GENERADA',remito:{id:r.data.id,numero:r.data.numero,estado:r.data.estado}});
+      showNotification(`Remito ${r.data.numero} generado`,'success');
+    } catch(e:any){
+      setFila(fecha,fila.tempId,{saving:false});
+      showNotification(e.response?.data?.message??'Error generando remito','error');
+    }
+  }
+  function handleAgregarFila(fecha:string) {
+    setDias(prev=>prev.map(d=>d.fecha!==fecha?d:{...d,filas:[...d.filas,{tempId:makeTempId(),beneficiario:null,hora:'',kilos:'',responsableRetiro:'',depositoId:depDefault,estado:'PENDIENTE',remito:null}]}));
+  }
+
+  const colorTab = (i:number) => COLORES_TAB[i % COLORES_TAB.length];
 
   return (
     <Box>
-      <Typography variant="h4" fontWeight="bold" gutterBottom>
-        Cronograma Automático
-      </Typography>
-      <Typography variant="body2" color="text.secondary" mb={3}>
-        Genera entregas programadas y remitos masivos basados en plantillas
-      </Typography>
+      {/* Header */}
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={1} flexWrap="wrap" gap={1}>
+        <Typography variant="h4" fontWeight="bold">Cronograma</Typography>
+        <Box display="flex" alignItems="center" gap={1}>
+          <FormControl size="small">
+            <Select value={depDefault} onChange={e=>setDepDefault(Number(e.target.value))} sx={{minWidth:140,fontSize:13}}>
+              {depositos.map(d=><MenuItem key={d.id} value={d.id}>{d.codigo}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <Tooltip title="Semana anterior"><IconButton onClick={()=>setSemanaInicio(p=>addDays(p,-7))}><ChevronLeft/></IconButton></Tooltip>
+          <Typography variant="body1" fontWeight="bold" minWidth={230} textAlign="center">{semanaLabel}</Typography>
+          <Tooltip title="Semana siguiente"><IconButton onClick={()=>setSemanaInicio(p=>addDays(p,7))}><ChevronRight/></IconButton></Tooltip>
+          <Tooltip title="Hoy"><IconButton onClick={()=>setSemanaInicio(startOfWeek(new Date()))}><TodayIcon/></IconButton></Tooltip>
+        </Box>
+      </Box>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
-          <Paper elevation={2} sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              <CalendarIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
-              Generar Cronograma Mensual
-            </Typography>
-            <Typography variant="body2" color="text.secondary" mb={3}>
-              Crea entregas programadas para todos los beneficiarios con frecuencia
-              MENSUAL o BIMESTRAL según corresponda
-            </Typography>
-
-            <TextField
-              select
-              fullWidth
-              label="Mes"
-              value={mes}
-              onChange={(e) => setMes(Number(e.target.value))}
-              margin="normal"
-            >
-              {meses.map((nombre, index) => (
-                <MenuItem key={index} value={index + 1}>
-                  {nombre}
-                </MenuItem>
-              ))}
-            </TextField>
-
-            <TextField
-              fullWidth
-              label="Año"
-              type="number"
-              value={anio}
-              onChange={(e) => setAnio(Number(e.target.value))}
-              margin="normal"
+      {/* Pestañas por programa */}
+      <Box sx={{ borderBottom:1, borderColor:'divider', mb:1 }}>
+        <Tabs
+          value={tabIdx}
+          onChange={(_,v)=>setTabIdx(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            '& .MuiTab-root': { textTransform:'none', fontWeight:'bold', minHeight:40 },
+          }}
+        >
+          <Tab label="Todos" sx={{ color: tabIdx===0 ? '#1a237e' : undefined }} />
+          {programas.map((p,i) => (
+            <Tab
+              key={p.id}
+              label={p.nombre}
+              sx={{
+                color: tabIdx===i+1 ? colorTab(i) : undefined,
+                '&.Mui-selected': { color: colorTab(i) },
+              }}
             />
+          ))}
+        </Tabs>
+      </Box>
 
-            <Button
-              variant="contained"
-              fullWidth
-              size="large"
-              startIcon={<CalendarIcon />}
-              onClick={handleGenerarCronograma}
-              disabled={loading}
-              sx={{ mt: 2 }}
-            >
-              {loading ? <CircularProgress size={24} /> : 'Generar Cronograma'}
+      {programaActivo && (
+        <Typography variant="caption" color="text.secondary" sx={{ mb:1, display:'block' }}>
+          Mostrando solo beneficiarios del programa <strong>{programaActivo.nombre}</strong>. Los pedidos nuevos se asignan a este programa.
+        </Typography>
+      )}
+
+      {loading ? (
+        <Box display="flex" justifyContent="center" mt={6}><CircularProgress/></Box>
+      ) : (
+        <Box sx={{overflowX:'auto'}}>
+          {/* Cabecera columnas */}
+          <Box sx={{display:'grid',gridTemplateColumns:GRID,bgcolor:'#1a237e',color:'#fff',borderRadius:'8px 8px 0 0',px:1,py:0.75,minWidth:MINW,position:'sticky',top:0,zIndex:10}}>
+            {COLS.map((c,i)=><Typography key={i} variant="caption" fontWeight="bold" sx={{fontSize:11,px:0.5}}>{c.label}</Typography>)}
+          </Box>
+
+          {dias.map((dia,idx)=>(
+            <Box key={dia.fecha} sx={{minWidth:MINW}}>
+              {/* Header dia */}
+              <Box sx={{display:'grid',gridTemplateColumns:'1fr auto',alignItems:'center',bgcolor:COLORES_DIA[idx%COLORES_DIA.length],color:'#fff',px:2,py:0.5}}>
+                <Typography variant="subtitle2" fontWeight="bold" sx={{textTransform:'uppercase',letterSpacing:1}}>{formatFechaHeader(dia.fecha)}</Typography>
+                <Typography variant="caption" sx={{opacity:0.8}}>{dia.filas.filter(f=>f.id).length} entregas</Typography>
+              </Box>
+
+              {dia.filas.map(fila=>{
+                const ben=fila.beneficiario;
+                const tieneRemito=!!fila.remito;
+                return (
+                  <Paper key={fila.tempId} elevation={0} sx={{display:'grid',gridTemplateColumns:GRID,alignItems:'center',borderBottom:'1px solid #e8e8e8',bgcolor:tieneRemito?'#f0f7ff':!fila.id&&ben?'#fffde7':'#fff','&:hover':{bgcolor:tieneRemito?'#e3f0fb':'#f5f5f5'},px:0.5,py:0.25,minHeight:44}}>
+                    {/* Espacio */}
+                    <Box px={0.5}>
+                      <Autocomplete size="small" options={bens} getOptionLabel={o=>o.nombre} value={ben}
+                        onChange={(_,v)=>handleSelectBen(dia.fecha,fila,v)} disabled={tieneRemito}
+                        filterOptions={(opts,{inputValue})=>opts.filter(o=>o.nombre.toLowerCase().includes(inputValue.toLowerCase()))}
+                        renderInput={params=><TextField {...params} placeholder="Escribir nombre..." variant="standard" InputProps={{...params.InputProps,disableUnderline:tieneRemito}} sx={{'& input':{fontSize:13}}}/>}
+                        renderOption={(props,o)=><li {...props} key={o.id}><Box><Typography variant="body2" fontWeight="bold">{o.nombre}</Typography><Typography variant="caption" color="text.secondary">{o.tipo}{o.programa?` · ${o.programa.nombre}`:''}{o.kilosHabitual?` · ${o.kilosHabitual}kg`:''}</Typography></Box></li>}
+                        noOptionsText="Sin resultados"
+                      />
+                    </Box>
+                    {/* Referente */}
+                    <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.responsableNombre??'—'}</Typography></Box>
+                    {/* Hora */}
+                    <Box px={0.5}>
+                      <TextField size="small" value={fila.hora} onChange={e=>handleField(dia.fecha,fila,'hora',e.target.value)} placeholder="10:00" disabled={tieneRemito} variant="standard" InputProps={{disableUnderline:tieneRemito}} sx={{width:'100%','& input':{fontSize:13}}}/>
+                    </Box>
+                    {/* Direccion */}
+                    <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.direccion??'—'}</Typography></Box>
+                    {/* Kilos */}
+                    <Box px={0.5}>
+                      <TextField size="small" value={fila.kilos} onChange={e=>handleField(dia.fecha,fila,'kilos',e.target.value)} placeholder="0" type="number" disabled={tieneRemito} variant="standard" InputProps={{disableUnderline:tieneRemito}} sx={{width:'100%','& input':{fontSize:13}}}/>
+                    </Box>
+                    {/* Telefono */}
+                    <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.telefono??'—'}</Typography></Box>
+                    {/* Deposito */}
+                    <Box px={0.5}>
+                      <Select size="small" value={fila.depositoId} onChange={e=>setFila(dia.fecha,fila.tempId,{depositoId:Number(e.target.value)})} disabled={tieneRemito} variant="standard" disableUnderline={tieneRemito} sx={{fontSize:13,width:'100%'}}>
+                        {depositos.map(d=>(
+                          <MenuItem key={d.id} value={d.id} sx={{fontSize:13}}>
+                            <Chip label={d.codigo} size="small" color={d.codigo==='LOGISTICA'?'primary':'warning'} sx={{fontSize:11,height:20}}/>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </Box>
+                    {/* Responsable retiro */}
+                    <Box px={0.5}>
+                      <TextField size="small" value={fila.responsableRetiro} onChange={e=>handleField(dia.fecha,fila,'responsableRetiro',e.target.value)} placeholder="Nombre DNI..." disabled={tieneRemito} variant="standard" InputProps={{disableUnderline:tieneRemito}} sx={{width:'100%','& input':{fontSize:13}}}/>
+                    </Box>
+                    {/* Acciones */}
+                    <Box display="flex" alignItems="center" gap={0.5} px={0.5}>
+                      {fila.saving&&<CircularProgress size={14}/>}
+                      {tieneRemito?(
+                        <Chip label={fila.remito!.numero} size="small" color="success" variant="outlined" icon={<ReceiptIcon style={{fontSize:12}}/>} sx={{fontSize:10,height:22}}/>
+                      ):(
+                        <Tooltip title="Generar remito"><span>
+                          <IconButton size="small" color="primary" onClick={()=>handleGenerarRemito(dia.fecha,fila)} disabled={!fila.id||fila.saving}>
+                            <ReceiptIcon fontSize="small"/>
+                          </IconButton>
+                        </span></Tooltip>
+                      )}
+                      <Tooltip title="Eliminar"><span>
+                        <IconButton size="small" color="error" onClick={()=>handleEliminar(dia.fecha,fila)} disabled={tieneRemito||fila.saving}>
+                          <DeleteIcon fontSize="small"/>
+                        </IconButton>
+                      </span></Tooltip>
+                    </Box>
+                  </Paper>
+                );
+              })}
+
+              <Box sx={{borderBottom:'1px solid #e0e0e0',bgcolor:'#fafafa'}}>
+                <Button startIcon={<AddIcon/>} size="small" onClick={()=>handleAgregarFila(dia.fecha)} sx={{justifyContent:'flex-start',pl:2,py:0.5,color:COLORES_DIA[idx%COLORES_DIA.length]}}>
+                  Agregar espacio
+                </Button>
+              </Box>
+            </Box>
+          ))}
+
+          <Box mt={1}>
+            <Button startIcon={<PasteIcon/>} variant="outlined" size="small"
+              onClick={()=>{
+                const ultima=dias.length>0?dias[dias.length-1].fecha:toDateStr(semanaInicio);
+                const [y,m,d]=ultima.split('-').map(Number);
+                const sig=toDateStr(addDays(new Date(y,m-1,d),1));
+                setDias(prev=>[...prev,{fecha:sig,filas:[]}]);
+              }}>
+              Agregar dia
             </Button>
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Paper elevation={2} sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              <GenerateIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
-              Generar Remitos Masivos
-            </Typography>
-            <Typography variant="body2" color="text.secondary" mb={3}>
-              Genera remitos automáticamente para todas las entregas PENDIENTES del
-              mes usando las plantillas configuradas
-            </Typography>
-
-            <TextField
-              select
-              fullWidth
-              label="Mes"
-              value={mes}
-              onChange={(e) => setMes(Number(e.target.value))}
-              margin="normal"
-            >
-              {meses.map((nombre, index) => (
-                <MenuItem key={index} value={index + 1}>
-                  {nombre}
-                </MenuItem>
-              ))}
-            </TextField>
-
-            <TextField
-              fullWidth
-              label="Año"
-              type="number"
-              value={anio}
-              onChange={(e) => setAnio(Number(e.target.value))}
-              margin="normal"
-            />
-
-            <TextField
-              select
-              fullWidth
-              label="Depósito"
-              value={depositoId}
-              onChange={(e) => setDepositoId(Number(e.target.value))}
-              margin="normal"
-            >
-              <MenuItem value={1}>LOGISTICA</MenuItem>
-              <MenuItem value={2}>CITA</MenuItem>
-            </TextField>
-
-            <Button
-              variant="contained"
-              fullWidth
-              size="large"
-              color="secondary"
-              startIcon={<GenerateIcon />}
-              onClick={handleGenerarRemitosMasivos}
-              disabled={loading}
-              sx={{ mt: 2 }}
-            >
-              {loading ? <CircularProgress size={24} /> : 'Generar Remitos Masivos'}
-            </Button>
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {result && (
-        <Box mt={3}>
-          <Alert severity={result.type as any}>{result.message}</Alert>
-          {result.details && result.details.length > 0 && (
-            <Paper elevation={1} sx={{ mt: 2, p: 2 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Errores:
-              </Typography>
-              {result.details.map((error: any, index: number) => (
-                <Typography key={index} variant="body2" color="error">
-                  • Beneficiario ID {error.beneficiarioId}: {error.error}
-                </Typography>
-              ))}
-            </Paper>
-          )}
+          </Box>
         </Box>
       )}
     </Box>

@@ -234,4 +234,164 @@ export class CronogramaService {
       data: { estado: EntregaEstado.CANCELADA },
     });
   }
+
+  // ============================================================================
+  // PLANILLA MANUAL (nuevo cronograma tipo hoja de cálculo)
+  // ============================================================================
+
+  // Obtener planilla para un rango de fechas
+  async obtenerPlanilla(desde: string, hasta: string, programaId?: number) {
+    const desdeDate = new Date(desde);
+    desdeDate.setHours(0, 0, 0, 0);
+    const hastaDate = new Date(hasta);
+    hastaDate.setHours(23, 59, 59, 999);
+
+    const where: any = {
+      fechaProgramada: { gte: desdeDate, lte: hastaDate },
+      estado: { not: EntregaEstado.CANCELADA },
+    };
+    if (programaId) where.programaId = programaId;
+
+    const entregas = await this.prisma.entregaProgramada.findMany({
+      where,
+      include: {
+        beneficiario: {
+          include: { programa: true },
+        },
+        programa: true,
+        remito: { select: { id: true, numero: true, estado: true } },
+      },
+      orderBy: [{ fechaProgramada: 'asc' }, { id: 'asc' }],
+    });
+
+    return entregas;
+  }
+
+  // Agregar fila a la planilla manualmente
+  async agregarFila(data: {
+    beneficiarioId: number;
+    fechaProgramada: string;
+    programaId?: number;
+    hora?: string;
+    responsableRetiro?: string;
+    kilos?: number;
+    observaciones?: string;
+  }) {
+    const beneficiario = await this.prisma.beneficiario.findUnique({
+      where: { id: data.beneficiarioId },
+    });
+    if (!beneficiario) throw new BadRequestException('Beneficiario no encontrado');
+
+    const programaIdFinal = data.programaId ?? beneficiario.programaId ?? undefined;
+
+    return await this.prisma.entregaProgramada.create({
+      data: {
+        beneficiarioId: data.beneficiarioId,
+        programaId: programaIdFinal,
+        fechaProgramada: new Date(data.fechaProgramada),
+        hora: data.hora,
+        responsableRetiro: data.responsableRetiro,
+        kilos: data.kilos,
+        observaciones: data.observaciones,
+        estado: EntregaEstado.PENDIENTE,
+      },
+      include: {
+        beneficiario: {
+          include: { programa: true },
+        },
+        programa: true,
+        remito: { select: { id: true, numero: true, estado: true } },
+      },
+    });
+  }
+
+  // Actualizar fila de la planilla
+  async actualizarFila(
+    id: number,
+    data: {
+      hora?: string;
+      responsableRetiro?: string;
+      kilos?: number;
+      observaciones?: string;
+      fechaProgramada?: string;
+    },
+  ) {
+    return await this.prisma.entregaProgramada.update({
+      where: { id },
+      data: {
+        hora: data.hora,
+        responsableRetiro: data.responsableRetiro,
+        kilos: data.kilos !== undefined ? data.kilos : undefined,
+        observaciones: data.observaciones,
+        fechaProgramada: data.fechaProgramada ? new Date(data.fechaProgramada) : undefined,
+      },
+      include: {
+        beneficiario: {
+          include: { programa: true },
+        },
+        programa: true,
+        remito: { select: { id: true, numero: true, estado: true } },
+      },
+    });
+  }
+
+  // Eliminar fila de la planilla
+  async eliminarFila(id: number) {
+    const entrega = await this.prisma.entregaProgramada.findUnique({ where: { id } });
+    if (!entrega) throw new BadRequestException('Entrega no encontrada');
+    if (entrega.remitoId) throw new BadRequestException('No se puede eliminar una fila con remito generado');
+
+    return await this.prisma.entregaProgramada.delete({ where: { id } });
+  }
+
+  // Generar remito desde una fila de la planilla
+  async generarRemitoDesFila(id: number, depositoId: number, usuarioId: number) {
+    const entrega = await this.prisma.entregaProgramada.findUnique({
+      where: { id },
+      include: {
+        beneficiario: true,
+        programa: {
+          include: {
+            plantillas: {
+              where: { activo: true },
+              include: {
+                items: { include: { articulo: true } },
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (!entrega) throw new BadRequestException('Entrega no encontrada');
+    if (entrega.remitoId) throw new BadRequestException('Esta entrega ya tiene un remito generado');
+
+    const plantilla = entrega.programa?.plantillas?.[0];
+    const items = plantilla?.items ?? [];
+
+    const remito = await this.remitosService.create(
+      {
+        programaId: entrega.programaId ?? undefined,
+        beneficiarioId: entrega.beneficiarioId,
+        depositoId,
+        observaciones: entrega.observaciones,
+        items: items.map((item) => ({
+          articuloId: item.articuloId,
+          cantidad: item.cantidadBase,
+          pesoKg: item.articulo.pesoUnitarioKg
+            ? item.cantidadBase * item.articulo.pesoUnitarioKg
+            : undefined,
+        })),
+      },
+      usuarioId,
+    );
+
+    await this.prisma.entregaProgramada.update({
+      where: { id },
+      data: { estado: EntregaEstado.GENERADA, remitoId: remito.id },
+    });
+
+    return remito;
+  }
 }

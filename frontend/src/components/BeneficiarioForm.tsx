@@ -42,6 +42,7 @@ export default function BeneficiarioForm({
     frecuenciaEntrega: beneficiario?.frecuenciaEntrega || 'EVENTUAL',
     programaId: beneficiario?.programaId || null,
     observaciones: beneficiario?.observaciones || '',
+    kilosHabitual: beneficiario?.kilosHabitual || '',
     activo: beneficiario?.activo ?? true,
   });
 
@@ -67,6 +68,7 @@ export default function BeneficiarioForm({
         ...formData,
         lat: formData.lat ? parseFloat(formData.lat as any) : null,
         lng: formData.lng ? parseFloat(formData.lng as any) : null,
+        kilosHabitual: formData.kilosHabitual ? parseFloat(formData.kilosHabitual as any) : null,
       };
 
       if (beneficiario) {
@@ -214,7 +216,19 @@ export default function BeneficiarioForm({
                 <MenuItem value="EVENTUAL">Eventual</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                label="Kilos habituales"
+                type="number"
+                value={formData.kilosHabitual}
+                onChange={(e) => handleChange('kilosHabitual', e.target.value)}
+                margin="normal"
+                inputProps={{ step: 0.5, min: 0 }}
+                helperText="Kilos que recibe normalmente"
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
               <TextField
                 select
                 fullWidth

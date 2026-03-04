@@ -44,6 +44,7 @@ export default function PlantillasPage() {
   // Estado del formulario
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [kilogramos, setKilogramos] = useState('');
   const [programaId, setProgramaId] = useState('');
   const [items, setItems] = useState<{ articuloId: number; articuloNombre: string; cantidadBase: number }[]>([]);
   const [selectedArticuloId, setSelectedArticuloId] = useState('');
@@ -76,6 +77,7 @@ export default function PlantillasPage() {
       setSelectedPlantilla(plantilla);
       setNombre(plantilla.nombre);
       setDescripcion(plantilla.descripcion || '');
+      setKilogramos(plantilla.kilogramos != null ? String(plantilla.kilogramos) : '');
       setProgramaId(String(plantilla.programaId || ''));
       setItems(
         plantilla.items.map((i: any) => ({
@@ -88,6 +90,7 @@ export default function PlantillasPage() {
       setSelectedPlantilla(null);
       setNombre('');
       setDescripcion('');
+      setKilogramos('');
       setProgramaId('');
       setItems([]);
     }
@@ -130,6 +133,7 @@ export default function PlantillasPage() {
       const payload = {
         nombre,
         descripcion,
+        kilogramos: kilogramos ? parseFloat(kilogramos) : null,
         programaId: programaId ? parseInt(programaId) : null,
         items: items.map((i) => ({ articuloId: i.articuloId, cantidadBase: i.cantidadBase })),
       };
@@ -212,6 +216,9 @@ export default function PlantillasPage() {
                       {plantilla.descripcion}
                     </Typography>
                   )}
+                  {plantilla.kilogramos != null && (
+                    <Chip label={`${plantilla.kilogramos} kg`} size="small" color="success" sx={{ mt: 0.5 }} />
+                  )}
                   <Divider sx={{ my: 1.5 }} />
                   <Typography variant="caption" color="text.secondary" gutterBottom>
                     ARTÍCULOS ({plantilla.items.length})
@@ -261,21 +268,33 @@ export default function PlantillasPage() {
             multiline
             rows={2}
           />
-          <TextField
-            select
-            fullWidth
-            label="Programa"
-            value={programaId}
-            onChange={(e) => setProgramaId(e.target.value)}
-            margin="normal"
-          >
-            <MenuItem value="">Sin programa (general)</MenuItem>
-            {programas.map((p) => (
-              <MenuItem key={p.id} value={p.id}>
-                {p.nombre}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Box display="flex" gap={2}>
+            <TextField
+              fullWidth
+              label="Kilogramos de referencia"
+              type="number"
+              value={kilogramos}
+              onChange={(e) => setKilogramos(e.target.value)}
+              margin="normal"
+              inputProps={{ min: 0, step: 50 }}
+              helperText="Para cuántos kg está pensada esta plantilla (ej: 300, 500, 1000)"
+            />
+            <TextField
+              select
+              fullWidth
+              label="Programa"
+              value={programaId}
+              onChange={(e) => setProgramaId(e.target.value)}
+              margin="normal"
+            >
+              <MenuItem value="">Sin programa (general)</MenuItem>
+              {programas.map((p) => (
+                <MenuItem key={p.id} value={p.id}>
+                  {p.nombre}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Box>
 
           <Divider sx={{ my: 2 }} />
           <Typography variant="subtitle2" gutterBottom>

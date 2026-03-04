@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateBeneficiarioDto {
   @ApiProperty()
@@ -61,4 +61,14 @@ export class CreateBeneficiarioDto {
   @IsString()
   @IsOptional()
   observaciones?: string;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  kilosHabitual?: number;
+
+  @ApiProperty({ required: false })
+  @IsBoolean()
+  @IsOptional()
+  activo?: boolean;
 }

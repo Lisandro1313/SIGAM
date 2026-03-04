@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CronogramaService } from './cronograma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -24,6 +24,55 @@ export class CronogramaController {
   obtenerEntregas(@Query() query: any) {
     return this.cronogramaService.obtenerEntregas(query);
   }
+
+  // ---- PLANILLA MANUAL ----
+
+  @Get('planilla')
+  @ApiOperation({ summary: 'Obtener planilla para rango de fechas' })
+  obtenerPlanilla(
+    @Query('desde') desde: string,
+    @Query('hasta') hasta: string,
+    @Query('programaId') programaId?: string,
+  ) {
+    return this.cronogramaService.obtenerPlanilla(
+      desde, hasta,
+      programaId ? parseInt(programaId) : undefined,
+    );
+  }
+
+  @Post('fila')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
+  @ApiOperation({ summary: 'Agregar fila a la planilla' })
+  agregarFila(@Body() body: any) {
+    return this.cronogramaService.agregarFila(body);
+  }
+
+  @Patch('fila/:id')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
+  @ApiOperation({ summary: 'Actualizar fila de la planilla' })
+  actualizarFila(@Param('id') id: string, @Body() body: any) {
+    return this.cronogramaService.actualizarFila(+id, body);
+  }
+
+  @Delete('fila/:id')
+  @Roles('ADMIN', 'LOGISTICA')
+  @ApiOperation({ summary: 'Eliminar fila de la planilla' })
+  eliminarFila(@Param('id') id: string) {
+    return this.cronogramaService.eliminarFila(+id);
+  }
+
+  @Post('fila/:id/generar-remito')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
+  @ApiOperation({ summary: 'Generar remito desde fila de la planilla' })
+  generarRemitoDesFila(
+    @Param('id') id: string,
+    @Body() body: { depositoId: number },
+    @Request() req,
+  ) {
+    return this.cronogramaService.generarRemitoDesFila(+id, body.depositoId, req.user.id);
+  }
+
+  // ---- FIN PLANILLA MANUAL ----
 
   @Post('generar-remitos-masivos')
   @Roles('ADMIN', 'LOGISTICA')

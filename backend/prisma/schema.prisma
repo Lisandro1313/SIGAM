@@ -111,6 +111,7 @@ model Beneficiario {
   lat                Float?
   lng                Float?
   frecuenciaEntrega  String?  // MENSUAL, BIMESTRAL, EVENTUAL
+  kilosHabitual      Float?   // Kilos que recibe habitualmente este espacio
   activo             Boolean  @default(true)
   observaciones      String?
   
@@ -263,6 +264,7 @@ model Plantilla {
   id          Int             @id @default(autoincrement())
   nombre      String
   descripcion String?
+  kilogramos  Float?          // Kilos de referencia para esta plantilla (ej: 300, 500, 1000)
   activo      Boolean         @default(true)
   
   // Programa al que pertenece
@@ -299,11 +301,14 @@ model EntregaProgramada {
   id               Int           @id @default(autoincrement())
   beneficiario     Beneficiario  @relation(fields: [beneficiarioId], references: [id])
   beneficiarioId   Int
-  programa         Programa      @relation(fields: [programaId], references: [id])
-  programaId       Int
+  programa         Programa?     @relation(fields: [programaId], references: [id])
+  programaId       Int?
   fechaProgramada  DateTime
   estado           EntregaEstado @default(PENDIENTE)
   observaciones    String?
+  hora             String?       // Ej: "10:30"
+  responsableRetiro String?      // Nombre + DNI del responsable del retiro
+  kilos            Float?        // Kilos estimados para esta entrega
   
   // Remito generado (cuando pasa a GENERADA)
   remito           Remito?       @relation(fields: [remitoId], references: [id])
