@@ -17,15 +17,18 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
-# Instalar dependencias primero (aprovecha cache de Docker)
+# Instalar dependencias (incluyendo devDependencies para poder compilar)
 COPY backend/package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copiar código fuente del backend
 COPY backend/ ./
 
 # Generar cliente Prisma y compilar TypeScript
 RUN npx prisma generate && npm run build
+
+# Eliminar devDependencies para imagen más liviana
+RUN npm prune --production
 
 EXPOSE 3000
 
