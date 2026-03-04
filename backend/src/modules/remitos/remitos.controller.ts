@@ -14,11 +14,12 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { memoryStorage } from 'multer';
+import { extname } from 'path';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { RemitosService } from './remitos.service';
+import { StorageService } from './services/storage.service';
 import { CreateRemitoDto } from './dto/create-remito.dto';
 import { ConfirmarRemitoDto } from './dto/confirmar-remito.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -30,7 +31,10 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class RemitosController {
-  constructor(private readonly remitosService: RemitosService) {}
+  constructor(
+    private readonly remitosService: RemitosService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Crear remito borrador' })
@@ -87,13 +91,7 @@ export class RemitosController {
   @Roles('ADMIN', 'LOGISTICA')
   @UseInterceptors(
     FileInterceptor('foto', {
-      storage: diskStorage({
-        destination: join(process.cwd(), 'uploads', 'remitos'),
-        filename: (_req, file, cb) => {
-          const unique = Date.now() + '-' + Math.round(Math.random() * 1e6);
-          cb(null, `remito-${unique}${extname(file.originalname)}`);
-        },
-      }),
+      storage: memoryStorage(),
       fileFilter: (_req, file, cb) => {
         const allowed = /jpeg|jpg|png|webp|pdf/;
         if (allowed.test(extname(file.originalname).toLowerCase())) {
@@ -110,8 +108,12 @@ export class RemitosController {
     @UploadedFile() foto: Express.Multer.File,
     @Body() body: { nota?: string },
   ) {
-    const fotoPath = foto ? `uploads/remitos/${foto.filename}` : undefined;
-    return this.remitosService.marcarEntregado(+id, body.nota, fotoPath);
+    let fotoUrl: string | undefined;
+    if (foto) {
+      const filename = `remito-${Date.now()}-${Math.round(Math.random() * 1e6)}${extname(foto.originalname)}`;
+      fotoUrl = await this.storageService.uploadFoto(foto.buffer, filename, foto.mimetype);
+    }
+    return this.remitosService.marcarEntregado(+id, body.nota, fotoUrl);
   }
 
   @Get(':id')

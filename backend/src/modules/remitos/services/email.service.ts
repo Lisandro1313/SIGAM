@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 const DIAS: string[] = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
 
@@ -20,21 +20,21 @@ export interface OpcionesEnvio {
 
 @Injectable()
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private resend: Resend | null = null;
 
   constructor() {
-    this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD,
-      },
-    });
+    if (process.env.RESEND_API_KEY) {
+      this.resend = new Resend(process.env.RESEND_API_KEY);
+    } else {
+      console.warn('[EmailService] RESEND_API_KEY no configurada — los emails no se enviarán');
+    }
   }
 
   async enviarRemito(remito: any, pdfBuffer: Buffer, opciones: OpcionesEnvio = {}) {
+    if (!this.resend) {
+      console.warn('[EmailService] Email no enviado: RESEND_API_KEY no configurada');
+      return;
+    }
     const fecha = new Date(remito.fecha);
     const diaSemana = DIAS[fecha.getDay()];
     const fechaCorta = formatFechaCorta(fecha);
@@ -82,18 +82,15 @@ export class EmailService {
       'MUCHAS GRACIAS !!',
     ].join('\n');
 
-    await this.transporter.sendMail({
-      from:
-        process.env.SMTP_FROM ||
-        `"Inclusión Social" <${process.env.SMTP_USER}>`,
-      to: to.join(', '),
+    await this.resend!.emails.send({
+      from: process.env.RESEND_FROM || 'Inclusión Social <noreply@resend.dev>',
+      to,
       subject: asunto,
       text,
       attachments: [
         {
           filename: pdfNombre,
           content: pdfBuffer,
-          contentType: 'application/pdf',
         },
       ],
     });

@@ -256,7 +256,19 @@ export class RemitosService {
       where.depositoId = usuarioDepositoId;
     }
 
-    if (filtros.estado) where.estado = filtros.estado;
+    if (filtros.estado) {
+      // Soporta multi-estado: ?estado=CONFIRMADO,ENVIADO o ?estado=CONFIRMADO&estado=ENVIADO
+      const estados = Array.isArray(filtros.estado)
+        ? filtros.estado
+        : String(filtros.estado).includes(',')
+          ? String(filtros.estado).split(',').map((s: string) => s.trim())
+          : null;
+      if (estados) {
+        where.estado = { in: estados };
+      } else {
+        where.estado = filtros.estado;
+      }
+    }
     if (filtros.programaId) where.programaId = parseInt(filtros.programaId);
     if (filtros.beneficiarioId) where.beneficiarioId = parseInt(filtros.beneficiarioId);
     if (filtros.depositoId && !usuarioDepositoId) where.depositoId = parseInt(filtros.depositoId);
@@ -265,6 +277,13 @@ export class RemitosService {
       where.fecha = {};
       if (filtros.fechaDesde) where.fecha.gte = new Date(filtros.fechaDesde);
       if (filtros.fechaHasta) where.fecha.lte = new Date(filtros.fechaHasta);
+    }
+
+    // Filtro por fecha de entrega (entregadoAt)
+    if (filtros.entregadoDesde || filtros.entregadoHasta) {
+      where.entregadoAt = {};
+      if (filtros.entregadoDesde) where.entregadoAt.gte = new Date(filtros.entregadoDesde);
+      if (filtros.entregadoHasta) where.entregadoAt.lte = new Date(filtros.entregadoHasta);
     }
 
     return await this.prisma.remito.findMany({

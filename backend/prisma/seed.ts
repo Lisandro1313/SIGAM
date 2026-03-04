@@ -109,6 +109,7 @@ async function main() {
       email: 'logistica@municipalidad.gob.ar',
       password: hashedPassword,
       rol: 'LOGISTICA',
+      depositoId: depositoLogistica.id,
     },
   });
 
@@ -166,62 +167,116 @@ async function main() {
     });
   }
 
-  // 5. Crear Beneficiarios de ejemplo
+  // 5. Crear Beneficiarios
   console.log('🏘️  Creando beneficiarios...');
-  await prisma.beneficiario.create({
-    data: {
-      nombre: 'LOS DUENDES DEL PARQUE',
-      tipo: 'ESPACIO',
-      direccion: '166 e/ 42 y 43',
-      telefono: '2215708198',
-      responsableNombre: 'María González',
-      responsableDNI: '25678901',
-      lat: -34.9214,
-      lng: -57.9544,
-      frecuenciaEntrega: 'MENSUAL',
-      programaId: programaEspacios.id,
-    },
-  });
+  const beneficiarios = [
+    // Espacios - La Plata
+    { nombre: 'LOS DUENDES DEL PARQUE', tipo: 'ESPACIO', direccion: '166 e/ 42 y 43', localidad: 'La Plata', telefono: '2215708198', responsableNombre: 'María González', responsableDNI: '25678901', lat: -34.9214, lng: -57.9544, frecuenciaEntrega: 'MENSUAL', kilosHabitual: 320, programaId: programaEspacios.id },
+    { nombre: 'COMEDOR MADRES UNIDAS', tipo: 'COMEDOR', direccion: '50 e/ 120 y 121', localidad: 'La Plata', telefono: '2215123456', responsableNombre: 'Ana Rodríguez', responsableDNI: '27345678', lat: -34.9100, lng: -57.9500, frecuenciaEntrega: 'MENSUAL', kilosHabitual: 500, programaId: programaEspacios.id },
+    { nombre: 'CLUB ATLÉTICO EL FORTÍN', tipo: 'ESPACIO', direccion: '143 e/ 44 y 45', localidad: 'La Plata', telefono: '2216001234', responsableNombre: 'Roberto Sánchez', responsableDNI: '22111222', lat: -34.9310, lng: -57.9580, frecuenciaEntrega: 'MENSUAL', kilosHabitual: 280, programaId: programaEspacios.id },
+    { nombre: 'ORGANIZACIÓN NUEVA ESPERANZA', tipo: 'ORGANIZACION', direccion: '80 e/ 13 y 14', localidad: 'La Plata', telefono: '2214987654', responsableNombre: 'Lucía Fernández', responsableDNI: '31222333', lat: -34.9050, lng: -57.9620, frecuenciaEntrega: 'MENSUAL', kilosHabitual: 420, programaId: programaEspacios.id },
+    { nombre: 'ESPACIO EL SOLAR', tipo: 'ESPACIO', direccion: '25 e/ 68 y 69', localidad: 'La Plata', telefono: '2217654321', responsableNombre: 'Carlos Méndez', responsableDNI: '28444555', lat: -34.9180, lng: -57.9700, frecuenciaEntrega: 'MENSUAL', kilosHabitual: 350, programaId: programaEspacios.id },
+    { nombre: 'COMEDOR LOS PIBES DEL BARRIO', tipo: 'COMEDOR', direccion: '90 e/ 25 y 26', localidad: 'Berisso', telefono: '2214123789', responsableNombre: 'Patricia López', responsableDNI: '26555666', lat: -34.8750, lng: -57.8900, frecuenciaEntrega: 'MENSUAL', kilosHabitual: 600, programaId: programaEspacios.id },
+    { nombre: 'ASOCIACIÓN SOL NACIENTE', tipo: 'ORGANIZACION', direccion: '118 e/ 64 y 65', localidad: 'La Plata', telefono: '2219876543', responsableNombre: 'Diego Torres', responsableDNI: '33666777', lat: -34.9420, lng: -57.9650, frecuenciaEntrega: 'BIMESTRAL', kilosHabitual: 200, programaId: programaEspacios.id },
+    { nombre: 'MERENDERO CORAZÓN VALIENTE', tipo: 'ESPACIO', direccion: '137 e/ 521 y 522', localidad: 'Ensenada', telefono: '2213456789', responsableNombre: 'Silvia Castro', responsableDNI: '24777888', lat: -34.8600, lng: -57.9100, frecuenciaEntrega: 'MENSUAL', kilosHabitual: 180, programaId: programaEspacios.id },
+    { nombre: 'CENTRO COMUNITARIO LA UNIÓN', tipo: 'ESPACIO', direccion: '7 e/ 62 y 63', localidad: 'La Plata', telefono: '2218765432', responsableNombre: 'Fernando Giménez', responsableDNI: '29888999', lat: -34.9260, lng: -57.9820, frecuenciaEntrega: 'MENSUAL', kilosHabitual: 450, programaId: programaEspacios.id },
+    { nombre: 'HOGAR AMIGAS PLATENSES UNIDAS', tipo: 'ESPACIO', direccion: '33 e/ 115 y 116', localidad: 'La Plata', telefono: '2215432198', responsableNombre: 'Graciela Morales', responsableDNI: '21999000', lat: -34.9330, lng: -57.9460, frecuenciaEntrega: 'MENSUAL', kilosHabitual: 380, programaId: programaEspacios.id },
+    // Casos particulares
+    { nombre: 'FAMILIA ROMERO', tipo: 'CASO_PARTICULAR', direccion: '71 nro 1250', localidad: 'La Plata', telefono: '2216543210', responsableNombre: 'Jorge Romero', responsableDNI: '32123456', frecuenciaEntrega: 'MENSUAL', kilosHabitual: 30, programaId: programaCasosParticulares.id },
+    { nombre: 'FAMILIA BENZAQUÉN', tipo: 'CASO_PARTICULAR', direccion: '44 nro 870', localidad: 'La Plata', telefono: '2217890123', responsableNombre: 'Rosa Benzaquén', responsableDNI: '18234567', frecuenciaEntrega: 'MENSUAL', kilosHabitual: 25, programaId: programaCeliquia.id },
+  ];
 
-  await prisma.beneficiario.create({
-    data: {
-      nombre: 'COMEDOR SOLIDARIO',
-      tipo: 'COMEDOR',
-      direccion: '50 y 120',
-      telefono: '2215123456',
-      responsableNombre: 'Juan Pérez',
-      responsableDNI: '30123456',
-      lat: -34.9100,
-      lng: -57.9500,
-      frecuenciaEntrega: 'MENSUAL',
-      programaId: programaEspacios.id,
-    },
-  });
+  const beneficiariosCreados = [];
+  for (const b of beneficiarios) {
+    const ben = await prisma.beneficiario.create({ data: b });
+    beneficiariosCreados.push(ben);
+  }
 
-  // 6. Crear Plantilla para Espacios
-  console.log('📋 Creando plantilla de entrega...');
+  // 6. Crear Plantillas
+  console.log('📋 Creando plantillas de entrega...');
   await prisma.plantilla.create({
     data: {
-      nombre: 'Plantilla Estándar Espacios',
-      descripcion: 'Entrega mensual estándar para comedores',
+      nombre: 'Plantilla Estándar 300kg',
+      descripcion: 'Entrega mensual estándar para comedores medianos',
+      kilogramos: 300,
       programaId: programaEspacios.id,
       items: {
         create: [
-          { articuloId: articulosCreados[0].id, cantidadBase: 24 }, // ACEITE
-          { articuloId: articulosCreados[1].id, cantidadBase: 50 }, // HARINA
-          { articuloId: articulosCreados[2].id, cantidadBase: 96 }, // PURE
-          { articuloId: articulosCreados[3].id, cantidadBase: 48 }, // DULCE BATATA
-          { articuloId: articulosCreados[4].id, cantidadBase: 120 }, // ARVEJAS
-          { articuloId: articulosCreados[5].id, cantidadBase: 50 }, // YERBA
-          { articuloId: articulosCreados[6].id, cantidadBase: 120 }, // FIDEOS
-          { articuloId: articulosCreados[9].id, cantidadBase: 50 }, // ARROZ
-          { articuloId: articulosCreados[10].id, cantidadBase: 20 }, // AZUCAR
+          { articuloId: articulosCreados[0].id, cantidadBase: 12 },  // ACEITE
+          { articuloId: articulosCreados[1].id, cantidadBase: 30 },  // HARINA
+          { articuloId: articulosCreados[2].id, cantidadBase: 48 },  // PURE DE TOMATE
+          { articuloId: articulosCreados[4].id, cantidadBase: 60 },  // ARVEJAS
+          { articuloId: articulosCreados[5].id, cantidadBase: 24 },  // YERBA
+          { articuloId: articulosCreados[6].id, cantidadBase: 60 },  // FIDEOS
+          { articuloId: articulosCreados[7].id, cantidadBase: 30 },  // POLENTA
+          { articuloId: articulosCreados[9].id, cantidadBase: 25 },  // ARROZ
+          { articuloId: articulosCreados[10].id, cantidadBase: 12 }, // AZUCAR
         ],
       },
     },
   });
 
-  // 7. Inicializar correlativo de remitos
+  await prisma.plantilla.create({
+    data: {
+      nombre: 'Plantilla Grande 500kg',
+      descripcion: 'Entrega mensual para comedores grandes (+100 personas)',
+      kilogramos: 500,
+      programaId: programaEspacios.id,
+      items: {
+        create: [
+          { articuloId: articulosCreados[0].id, cantidadBase: 24 },  // ACEITE
+          { articuloId: articulosCreados[1].id, cantidadBase: 50 },  // HARINA
+          { articuloId: articulosCreados[2].id, cantidadBase: 96 },  // PURE DE TOMATE
+          { articuloId: articulosCreados[3].id, cantidadBase: 48 },  // DULCE DE BATATA
+          { articuloId: articulosCreados[4].id, cantidadBase: 120 }, // ARVEJAS
+          { articuloId: articulosCreados[5].id, cantidadBase: 50 },  // YERBA
+          { articuloId: articulosCreados[6].id, cantidadBase: 120 }, // FIDEOS
+          { articuloId: articulosCreados[7].id, cantidadBase: 50 },  // POLENTA
+          { articuloId: articulosCreados[9].id, cantidadBase: 50 },  // ARROZ
+          { articuloId: articulosCreados[10].id, cantidadBase: 20 }, // AZUCAR
+          { articuloId: articulosCreados[12].id, cantidadBase: 24 }, // MERMELADA
+        ],
+      },
+    },
+  });
+
+  await prisma.plantilla.create({
+    data: {
+      nombre: 'Plantilla Celiaquía',
+      descripcion: 'Alimentos sin TACC para celíacos',
+      kilogramos: 30,
+      programaId: programaCeliquia.id,
+      items: {
+        create: [
+          { articuloId: articulosCreados[0].id, cantidadBase: 2 },  // ACEITE
+          { articuloId: articulosCreados[9].id, cantidadBase: 5 },  // ARROZ
+          { articuloId: articulosCreados[10].id, cantidadBase: 2 }, // AZUCAR
+          { articuloId: articulosCreados[13].id, cantidadBase: 3 }, // DULCE DE LECHE
+        ],
+      },
+    },
+  });
+
+  // 7. Crear algunas entregas en el cronograma de este mes
+  console.log('📅 Creando cronograma del mes...');
+  const hoy = new Date();
+  const diasEntrega = [10, 12, 15, 17, 19, 22, 24];
+  for (let i = 0; i < Math.min(beneficiariosCreados.length, 7); i++) {
+    const b = beneficiariosCreados[i];
+    if (!b.programaId) continue;
+    await prisma.entregaProgramada.create({
+      data: {
+        beneficiarioId: b.id,
+        programaId: b.programaId,
+        fechaProgramada: new Date(hoy.getFullYear(), hoy.getMonth(), diasEntrega[i]),
+        estado: 'PENDIENTE',
+        kilos: b.kilosHabitual,
+        hora: `${9 + i}:00`,
+      },
+    });
+  }
+
+  // 8. Inicializar correlativo de remitos
   console.log('🔢 Inicializando correlativo...');
   await prisma.correlativo.create({
     data: {
@@ -232,14 +287,16 @@ async function main() {
 
   console.log('✅ Seed completado exitosamente!');
   console.log('');
-  console.log('📧 Usuario admin creado:');
-  console.log('   Email: admin@municipalidad.gob.ar');
-  console.log('   Password: admin123');
+  console.log('📧 Usuario admin:   admin@municipalidad.gob.ar  /  admin123');
+  console.log('📧 Usuario logíst:  logistica@municipalidad.gob.ar  /  admin123');
+  console.log('📧 Usuario operadr: espacios@municipalidad.gob.ar  /  admin123');
   console.log('');
-  console.log('📦 Depósitos creados: LOGISTICA, CITA');
-  console.log(`🎯 Programas creados: ${await prisma.programa.count()}`);
-  console.log(`📦 Artículos creados: ${await prisma.articulo.count()}`);
-  console.log(`🏘️  Beneficiarios creados: ${await prisma.beneficiario.count()}`);
+  console.log(`📦 Depósitos: LOGISTICA, CITA`);
+  console.log(`🎯 Programas: ${await prisma.programa.count()}`);
+  console.log(`📦 Artículos: ${await prisma.articulo.count()}`);
+  console.log(`🏘️  Beneficiarios: ${await prisma.beneficiario.count()}`);
+  console.log(`📋 Plantillas: ${await prisma.plantilla.count()}`);
+  console.log(`📅 Cronograma (este mes): ${await prisma.entregaProgramada.count()}`);
   console.log('');
 }
 

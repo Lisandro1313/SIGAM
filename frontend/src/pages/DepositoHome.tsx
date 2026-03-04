@@ -41,6 +41,7 @@ import { es } from 'date-fns/locale';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
 import { useAuthStore } from '../stores/authStore';
+import { resolveFileUrl } from '../utils/fotoUrl';
 
 const ESTADO_LABEL: Record<string, string> = {
   BORRADOR: 'Borrador',
@@ -62,7 +63,8 @@ export default function DepositoHome() {
   const { user } = useAuthStore();
   const { showNotification } = useNotificationStore();
 
-  const [remitos, setRemitos] = useState<any[]>([]);
+  const [pendientes, setPendientes] = useState<any[]>([]);
+  const [entregadosHoy, setEntregadosHoy] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Diálogo marcar entregado
@@ -80,18 +82,21 @@ export default function DepositoHome() {
   const [histFechaHasta, setHistFechaHasta] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   useEffect(() => {
-    loadRemitosHoy();
+    loadRemitosDeposito();
   }, []);
 
-  const loadRemitosHoy = async () => {
+  const loadRemitosDeposito = async () => {
     setLoading(true);
     try {
       const hoy = format(new Date(), 'yyyy-MM-dd');
       const manana = format(new Date(Date.now() + 86400000), 'yyyy-MM-dd');
-      const res = await api.get('/remitos', {
-        params: { fechaDesde: hoy, fechaHasta: manana },
-      });
-      setRemitos(res.data);
+      // Cargar en paralelo: pendientes (sin filtro de fecha) + entregados hoy
+      const [pendientesRes, entregadosRes] = await Promise.all([
+        api.get('/remitos', { params: { estado: 'CONFIRMADO,ENVIADO' } }),
+        api.get('/remitos', { params: { estado: 'ENTREGADO', entregadoDesde: hoy, entregadoHasta: manana } }),
+      ]);
+      setPendientes(pendientesRes.data);
+      setEntregadosHoy(entregadosRes.data);
     } catch {
       showNotification('Error al cargar remitos', 'error');
     } finally {
@@ -103,7 +108,8 @@ export default function DepositoHome() {
     setLoadingHist(true);
     try {
       const res = await api.get('/remitos', {
-        params: { estado: 'ENTREGADO', fechaDesde: histFechaDesde, fechaHasta: histFechaHasta },
+        // Filtra por fecha de entrega real (entregadoAt), no por fecha de creación
+        params: { estado: 'ENTREGADO', entregadoDesde: histFechaDesde, entregadoHasta: histFechaHasta },
       });
       setHistorial(res.data);
     } catch {
@@ -162,16 +168,13 @@ export default function DepositoHome() {
       });
       showNotification('✓ Remito marcado como entregado', 'success');
       setEntregarDialog(false);
-      loadRemitosHoy();
+      loadRemitosDeposito();
     } catch (error: any) {
       showNotification(error.response?.data?.message || 'Error al registrar entrega', 'error');
     } finally {
       setEntregando(false);
     }
   };
-
-  const pendientes = remitos.filter((r) => r.estado !== 'ENTREGADO' && r.estado !== 'BORRADOR');
-  const entregados = remitos.filter((r) => r.estado === 'ENTREGADO');
 
   const hoyStr = format(new Date(), "EEEE d 'de' MMMM", { locale: es });
 
@@ -206,7 +209,7 @@ export default function DepositoHome() {
             {pendientes.length}
           </Typography>
           <Typography variant="body2" sx={{ opacity: 0.85 }}>
-            remitos para hoy
+            remitos pendientes
           </Typography>
         </Box>
       </Box>
@@ -217,7 +220,7 @@ export default function DepositoHome() {
         onChange={(_, v) => { setTabIndex(v); if (v === 1 && historial.length === 0) loadHistorial(); }}
         sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
       >
-        <Tab label="📅 Remitos de Hoy" />
+        <Tab label="� Para Entregar" />
         <Tab label="📋 Historial de Entregas" />
       </Tabs>
 
@@ -226,7 +229,7 @@ export default function DepositoHome() {
         <>
           <Box display="flex" justifyContent="flex-end" mb={1}>
             <Tooltip title="Actualizar">
-              <IconButton onClick={loadRemitosHoy} color="primary" size="small">
+              <IconButton onClick={loadRemitosDeposito} color="primary" size="small">
                 <RefreshIcon />
               </IconButton>
             </Tooltip>
@@ -235,9 +238,9 @@ export default function DepositoHome() {
             <Box display="flex" justifyContent="center" py={6}>
               <CircularProgress />
             </Box>
-          ) : remitos.length === 0 ? (
+          ) : pendientes.length === 0 && entregadosHoy.length === 0 ? (
             <Alert severity="info" sx={{ py: 3 }}>
-              <Typography variant="body1">No hay remitos asignados para hoy.</Typography>
+              <Typography variant="body1">No hay remitos pendientes para este depósito.</Typography>
             </Alert>
           ) : (
             <>
@@ -264,17 +267,17 @@ export default function DepositoHome() {
                 </Box>
               )}
               {/* Entregados al final */}
-              {entregados.length > 0 && (
+              {entregadosHoy.length > 0 && (
                 <Box>
                   <Divider sx={{ mb: 2 }} />
                   <Box display="flex" alignItems="center" gap={1} mb={1.5}>
                     <EntregadoIcon color="success" />
                     <Typography variant="subtitle1" fontWeight="bold" color="success.dark">
-                      Ya entregados hoy ({entregados.length})
+                      Ya entregados hoy ({entregadosHoy.length})
                     </Typography>
                   </Box>
                   <Box display="flex" flexDirection="column" gap={2}>
-                    {entregados.map((remito) => (
+                    {entregadosHoy.map((remito) => (
                       <RemitoCard
                         key={remito.id}
                         remito={remito}
@@ -351,7 +354,7 @@ export default function DepositoHome() {
                       <TableCell align="center">
                         {r.entregadoFoto ? (
                           <a
-                            href={`/uploads/${r.entregadoFoto.replace(/^\/uploads\//, '').replace(/^uploads\//, '')}`}
+                            href={resolveFileUrl(r.entregadoFoto)}
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{ fontSize: '0.8rem' }}
@@ -534,7 +537,7 @@ function RemitoCard({
         {yaEntregado && remito.entregadoFoto && (
           <Box mt={0.5}>
             <a
-              href={`/${remito.entregadoFoto}`}
+              href={resolveFileUrl(remito.entregadoFoto)}
               target="_blank"
               rel="noopener noreferrer"
               style={{ fontSize: '0.8rem' }}

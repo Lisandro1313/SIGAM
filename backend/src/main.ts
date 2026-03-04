@@ -58,6 +58,12 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.PORT || 3000;
+
+  // Health check para UptimeRobot (fuera del prefijo /api)
+  app.getHttpAdapter().get('/health', (_req: any, res: any) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   await app.listen(port);
 
   console.log(`
