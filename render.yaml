@@ -17,20 +17,22 @@ services:
         value: 7d
       - key: FRONTEND_URL
         sync: false          # URL del frontend en Render — pegar después del deploy
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: 587
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_FROM
-        sync: false
+      # ── Email (Resend — gratis 3000/mes) ──────────────────────
+      - key: RESEND_API_KEY
+        sync: false          # Obtener en https://resend.com
+      - key: RESEND_FROM
+        sync: false          # Ej: "SIGAM <noreply@tudominio.com>"
       - key: DEPOSITO_EMAIL_LOGISTICA
-        sync: false
+        sync: false          # Email destino deposito logistica
       - key: DEPOSITO_EMAIL_CITA
-        sync: false
+        sync: false          # Email destino deposito cita
+      # ── Supabase Storage (fotos de remitos) ────────────────
+      - key: SUPABASE_URL
+        sync: false          # Obtener en Supabase → Project Settings → API
+      - key: SUPABASE_SERVICE_KEY
+        sync: false          # Supabase → service_role secret key
+      - key: SUPABASE_STORAGE_BUCKET
+        value: remitos
       - key: PORT
         value: 3000
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
@@ -39,18 +41,4 @@ services:
         value: /usr/bin/chromium
     plan: free
 
-  # ─── FRONTEND (React/Vite como Static Site) ──────────────────────────────────
-  - type: web
-    name: sigam-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
-    envVars:
-      - key: VITE_API_URL
-        sync: false          # URL del backend en Render — pegar después del deploy del backend
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html  # SPA routing
-    plan: free
+  # Frontend se despliega en Vercel (NO en Render) — ver instrucciones en README
