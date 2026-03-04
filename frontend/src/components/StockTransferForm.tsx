@@ -26,7 +26,6 @@ export default function StockTransferForm({
 }: StockTransferFormProps) {
   const [loading, setLoading] = useState(false);
   const [depositos, setDepositos] = useState<any[]>([]);
-  const [articulos, setArticulos] = useState<any[]>([]);
   const [stock, setStock] = useState<any[]>([]);
   const { showNotification } = useNotificationStore();
   
@@ -49,12 +48,8 @@ export default function StockTransferForm({
 
   const loadData = async () => {
     try {
-      const [depositosRes, articulosRes] = await Promise.all([
-        api.get('/depositos'),
-        api.get('/articulos'),
-      ]);
+      const depositosRes = await api.get('/depositos');
       setDepositos(depositosRes.data);
-      setArticulos(articulosRes.data.filter((a: any) => a.activo));
       if (depositosRes.data.length > 0) {
         setFormData((prev) => ({
           ...prev,

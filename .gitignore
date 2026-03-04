@@ -51,6 +51,7 @@ uploads/remitos/*
 backend/uploads/
 backend/pdfs/
 
-# Backups
+# Backups (solo ignora .sql en raíz y backups/, NO las migraciones de Prisma)
 backups/
 *.sql
+!backend/prisma/migrations/**/*.sql

@@ -4,7 +4,7 @@ services:
     name: sigam-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npx prisma generate && npm run build
+    buildCommand: apt-get update -qq && apt-get install -y --no-install-recommends chromium && npm install && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && node dist/main
     envVars:
       - key: NODE_ENV
@@ -33,6 +33,10 @@ services:
         sync: false
       - key: PORT
         value: 3000
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: true
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium
     plan: free
 
   # ─── FRONTEND (React/Vite como Static Site) ──────────────────────────────────
