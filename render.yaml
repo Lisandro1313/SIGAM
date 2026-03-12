@@ -34,8 +34,6 @@ services:
         sync: false          # Supabase → service_role secret key
       - key: SUPABASE_STORAGE_BUCKET
         value: remitos
-      - key: PORT
-        value: 3000
       # Puppeteer usa su propio Chromium descargado en el build (no del sistema)
       - key: PUPPETEER_ARGS
         value: --no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu,--single-process
