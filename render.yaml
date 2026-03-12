@@ -4,7 +4,7 @@ services:
     name: sigam-backend
     runtime: node
     rootDir: backend
-    buildCommand: apt-get update -qq && apt-get install -y --no-install-recommends chromium && npm install && npx prisma generate && npm run build
+    buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && node dist/main
     healthCheckPath: /health
     envVars:
@@ -36,10 +36,9 @@ services:
         value: remitos
       - key: PORT
         value: 3000
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: true
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/chromium
+      # Puppeteer usa su propio Chromium descargado en el build (no del sistema)
+      - key: PUPPETEER_ARGS
+        value: --no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu,--single-process
     plan: free
 
   # Frontend se despliega en Vercel (NO en Render) — ver frontend/vercel.json
