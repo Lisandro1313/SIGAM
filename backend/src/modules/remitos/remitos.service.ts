@@ -185,10 +185,11 @@ export class RemitosService {
         },
       });
 
-      // Si está asociado a una entrega programada, marcarla como ENTREGADA
+      // Si está asociado a una entrega programada, marcarla como GENERADA
+      // (ENTREGADA se actualiza cuando se confirma la entrega física)
       await tx.entregaProgramada.updateMany({
         where: { remitoId: id },
-        data: { estado: 'ENTREGADA' },
+        data: { estado: 'GENERADA' },
       });
 
       return remitoConfirmado;

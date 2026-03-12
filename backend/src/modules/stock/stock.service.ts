@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MovimientoTipo } from '@prisma/client';
 
@@ -106,7 +106,9 @@ export class StockService {
       });
 
       if (!stockOrigen || stockOrigen.cantidad < cantidad) {
-        throw new Error('Stock insuficiente en depósito origen');
+        throw new BadRequestException(
+          `Stock insuficiente en depósito origen. Disponible: ${stockOrigen?.cantidad || 0}, Requerido: ${cantidad}`,
+        );
       }
 
       // Crear movimiento de TRANSFERENCIA

@@ -7,19 +7,29 @@ import { mkdirSync } from 'fs';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  // Validar variables de entorno críticas en producción
+  const isProd = process.env.NODE_ENV === 'production';
+  const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
+  if (isProd) requiredEnvVars.push('FRONTEND_URL');
+
+  for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+      throw new Error(
+        `Variable de entorno requerida no configurada: ${envVar}`,
+      );
+    }
+  }
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Servir archivos estáticos (fotos de remitos)
-  // process.cwd() = directorio raíz desde donde corre el proceso
   mkdirSync(join(process.cwd(), 'uploads', 'remitos'), { recursive: true });
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
 
-  // CORS
-  const allowedOrigins = [
-    process.env.FRONTEND_URL || 'http://localhost:5173',
-    'http://localhost:5173',
-    'http://localhost:5174',
-  ].filter(Boolean);
+  // CORS: en producción sólo permite el dominio del frontend
+  const allowedOrigins = isProd
+    ? [process.env.FRONTEND_URL]
+    : ['http://localhost:5173', 'http://localhost:5174'];
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
@@ -34,8 +44,14 @@ async function bootstrap() {
     }),
   );
 
-  // Prefijo global API
-  app.setGlobalPrefix('api');
+  // Prefijo global API (excepto /health para que Render pueda verificar)
+  app.setGlobalPrefix('api', { exclude: ['health'] });
+
+  // Health check para Render y monitoreo
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get('/health', (_req: any, res: any) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
 
   // Swagger / OpenAPI
   const config = new DocumentBuilder()

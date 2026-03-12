@@ -1,37 +1,53 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import * as puppeteer from 'puppeteer';
 
 // Filas vacías mínimas para que la tabla llegue hasta el pie
 const MIN_FILAS = 20;
 
 @Injectable()
-export class PdfService {
+export class PdfService implements OnModuleDestroy {
+  private browser: puppeteer.Browser | null = null;
+
+  private async getBrowser(): Promise<puppeteer.Browser> {
+    if (!this.browser || !this.browser.connected) {
+      this.browser = await puppeteer.launch({
+        headless: true,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+        ],
+      });
+    }
+    return this.browser;
+  }
+
+  async onModuleDestroy() {
+    if (this.browser) {
+      await this.browser.close();
+      this.browser = null;
+    }
+  }
+
   async generarRemitoPdf(remito: any): Promise<Buffer> {
     const html = this.generarHtmlRemito(remito);
-
-    const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--single-process',
-      ],
-    });
-
+    const browser = await this.getBrowser();
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
 
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
-    });
-
-    await browser.close();
-    return Buffer.from(pdfBuffer);
+    try {
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+      });
+      return Buffer.from(pdfBuffer);
+    } finally {
+      await page.close();
+    }
   }
 
   private generarHtmlRemito(remito: any): string {

@@ -3,6 +3,7 @@ import { useAuthStore } from './stores/authStore';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import NotificationProvider from './components/NotificationProvider';
+import ErrorBoundary from './components/ErrorBoundary';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import ProgramasPage from './pages/Programas';
@@ -34,7 +35,7 @@ function App() {
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <NotificationProvider />
       <Layout>
         <Routes>
@@ -55,7 +56,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>
-    </>
+    </ErrorBoundary>
   );
 }
 

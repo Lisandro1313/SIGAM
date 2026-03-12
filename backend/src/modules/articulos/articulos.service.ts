@@ -7,25 +7,20 @@ export class ArticulosService {
   constructor(private prisma: PrismaService) {}
 
   async create(createArticuloDto: CreateArticuloDto) {
-    // Crear artículo
-    const articulo = await this.prisma.articulo.create({
-      data: createArticuloDto,
+    return await this.prisma.$transaction(async (tx) => {
+      const articulo = await tx.articulo.create({ data: createArticuloDto });
+
+      const depositos = await tx.deposito.findMany({ where: { activo: true } });
+      await Promise.all(
+        depositos.map((deposito) =>
+          tx.stock.create({
+            data: { articuloId: articulo.id, depositoId: deposito.id, cantidad: 0 },
+          }),
+        ),
+      );
+
+      return articulo;
     });
-
-    // Crear stock en ambos depósitos
-    const depositos = await this.prisma.deposito.findMany();
-    
-    for (const deposito of depositos) {
-      await this.prisma.stock.create({
-        data: {
-          articuloId: articulo.id,
-          depositoId: deposito.id,
-          cantidad: 0,
-        },
-      });
-    }
-
-    return articulo;
   }
 
   async findAll() {

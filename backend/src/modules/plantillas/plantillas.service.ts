@@ -68,32 +68,28 @@ export class PlantillasService {
   }
 
   async update(id: number, updateData: any) {
-    // Si se actualizan items, eliminar los viejos y crear nuevos
+    // Si se actualizan items, eliminar los viejos y crear nuevos dentro de una transacción
     if (updateData.items) {
-      await this.prisma.plantillaItem.deleteMany({
-        where: { plantillaId: id },
-      });
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.plantillaItem.deleteMany({ where: { plantillaId: id } });
 
-      return await this.prisma.plantilla.update({
-        where: { id },
-        data: {
-          nombre: updateData.nombre,
-          descripcion: updateData.descripcion,
-          items: {
-            create: updateData.items.map((item: any) => ({
-              articuloId: item.articuloId,
-              cantidadBase: item.cantidadBase,
-            })),
-          },
-        },
-        include: {
-          items: {
-            include: {
-              articulo: true,
+        return await tx.plantilla.update({
+          where: { id },
+          data: {
+            nombre: updateData.nombre,
+            descripcion: updateData.descripcion,
+            items: {
+              create: updateData.items.map((item: any) => ({
+                articuloId: item.articuloId,
+                cantidadBase: item.cantidadBase,
+              })),
             },
           },
-          programa: true,
-        },
+          include: {
+            items: { include: { articulo: true } },
+            programa: true,
+          },
+        });
       });
     }
 

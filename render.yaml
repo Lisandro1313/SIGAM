@@ -6,17 +6,18 @@ services:
     rootDir: backend
     buildCommand: apt-get update -qq && apt-get install -y --no-install-recommends chromium && npm install && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && node dist/main
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false          # Se carga desde Supabase — pegar en Render dashboard
+        sync: false          # Pegar la connection string de Supabase (Transaction pooler, port 6543)
       - key: JWT_SECRET
-        sync: false          # Generar uno seguro — pegar en Render dashboard
+        sync: false          # Generar con: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: FRONTEND_URL
-        sync: false          # URL del frontend en Render — pegar después del deploy
+        sync: false          # URL del frontend en Vercel: https://sigam.vercel.app
       # ── Email (Resend — gratis 3000/mes) ──────────────────────
       - key: RESEND_API_KEY
         sync: false          # Obtener en https://resend.com
@@ -26,7 +27,7 @@ services:
         sync: false          # Email destino deposito logistica
       - key: DEPOSITO_EMAIL_CITA
         sync: false          # Email destino deposito cita
-      # ── Supabase Storage (fotos de remitos) ────────────────
+      # ── Supabase Storage (fotos de remitos) ────────────────────
       - key: SUPABASE_URL
         sync: false          # Obtener en Supabase → Project Settings → API
       - key: SUPABASE_SERVICE_KEY
@@ -41,4 +42,4 @@ services:
         value: /usr/bin/chromium
     plan: free
 
-  # Frontend se despliega en Vercel (NO en Render) — ver instrucciones en README
+  # Frontend se despliega en Vercel (NO en Render) — ver frontend/vercel.json

@@ -65,6 +65,9 @@ model Usuario {
   updatedAt   DateTime @updatedAt
 
   @@index([email])
+  @@index([programaId])
+  @@index([depositoId])
+  @@index([rol])
 }
 
 // ============================================================================
@@ -254,6 +257,8 @@ model Movimiento {
   @@index([articuloId])
   @@index([remitoId])
   @@index([programaId])
+  @@index([usuarioId])
+  @@index([beneficiarioId])
 }
 
 // ============================================================================
@@ -372,6 +377,7 @@ model Remito {
   @@index([beneficiarioId])
   @@index([programaId])
   @@index([depositoId])
+  @@index([emailEnviado, estado])
 }
 
 model RemitoItem {
