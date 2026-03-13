@@ -229,93 +229,96 @@ export class ReportesService {
     return alertas;
   }
 
-  // Dashboard: Resumen general
+  // Dashboard: Resumen operativo
   async dashboard() {
-    const beneficiariosActivos = await this.prisma.beneficiario.count({
-      where: { activo: true },
-    });
-
-    const programasActivos = await this.prisma.programa.count({
-      where: { activo: true },
-    });
-
-    const depositosCount = await this.prisma.deposito.count({
-      where: { activo: true },
-    });
-
-    const remitosDelMes = await this.prisma.remito.count({
-      where: {
-        fecha: {
-          gte: startOfMonth(new Date()),
-          lte: endOfMonth(new Date()),
-        },
-      },
-    });
-
-    // Obtener remitos del día actual
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     const manana = new Date(hoy);
     manana.setDate(manana.getDate() + 1);
+    const en7dias = new Date(hoy);
+    en7dias.setDate(en7dias.getDate() + 7);
 
+    // Remitos del día
     const remitosDelDia = await this.prisma.remito.findMany({
-      where: {
-        fecha: {
-          gte: hoy,
-          lt: manana,
-        },
-      },
+      where: { fecha: { gte: hoy, lt: manana } },
       include: {
-        beneficiario: {
-          select: {
-            nombre: true,
-          },
-        },
-        programa: {
-          select: {
-            nombre: true,
-          },
-        },
+        beneficiario: { select: { nombre: true } },
+        programa: { select: { nombre: true } },
+        deposito: { select: { nombre: true } },
       },
-      orderBy: {
-        fecha: 'desc',
-      },
+      orderBy: { fecha: 'desc' },
     });
 
-    // Obtener lista de programas con beneficiarios
-    const programas = await this.prisma.programa.findMany({
-      where: { activo: true },
+    // Últimos 10 remitos (excluyendo hoy)
+    const remitosRecientes = await this.prisma.remito.findMany({
+      where: { fecha: { lt: hoy } },
       include: {
-        _count: {
-          select: {
-            beneficiarios: true,
-            remitos: true,
-          },
-        },
+        beneficiario: { select: { nombre: true } },
+        programa: { select: { nombre: true } },
+        deposito: { select: { nombre: true } },
       },
-      orderBy: {
-        nombre: 'asc',
+      orderBy: { fecha: 'desc' },
+      take: 10,
+    });
+
+    // Cronograma próximos 7 días (entregas programadas pendientes)
+    const proximasEntregas = await this.prisma.entregaProgramada.findMany({
+      where: {
+        estado: { in: ['PENDIENTE', 'GENERADA'] },
+        fechaProgramada: { gte: hoy, lte: en7dias },
       },
+      include: {
+        beneficiario: { select: { nombre: true, localidad: true } },
+        programa: { select: { nombre: true } },
+      },
+      orderBy: { fechaProgramada: 'asc' },
+    });
+
+    // Contadores rápidos para el mes
+    const remitosDelMes = await this.prisma.remito.count({
+      where: { fecha: { gte: startOfMonth(new Date()), lte: endOfMonth(new Date()) } },
+    });
+    const kgDelMes = await this.prisma.remito.aggregate({
+      where: {
+        fecha: { gte: startOfMonth(new Date()), lte: endOfMonth(new Date()) },
+        estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] },
+      },
+      _sum: { totalKg: true },
     });
 
     return {
-      beneficiariosActivos,
-      programasActivos,
-      depositos: depositosCount,
-      remitosDelMes,
+      resumenMes: {
+        remitos: remitosDelMes,
+        kg: kgDelMes._sum.totalKg || 0,
+      },
       remitosDelDia: remitosDelDia.map(r => ({
         id: r.id,
         numero: r.numero,
         beneficiario: r.beneficiario?.nombre || 'N/A',
         programa: r.programa?.nombre || 'Sin programa',
-        totalKg: r.totalKg,
+        deposito: r.deposito?.nombre || '',
+        totalKg: r.totalKg || 0,
         estado: r.estado,
       })),
-      programas: programas.map(p => ({
-        id: p.id,
-        nombre: p.nombre,
-        beneficiarios: p._count.beneficiarios,
-        remitos: p._count.remitos,
+      remitosRecientes: remitosRecientes.map(r => ({
+        id: r.id,
+        numero: r.numero,
+        fecha: r.fecha,
+        beneficiario: r.beneficiario?.nombre || 'N/A',
+        programa: r.programa?.nombre || 'Sin programa',
+        deposito: r.deposito?.nombre || '',
+        totalKg: r.totalKg || 0,
+        estado: r.estado,
+      })),
+      proximasEntregas: proximasEntregas.map(e => ({
+        id: e.id,
+        fechaProgramada: e.fechaProgramada,
+        hora: e.hora,
+        beneficiario: e.beneficiario?.nombre || 'N/A',
+        localidad: e.beneficiario?.localidad || '',
+        programa: e.programa?.nombre || 'Sin programa',
+        kilos: e.kilos,
+        estado: e.estado,
       })),
     };
   }
