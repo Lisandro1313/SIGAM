@@ -12,7 +12,7 @@ export class PdfService implements OnModuleDestroy {
     if (!this.browser || !this.browser.connected) {
       this.browser = await puppeteer.launch({
         headless: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
