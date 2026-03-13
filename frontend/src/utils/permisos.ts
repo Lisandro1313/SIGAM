@@ -2,7 +2,7 @@
 // SISTEMA DE ROLES Y PERMISOS
 // ============================================================================
 //
-// ADMIN              → Políticas Alimentarias - acceso total
+// ADMIN              → Política Alimentaria - acceso total
 // LOGISTICA          → Stock, depósitos, transferencias
 // OPERADOR_PROGRAMA  → Beneficiarios, remitos, plantillas de su programa
 // TRABAJADORA_SOCIAL → Solo relevamiento (observaciones) de beneficiarios
@@ -20,7 +20,7 @@ export type Rol =
 
 // Etiquetas para mostrar en UI
 export const ROL_LABELS: Record<Rol, string> = {
-  ADMIN: 'Políticas Alimentarias',
+  ADMIN: 'Política Alimentaria',
   LOGISTICA: 'Logística',
   OPERADOR_PROGRAMA: 'Operador de Programa',
   TRABAJADORA_SOCIAL: 'Trabajadora Social',

@@ -187,7 +187,7 @@ export default function UsuariosPage() {
           ))}
         </Box>
         <Typography variant="caption" color="text.secondary" mt={1} display="block">
-          • <strong>Políticas Alimentarias (ADMIN)</strong>: acceso total &nbsp;
+          • <strong>Política Alimentaria (ADMIN)</strong>: acceso total &nbsp;
           • <strong>Logística</strong>: stock y remitos &nbsp;
           • <strong>Operador de Programa</strong>: beneficiarios y remitos de su programa &nbsp;
           • <strong>Trabajadora Social</strong>: solo relevamiento de beneficiarios &nbsp;
