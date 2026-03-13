@@ -11,7 +11,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false          # Pegar la connection string de Supabase (Transaction pooler, port 6543)
+        sync: false          # Supabase Transaction Pooler: postgres.PROJECT@aws-0-us-west-2.pooler.supabase.com:6543/postgres
+      - key: DIRECT_URL
+        sync: false          # Supabase Direct: postgres:PASSWORD@db.PROJECT.supabase.co:5432/postgres
       - key: JWT_SECRET
         sync: false          # Generar con: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
       - key: JWT_EXPIRES_IN
