@@ -24,10 +24,12 @@ import {
   IconButton,
   Typography,
   CircularProgress,
+  Tooltip,
 } from '@mui/material';
-import { Delete as DeleteIcon, Add as AddIcon, PlaylistAdd as PlantillaIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Add as AddIcon, PlaylistAdd as PlantillaIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
+import BeneficiarioForm from './BeneficiarioForm';
 
 interface RemitoFormProps {
   open: boolean;
@@ -58,6 +60,8 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
   const [depositoId, setDepositoId] = useState('');
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
 
+  const [openNuevoBeneficiario, setOpenNuevoBeneficiario] = useState(false);
+
   // Step 2: Items
   const [articulos, setArticulos] = useState<any[]>([]);
   const [plantillas, setPlantillas] = useState<any[]>([]);
@@ -75,10 +79,16 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
     }
   }, [open]);
 
-  const loadBeneficiarios = async () => {
+  const loadBeneficiarios = async (autoSelectLatest = false) => {
     try {
       const response = await api.get('/beneficiarios');
-      setBeneficiarios(response.data.filter((b: any) => b.activo));
+      const activos = response.data.filter((b: any) => b.activo);
+      setBeneficiarios(activos);
+      if (autoSelectLatest && activos.length > 0) {
+        const ultimo = activos.reduce((a: any, b: any) => (b.id > a.id ? b : a));
+        setBeneficiarioId(String(ultimo.id));
+        if (ultimo.programaId) setProgramaId(String(ultimo.programaId));
+      }
     } catch (error) {
       console.error('Error cargando beneficiarios:', error);
     }
@@ -231,26 +241,37 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
 
         {activeStep === 0 && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <FormControl fullWidth required>
-              <InputLabel>Beneficiario</InputLabel>
-              <Select
-                value={beneficiarioId}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setBeneficiarioId(val);
-                  // Auto-completar programa del beneficiario
-                  const b = beneficiarios.find((b) => b.id === parseInt(val));
-                  if (b?.programaId) setProgramaId(String(b.programaId));
-                }}
-                label="Beneficiario"
-              >
-                {beneficiarios.map((b) => (
-                  <MenuItem key={b.id} value={b.id}>
-                    {b.nombre} - {b.localidad}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <FormControl fullWidth required>
+                <InputLabel>Beneficiario</InputLabel>
+                <Select
+                  value={beneficiarioId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setBeneficiarioId(val);
+                    // Auto-completar programa del beneficiario
+                    const b = beneficiarios.find((b) => b.id === parseInt(val));
+                    if (b?.programaId) setProgramaId(String(b.programaId));
+                  }}
+                  label="Beneficiario"
+                >
+                  {beneficiarios.map((b) => (
+                    <MenuItem key={b.id} value={b.id}>
+                      {b.nombre} - {b.localidad}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Tooltip title="Crear nuevo beneficiario">
+                <IconButton
+                  color="primary"
+                  onClick={() => setOpenNuevoBeneficiario(true)}
+                  sx={{ flexShrink: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
+                >
+                  <PersonAddIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
 
             <FormControl fullWidth required>
               <InputLabel>Depósito</InputLabel>
@@ -460,6 +481,15 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
           </Button>
         )}
       </DialogActions>
+
+      <BeneficiarioForm
+        open={openNuevoBeneficiario}
+        onClose={() => setOpenNuevoBeneficiario(false)}
+        onSuccess={() => {
+          setOpenNuevoBeneficiario(false);
+          loadBeneficiarios(true);
+        }}
+      />
     </Dialog>
   );
 }
