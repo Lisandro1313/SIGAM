@@ -28,12 +28,13 @@ function useParticles(canvasRef: React.RefObject<HTMLCanvasElement>) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d')!;
+    const c = canvas as HTMLCanvasElement;
+    const ctx = c.getContext('2d')!;
     const mouse = { x: null as number | null, y: null as number | null, radius: 150 };
 
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      c.width = window.innerWidth;
+      c.height = window.innerHeight;
     };
     resize();
 
@@ -57,8 +58,8 @@ function useParticles(canvasRef: React.RefObject<HTMLCanvasElement>) {
       update() {
         this.x += this.speedX;
         this.y += this.speedY;
-        if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
-        if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+        if (this.x < 0 || this.x > c.width) this.speedX *= -1;
+        if (this.y < 0 || this.y > c.height) this.speedY *= -1;
         if (mouse.x != null && mouse.y != null) {
           const dx = mouse.x - this.x, dy = mouse.y - this.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -76,9 +77,9 @@ function useParticles(canvasRef: React.RefObject<HTMLCanvasElement>) {
     let particles: Particle[] = [];
     const init = () => {
       particles = [];
-      const n = (canvas.width * canvas.height) / 6000;
+      const n = (c.width * c.height) / 6000;
       for (let i = 0; i < n; i++)
-        particles.push(new Particle(Math.random() * canvas.width, Math.random() * canvas.height));
+        particles.push(new Particle(Math.random() * c.width, Math.random() * c.height));
     };
 
     const connect = () => {
@@ -99,7 +100,7 @@ function useParticles(canvasRef: React.RefObject<HTMLCanvasElement>) {
 
     let raf: number;
     const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, c.width, c.height);
       particles.forEach(p => { p.update(); p.draw(); });
       connect();
       raf = requestAnimationFrame(animate);
@@ -109,8 +110,8 @@ function useParticles(canvasRef: React.RefObject<HTMLCanvasElement>) {
     const onLeave = () => { mouse.x = null; mouse.y = null; };
     const onResize = () => { resize(); init(); };
 
-    canvas.addEventListener('mousemove', onMove);
-    canvas.addEventListener('mouseleave', onLeave);
+    c.addEventListener('mousemove', onMove);
+    c.addEventListener('mouseleave', onLeave);
     window.addEventListener('resize', onResize);
 
     init();
@@ -118,8 +119,8 @@ function useParticles(canvasRef: React.RefObject<HTMLCanvasElement>) {
 
     return () => {
       cancelAnimationFrame(raf);
-      canvas.removeEventListener('mousemove', onMove);
-      canvas.removeEventListener('mouseleave', onLeave);
+      c.removeEventListener('mousemove', onMove);
+      c.removeEventListener('mouseleave', onLeave);
       window.removeEventListener('resize', onResize);
     };
   }, [canvasRef]);
