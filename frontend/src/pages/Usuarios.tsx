@@ -21,11 +21,16 @@ import {
   MenuItem,
   Switch,
   FormControlLabel,
+  Tooltip,
+  Alert,
+  Divider,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
-  PersonOff as DeactivateIcon,
+  Block as DeactivateIcon,
+  CheckCircleOutline as ActivateIcon,
+  Key as PasswordIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -49,6 +54,15 @@ const ROL_COLOR: Record<Rol, 'error' | 'warning' | 'primary' | 'success' | 'seco
   VISOR:              'default',
 };
 
+const ROL_DESC: Record<Rol, string> = {
+  ADMIN:              'Acceso total. Gestión de usuarios, programas y configuración.',
+  LOGISTICA:          'Gestiona stock, depósitos e ingresos. Requiere depósito asignado.',
+  OPERADOR_PROGRAMA:  'Gestiona beneficiarios y remitos de su programa asignado.',
+  TRABAJADORA_SOCIAL: 'Solo puede cargar y editar el relevamiento de beneficiarios.',
+  ASISTENCIA_CRITICA: 'Solo puede crear y ver sus propios remitos (chapas, materiales, etc.).',
+  VISOR:              'Acceso de solo lectura al dashboard, beneficiarios y reportes.',
+};
+
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [programas, setProgramas] = useState<any[]>([]);
@@ -67,20 +81,18 @@ export default function UsuariosPage() {
   const [depositoId, setDepositoId] = useState('');
   const [activo, setActivo] = useState(true);
 
-  useEffect(() => {
-    loadAll();
-  }, []);
+  useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     try {
-      const [usuariosRes, programasRes, depositosRes] = await Promise.all([
+      const [uRes, pRes, dRes] = await Promise.all([
         api.get('/usuarios'),
         api.get('/programas'),
         api.get('/depositos'),
       ]);
-      setUsuarios(usuariosRes.data);
-      setProgramas(programasRes.data.filter((p: any) => p.activo));
-      setDepositos(depositosRes.data.filter((d: any) => d.activo));
+      setUsuarios(uRes.data);
+      setProgramas(pRes.data.filter((p: any) => p.activo));
+      setDepositos(dRes.data.filter((d: any) => d.activo));
     } catch (error) {
       console.error(error);
     } finally {
@@ -111,6 +123,13 @@ export default function UsuariosPage() {
     setFormOpen(true);
   };
 
+  // Al cambiar rol, limpiar campos que no corresponden
+  const handleRolChange = (nuevoRol: Rol) => {
+    setRol(nuevoRol);
+    if (nuevoRol !== 'OPERADOR_PROGRAMA') setProgramaId('');
+    if (nuevoRol !== 'LOGISTICA') setDepositoId('');
+  };
+
   const handleSave = async () => {
     if (!nombre || !email) {
       showNotification('Nombre y email son requeridos', 'warning');
@@ -123,9 +142,8 @@ export default function UsuariosPage() {
     setSaving(true);
     try {
       const payload: any = { nombre, email, rol, activo };
-      if (programaId) payload.programaId = parseInt(programaId);
-      if (depositoId) payload.depositoId = parseInt(depositoId);
-      else if (selected) payload.depositoId = null; // desasignar si se borra
+      payload.programaId = rol === 'OPERADOR_PROGRAMA' && programaId ? parseInt(programaId) : null;
+      payload.depositoId = rol === 'LOGISTICA' && depositoId ? parseInt(depositoId) : null;
       if (password) payload.password = password;
 
       if (selected) {
@@ -158,13 +176,16 @@ export default function UsuariosPage() {
     return <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>;
   }
 
+  const activos = usuarios.filter(u => u.activo);
+  const inactivos = usuarios.filter(u => !u.activo);
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box>
           <Typography variant="h4" fontWeight="bold">Usuarios</Typography>
           <Typography variant="body2" color="text.secondary">
-            Gestión de accesos por rol
+            {activos.length} activos · {inactivos.length} inactivos
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => openForm()}>
@@ -172,84 +193,103 @@ export default function UsuariosPage() {
         </Button>
       </Box>
 
-      {/* Referencia de roles */}
-      <Paper elevation={1} sx={{ p: 2, mb: 3, bgcolor: 'grey.50' }}>
-        <Typography variant="subtitle2" gutterBottom>Roles disponibles:</Typography>
-        <Box display="flex" flexWrap="wrap" gap={1}>
-          {ROLES.map((r) => (
-            <Chip
-              key={r}
-              label={ROL_LABELS[r]}
-              size="small"
-              color={ROL_COLOR[r]}
-              variant="outlined"
-            />
-          ))}
-        </Box>
-        <Typography variant="caption" color="text.secondary" mt={1} display="block">
-          • <strong>Política Alimentaria (ADMIN)</strong>: acceso total &nbsp;
-          • <strong>Logística</strong>: stock y remitos &nbsp;
-          • <strong>Operador de Programa</strong>: beneficiarios y remitos de su programa &nbsp;
-          • <strong>Trabajadora Social</strong>: solo relevamiento de beneficiarios &nbsp;
-          • <strong>Asistencia Crítica</strong>: solo sus remitos (chapas, materiales) &nbsp;
-          • <strong>Visor</strong>: solo lectura
-        </Typography>
-      </Paper>
-
-      <TableContainer component={Paper} elevation={2}>
+      {/* Usuarios activos */}
+      <TableContainer component={Paper} elevation={2} sx={{ mb: 4 }}>
         <Table>
           <TableHead>
-            <TableRow>
-              <TableCell>Nombre</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Rol</TableCell>
-              <TableCell>Programa</TableCell>
-              <TableCell align="center">Estado</TableCell>
-              <TableCell align="center">Acciones</TableCell>
+            <TableRow sx={{ bgcolor: 'grey.50' }}>
+              <TableCell><strong>Nombre</strong></TableCell>
+              <TableCell><strong>Email</strong></TableCell>
+              <TableCell><strong>Rol</strong></TableCell>
+              <TableCell><strong>Asignación</strong></TableCell>
+              <TableCell align="center"><strong>Acciones</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {usuarios.map((usuario) => (
-              <TableRow key={usuario.id} hover sx={{ opacity: usuario.activo ? 1 : 0.6 }}>
-                <TableCell><strong>{usuario.nombre}</strong></TableCell>
-                <TableCell>{usuario.email}</TableCell>
-                <TableCell>
-                  <Chip
-                    label={ROL_LABELS[usuario.rol as Rol] ?? usuario.rol}
-                    size="small"
-                    color={ROL_COLOR[usuario.rol as Rol] ?? 'default'}
-                  />
-                </TableCell>
-                <TableCell>{usuario.programa?.nombre || '-'}</TableCell>
-                <TableCell align="center">
-                  <Chip
-                    label={usuario.activo ? 'Activo' : 'Inactivo'}
-                    size="small"
-                    color={usuario.activo ? 'success' : 'default'}
-                  />
-                </TableCell>
-                <TableCell align="center">
-                  <IconButton size="small" onClick={() => openForm(usuario)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    color={usuario.activo ? 'warning' : 'success'}
-                    onClick={() => handleToggle(usuario)}
-                    title={usuario.activo ? 'Desactivar' : 'Activar'}
-                  >
-                    <DeactivateIcon fontSize="small" />
-                  </IconButton>
+            {activos.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                  No hay usuarios activos
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              activos.map((u) => (
+                <TableRow key={u.id} hover>
+                  <TableCell><strong>{u.nombre}</strong></TableCell>
+                  <TableCell sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>{u.email}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={ROL_LABELS[u.rol as Rol] ?? u.rol}
+                      size="small"
+                      color={ROL_COLOR[u.rol as Rol] ?? 'default'}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {u.rol === 'LOGISTICA' && u.deposito && (
+                      <Chip label={u.deposito.nombre} size="small" variant="outlined" color="warning" />
+                    )}
+                    {u.rol === 'OPERADOR_PROGRAMA' && u.programa && (
+                      <Chip label={u.programa.nombre} size="small" variant="outlined" color="primary" />
+                    )}
+                    {!u.deposito && !u.programa && (
+                      <Typography variant="caption" color="text.disabled">—</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    <Tooltip title="Editar">
+                      <IconButton size="small" onClick={() => openForm(u)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Desactivar usuario">
+                      <IconButton size="small" color="warning" onClick={() => handleToggle(u)}>
+                        <DeactivateIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      {/* Dialog */}
+      {/* Usuarios inactivos */}
+      {inactivos.length > 0 && (
+        <>
+          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            Inactivos ({inactivos.length})
+          </Typography>
+          <TableContainer component={Paper} elevation={1} sx={{ opacity: 0.65 }}>
+            <Table size="small">
+              <TableBody>
+                {inactivos.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell sx={{ color: 'text.disabled' }}>{u.nombre}</TableCell>
+                    <TableCell sx={{ color: 'text.disabled' }}>{u.email}</TableCell>
+                    <TableCell>
+                      <Chip label={ROL_LABELS[u.rol as Rol] ?? u.rol} size="small" variant="outlined" />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Reactivar">
+                        <IconButton size="small" color="success" onClick={() => handleToggle(u)}>
+                          <ActivateIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </>
+      )}
+
+      {/* Dialog crear/editar */}
       <Dialog open={formOpen} onClose={() => setFormOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{selected ? 'Editar Usuario' : 'Nuevo Usuario'}</DialogTitle>
+        <DialogTitle>
+          {selected ? `Editar: ${selected.nombre}` : 'Nuevo Usuario'}
+        </DialogTitle>
         <DialogContent>
           <TextField
             fullWidth label="Nombre completo"
@@ -265,52 +305,90 @@ export default function UsuariosPage() {
             helperText={selected ? 'El email no puede modificarse' : ''}
           />
           <TextField
-            fullWidth label={selected ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña'}
+            fullWidth
+            label={selected ? 'Nueva contraseña (vacío = no cambiar)' : 'Contraseña'}
             type="password"
             value={password} onChange={(e) => setPassword(e.target.value)}
             margin="normal"
             required={!selected}
+            InputProps={{
+              startAdornment: <PasswordIcon sx={{ mr: 1, color: 'text.disabled', fontSize: 18 }} />,
+            }}
           />
+
+          <Divider sx={{ my: 2 }} />
+
           <TextField
             select fullWidth label="Rol"
-            value={rol} onChange={(e) => setRol(e.target.value as Rol)}
+            value={rol} onChange={(e) => handleRolChange(e.target.value as Rol)}
             margin="normal" required
-            helperText="Define qué secciones puede ver y qué acciones puede realizar"
           >
             {ROLES.map((r) => (
               <MenuItem key={r} value={r}>
-                <Chip label={ROL_LABELS[r]} size="small" color={ROL_COLOR[r]} sx={{ mr: 1 }} />
-                {ROL_LABELS[r]}
+                <Box>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Chip label={ROL_LABELS[r]} size="small" color={ROL_COLOR[r]} />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" display="block" mt={0.3}>
+                    {ROL_DESC[r]}
+                  </Typography>
+                </Box>
               </MenuItem>
             ))}
           </TextField>
-          <TextField
-            select fullWidth label="Programa (opcional)"
-            value={programaId} onChange={(e) => setProgramaId(e.target.value)}
-            margin="normal"
-            helperText="Asociar a un programa específico (para Operador de Programa)"
-          >
-            <MenuItem value="">Sin programa</MenuItem>
-            {programas.map((p) => (
-              <MenuItem key={p.id} value={p.id}>{p.nombre}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select fullWidth label="Depósito asignado (opcional)"
-            value={depositoId} onChange={(e) => setDepositoId(e.target.value)}
-            margin="normal"
-            helperText="Para rol LOGÍSTICA: solo verá remitos de este depósito"
-          >
-            <MenuItem value="">Sin depósito</MenuItem>
-            {depositos.map((d) => (
-              <MenuItem key={d.id} value={d.id}>{d.nombre}</MenuItem>
-            ))}
-          </TextField>
+
+          {/* Depósito — solo para LOGISTICA */}
+          {rol === 'LOGISTICA' && (
+            <TextField
+              select fullWidth label="Depósito asignado *"
+              value={depositoId} onChange={(e) => setDepositoId(e.target.value)}
+              margin="normal"
+              helperText="El usuario solo accederá al inventario y remitos de este depósito"
+            >
+              <MenuItem value="">Seleccionar depósito...</MenuItem>
+              {depositos.map((d) => (
+                <MenuItem key={d.id} value={d.id}>{d.nombre}</MenuItem>
+              ))}
+            </TextField>
+          )}
+
+          {/* Programa — solo para OPERADOR_PROGRAMA */}
+          {rol === 'OPERADOR_PROGRAMA' && (
+            <TextField
+              select fullWidth label="Programa asignado *"
+              value={programaId} onChange={(e) => setProgramaId(e.target.value)}
+              margin="normal"
+              helperText="El usuario solo podrá gestionar beneficiarios de este programa"
+            >
+              <MenuItem value="">Seleccionar programa...</MenuItem>
+              {programas.map((p) => (
+                <MenuItem key={p.id} value={p.id}>{p.nombre}</MenuItem>
+              ))}
+            </TextField>
+          )}
+
+          {/* Alertas informativas */}
+          {rol === 'ADMIN' && (
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              Acceso total al sistema, incluida la gestión de usuarios.
+            </Alert>
+          )}
+          {rol === 'TRABAJADORA_SOCIAL' && (
+            <Alert severity="info" sx={{ mt: 1 }}>
+              Solo puede ver beneficiarios y cargar observaciones. Sin acceso a remitos ni stock.
+            </Alert>
+          )}
+          {rol === 'VISOR' && (
+            <Alert severity="info" sx={{ mt: 1 }}>
+              Solo lectura. No puede crear ni modificar nada.
+            </Alert>
+          )}
+
           {selected && (
             <FormControlLabel
-              control={<Switch checked={activo} onChange={(e) => setActivo(e.target.checked)} />}
-              label="Usuario activo"
-              sx={{ mt: 1 }}
+              control={<Switch checked={activo} onChange={(e) => setActivo(e.target.checked)} color="success" />}
+              label={activo ? 'Usuario activo' : 'Usuario inactivo'}
+              sx={{ mt: 2 }}
             />
           )}
         </DialogContent>
