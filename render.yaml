@@ -4,7 +4,7 @@ services:
     name: sigam-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install --include=dev && npx prisma generate && npm run build
+    buildCommand: npm install --include=dev && npx puppeteer browsers install chrome && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && node dist/main
     healthCheckPath: /health
     envVars:
@@ -36,11 +36,9 @@ services:
         sync: false          # Supabase → service_role secret key
       - key: SUPABASE_STORAGE_BUCKET
         value: remitos
-      # Usar Chrome del sistema en Render (evita descargar Chromium en cada build)
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: "true"
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/google-chrome-stable
+      # Cache de Chromium para Puppeteer (persiste entre builds en Render)
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/.cache/puppeteer
     plan: free
 
   # Frontend se despliega en Vercel (NO en Render) — ver frontend/vercel.json

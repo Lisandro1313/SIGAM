@@ -10,28 +10,16 @@ export class PdfService implements OnModuleDestroy {
 
   private async getBrowser(): Promise<puppeteer.Browser> {
     if (!this.browser || !this.browser.connected) {
-      const args = [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--single-process',
-      ];
-
-      // Intentar con PUPPETEER_EXECUTABLE_PATH (Render: /usr/bin/google-chrome-stable)
-      // Si no está seteado, usar el Chromium bundled de Puppeteer
-      const executablePath =
-        process.env.PUPPETEER_EXECUTABLE_PATH ||
-        puppeteer.executablePath();
-
-      console.log(`[PdfService] Launching browser: ${executablePath}`);
-
-      try {
-        this.browser = await puppeteer.launch({ headless: true, executablePath, args });
-      } catch (err) {
-        console.error(`[PdfService] Error launching browser with ${executablePath}:`, err);
-        throw err;
-      }
+      this.browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+        ],
+      });
     }
     return this.browser;
   }
