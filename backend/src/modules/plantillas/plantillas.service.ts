@@ -11,6 +11,7 @@ export class PlantillasService {
       data: {
         nombre: createPlantillaDto.nombre,
         descripcion: createPlantillaDto.descripcion,
+        kilogramos: createPlantillaDto.kilogramos ?? null,
         programaId: createPlantillaDto.programaId,
         items: {
           create: createPlantillaDto.items.map((item) => ({
@@ -78,6 +79,8 @@ export class PlantillasService {
           data: {
             nombre: updateData.nombre,
             descripcion: updateData.descripcion,
+            kilogramos: updateData.kilogramos ?? null,
+            programaId: updateData.programaId ?? undefined,
             items: {
               create: updateData.items.map((item: any) => ({
                 articuloId: item.articuloId,

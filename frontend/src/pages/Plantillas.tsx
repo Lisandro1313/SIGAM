@@ -23,11 +23,14 @@ import {
   TableHead,
   TableRow,
   Divider,
+  Collapse,
+  InputAdornment,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  Calculate as CalculateIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -50,6 +53,8 @@ export default function PlantillasPage() {
   const [selectedArticuloId, setSelectedArticuloId] = useState('');
   const [cantidadBase, setCantidadBase] = useState('');
   const [saving, setSaving] = useState(false);
+  const [calcOpen, setCalcOpen] = useState<number | null>(null); // plantilla id abierta
+  const [calcCantidad, setCalcCantidad] = useState('1');
 
   useEffect(() => {
     loadAll();
@@ -217,7 +222,7 @@ export default function PlantillasPage() {
                     </Typography>
                   )}
                   {plantilla.kilogramos != null && (
-                    <Chip label={`${plantilla.kilogramos} kg`} size="small" color="success" sx={{ mt: 0.5 }} />
+                    <Chip label={`Ref: ${plantilla.kilogramos} kg`} size="small" color="success" sx={{ mt: 0.5 }} />
                   )}
                   <Divider sx={{ my: 1.5 }} />
                   <Typography variant="caption" color="text.secondary" gutterBottom>
@@ -231,8 +236,60 @@ export default function PlantillasPage() {
                       </Typography>
                     </Box>
                   ))}
+
+                  {/* Calculadora de pedido */}
+                  <Collapse in={calcOpen === plantilla.id}>
+                    <Box sx={{ mt: 1.5, p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                        CALCULADORA DE PEDIDO
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        label="Cantidad de entregas"
+                        value={calcCantidad}
+                        onChange={(e) => setCalcCantidad(e.target.value)}
+                        inputProps={{ min: 1, step: 1 }}
+                        fullWidth
+                        sx={{ mt: 1, mb: 1 }}
+                        InputProps={{
+                          endAdornment: <InputAdornment position="end">entregas</InputAdornment>,
+                        }}
+                      />
+                      {plantilla.items.map((item: any) => {
+                        const mult = Math.max(1, parseFloat(calcCantidad) || 1);
+                        const total = item.cantidadBase * mult;
+                        return (
+                          <Box key={item.id} display="flex" justifyContent="space-between" py={0.3}>
+                            <Typography variant="body2" color="text.secondary">{item.articulo.nombre}</Typography>
+                            <Typography variant="body2" fontWeight="bold" color="success.main">
+                              {total % 1 === 0 ? total : total.toFixed(1)}
+                            </Typography>
+                          </Box>
+                        );
+                      })}
+                      {plantilla.kilogramos != null && (
+                        <Box display="flex" justifyContent="space-between" pt={0.5} mt={0.5} borderTop="1px dashed #ccc">
+                          <Typography variant="caption" color="text.secondary">Total kg estimados</Typography>
+                          <Typography variant="caption" fontWeight="bold" color="success.main">
+                            {(plantilla.kilogramos * Math.max(1, parseFloat(calcCantidad) || 1)).toLocaleString()} kg
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  </Collapse>
                 </CardContent>
                 <CardActions sx={{ justifyContent: 'flex-end' }}>
+                  <IconButton
+                    size="small"
+                    color={calcOpen === plantilla.id ? 'success' : 'default'}
+                    onClick={() => {
+                      setCalcOpen(calcOpen === plantilla.id ? null : plantilla.id);
+                      setCalcCantidad('1');
+                    }}
+                  >
+                    <CalculateIcon fontSize="small" />
+                  </IconButton>
                   <IconButton size="small" onClick={() => openForm(plantilla)}>
                     <EditIcon fontSize="small" />
                   </IconButton>
