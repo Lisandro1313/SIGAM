@@ -4,7 +4,7 @@ services:
     name: sigam-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install --include=dev && echo "PASO 1 OK" && npx puppeteer browsers install chrome && echo "PASO 2 OK" && npx prisma generate && echo "PASO 3 OK" && node --max-old-space-size=400 node_modules/.bin/nest build && echo "PASO 4 OK"
+    buildCommand: npm install --include=dev && (timeout 60 npx puppeteer browsers install chrome || true) && npx prisma generate && node --max-old-space-size=400 node_modules/.bin/nest build
     startCommand: npx prisma migrate deploy && node dist/main
     healthCheckPath: /health
     envVars:
