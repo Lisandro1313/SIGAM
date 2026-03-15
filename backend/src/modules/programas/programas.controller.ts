@@ -20,6 +20,12 @@ export class ProgramasController {
     return this.programasService.create(createProgramaDto);
   }
 
+  @Get('tipos')
+  @ApiOperation({ summary: 'Listar tipos de programa disponibles' })
+  getTipos() {
+    return this.programasService.getTipos();
+  }
+
   @Get()
   @ApiOperation({ summary: 'Listar programas' })
   findAll() {

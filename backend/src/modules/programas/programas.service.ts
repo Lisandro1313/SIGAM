@@ -12,6 +12,19 @@ export class ProgramasService {
     });
   }
 
+  private static readonly DEFAULT_TIPOS = [
+    'ESPACIOS', 'CELIAQUIA', 'VASO_LECHE', 'CASOS_PARTICULARES', 'OTRO',
+  ];
+
+  async getTipos(): Promise<string[]> {
+    const fromDb = await this.prisma.programa.findMany({
+      select: { tipo: true },
+      distinct: ['tipo'],
+    });
+    const dbTipos = fromDb.map((p) => p.tipo);
+    return [...new Set([...ProgramasService.DEFAULT_TIPOS, ...dbTipos])];
+  }
+
   async findAll() {
     return await this.prisma.programa.findMany({
       where: { activo: true },

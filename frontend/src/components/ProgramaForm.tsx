@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -10,9 +10,23 @@ import {
   Checkbox,
   CircularProgress,
   MenuItem,
+  Box,
+  IconButton,
+  Tooltip,
+  Popover,
+  Typography,
 } from '@mui/material';
+import { AddCircleOutline as AddTypeIcon } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
+
+const TIPO_LABELS: Record<string, string> = {
+  ESPACIOS: 'Espacios',
+  CELIAQUIA: 'Celiaquía',
+  VASO_LECHE: 'Vaso de Leche',
+  CASOS_PARTICULARES: 'Casos Particulares',
+  OTRO: 'Otro',
+};
 
 interface ProgramaFormProps {
   open: boolean;
@@ -28,20 +42,39 @@ export default function ProgramaForm({
   programa,
 }: ProgramaFormProps) {
   const [loading, setLoading] = useState(false);
+  const [tipos, setTipos] = useState<string[]>([]);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const [nuevoTipo, setNuevoTipo] = useState('');
   const { showNotification } = useNotificationStore();
+
   const [formData, setFormData] = useState({
     nombre: programa?.nombre || '',
     tipo: programa?.tipo || '',
     usaCronograma: programa?.usaCronograma || false,
     usaPlantilla: programa?.usaPlantilla || false,
-    descuentaStock: programa?.descuentaStock || true,
+    descuentaStock: programa?.descuentaStock ?? true,
     activo: programa?.activo ?? true,
   });
+
+  useEffect(() => {
+    if (open) {
+      api.get('/programas/tipos')
+        .then(r => setTipos(r.data))
+        .catch(() => setTipos(['ESPACIOS', 'CELIAQUIA', 'VASO_LECHE', 'CASOS_PARTICULARES', 'OTRO']));
+      setFormData({
+        nombre: programa?.nombre || '',
+        tipo: programa?.tipo || '',
+        usaCronograma: programa?.usaCronograma || false,
+        usaPlantilla: programa?.usaPlantilla || false,
+        descuentaStock: programa?.descuentaStock ?? true,
+        activo: programa?.activo ?? true,
+      });
+    }
+  }, [open, programa]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       if (programa) {
         await api.patch(`/programas/${programa.id}`, formData);
@@ -66,6 +99,19 @@ export default function ProgramaForm({
     setFormData({ ...formData, [field]: value });
   };
 
+  const handleAgregarTipo = () => {
+    const valor = nuevoTipo.trim().toUpperCase().replace(/\s+/g, '_');
+    if (!valor) return;
+    if (!tipos.includes(valor)) {
+      setTipos(prev => [...prev, valor]);
+    }
+    setFormData(prev => ({ ...prev, tipo: valor }));
+    setNuevoTipo('');
+    setAnchorEl(null);
+  };
+
+  const tipoLabel = (t: string) => TIPO_LABELS[t] ?? t.replace(/_/g, ' ');
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
@@ -81,21 +127,61 @@ export default function ProgramaForm({
             margin="normal"
             required
           />
-          <TextField
-            select
-            fullWidth
-            label="Tipo"
-            value={formData.tipo}
-            onChange={(e) => handleChange('tipo', e.target.value)}
-            margin="normal"
-            required
+
+          {/* Tipo con botón + para agregar nuevo */}
+          <Box display="flex" alignItems="center" gap={1} mt={1} mb={0.5}>
+            <TextField
+              select
+              fullWidth
+              label="Tipo *"
+              value={formData.tipo}
+              onChange={(e) => handleChange('tipo', e.target.value)}
+              required
+            >
+              {tipos.map(t => (
+                <MenuItem key={t} value={t}>{tipoLabel(t)}</MenuItem>
+              ))}
+            </TextField>
+            <Tooltip title="Agregar nuevo tipo">
+              <IconButton
+                color="primary"
+                onClick={(e) => setAnchorEl(e.currentTarget)}
+                sx={{ flexShrink: 0 }}
+              >
+                <AddTypeIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+
+          {/* Popover para nuevo tipo */}
+          <Popover
+            open={Boolean(anchorEl)}
+            anchorEl={anchorEl}
+            onClose={() => { setAnchorEl(null); setNuevoTipo(''); }}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
           >
-            <MenuItem value="ESPACIOS">Espacios</MenuItem>
-            <MenuItem value="CELIAQUIA">Celiaquía</MenuItem>
-            <MenuItem value="VASO_LECHE">Vaso de Leche</MenuItem>
-            <MenuItem value="CASOS_PARTICULARES">Casos Particulares</MenuItem>
-            <MenuItem value="OTRO">Otro</MenuItem>
-          </TextField>
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, minWidth: 260 }}>
+              <Typography variant="subtitle2">Nuevo tipo de programa</Typography>
+              <TextField
+                size="small"
+                label="Nombre del tipo"
+                value={nuevoTipo}
+                onChange={e => setNuevoTipo(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAgregarTipo()}
+                autoFocus
+                fullWidth
+              />
+              <Box display="flex" justifyContent="flex-end" gap={1}>
+                <Button size="small" onClick={() => { setAnchorEl(null); setNuevoTipo(''); }}>
+                  Cancelar
+                </Button>
+                <Button size="small" variant="contained" onClick={handleAgregarTipo}>
+                  Agregar
+                </Button>
+              </Box>
+            </Box>
+          </Popover>
+
           <FormControlLabel
             control={
               <Checkbox
