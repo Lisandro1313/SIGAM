@@ -3,10 +3,11 @@ import { RemitosService } from './remitos.service';
 import { RemitosController } from './remitos.controller';
 import { PdfService } from './services/pdf.service';
 import { EmailService } from './services/email.service';
-import { StorageService } from './services/storage.service';
+import { StorageModule } from '../../shared/storage/storage.module';
 
 @Module({
-  providers: [RemitosService, PdfService, EmailService, StorageService],
+  imports: [StorageModule],
+  providers: [RemitosService, PdfService, EmailService],
   controllers: [RemitosController],
   exports: [RemitosService],
 })

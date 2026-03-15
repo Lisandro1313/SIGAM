@@ -127,13 +127,28 @@ model Beneficiario {
   entregas           EntregaProgramada[]
   remitos            Remito[]
   movimientos        Movimiento[]
-  
+  documentos         DocumentoBeneficiario[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([activo])
   @@index([programaId])
   @@index([localidad])
+}
+
+model DocumentoBeneficiario {
+  id             Int          @id @default(autoincrement())
+  beneficiario   Beneficiario @relation(fields: [beneficiarioId], references: [id], onDelete: Cascade)
+  beneficiarioId Int
+  nombre         String       // Nombre descriptivo del documento
+  archivo        String       // Nombre del archivo
+  url            String       // URL en Supabase Storage o path local
+  tipo           String?      // Tipo: DNI, INFORME, FOTO, OTRO
+  estado         String       @default("PENDIENTE") // PENDIENTE, APROBADO, RECHAZADO
+  createdAt      DateTime     @default(now())
+
+  @@index([beneficiarioId])
 }
 
 // ============================================================================

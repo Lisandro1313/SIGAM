@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBeneficiarioDto } from './dto/create-beneficiario.dto';
+import { StorageService } from '../../shared/storage/storage.service';
 
 @Injectable()
 export class BeneficiariosService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private storageService: StorageService,
+  ) {}
 
   private static readonly LOCALIDADES_LA_PLATA = [
     'La Plata', 'Los Hornos', 'Gonnet', 'City Bell', 'Villa Elisa',
@@ -80,5 +84,57 @@ export class BeneficiariosService {
     });
 
     return { success: true, message: 'Beneficiario desactivado' };
+  }
+
+  // ── Documentos ──────────────────────────────────────────────────────────────
+
+  async getDocumentos(beneficiarioId: number) {
+    return this.prisma.documentoBeneficiario.findMany({
+      where: { beneficiarioId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async uploadDocumento(
+    beneficiarioId: number,
+    file: Express.Multer.File,
+    nombre: string,
+    tipo?: string,
+  ) {
+    const ext = file.originalname.split('.').pop();
+    const filename = `docs/${beneficiarioId}/${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const url = await this.storageService.upload(file.buffer, filename, file.mimetype);
+
+    return this.prisma.documentoBeneficiario.create({
+      data: {
+        beneficiarioId,
+        nombre: nombre || file.originalname,
+        archivo: file.originalname,
+        url,
+        tipo: tipo || null,
+        estado: 'PENDIENTE',
+      },
+    });
+  }
+
+  async updateDocumento(id: number, data: { nombre?: string; estado?: string }) {
+    return this.prisma.documentoBeneficiario.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async deleteDocumento(id: number) {
+    const doc = await this.prisma.documentoBeneficiario.findUnique({ where: { id } });
+    if (!doc) throw new NotFoundException('Documento no encontrado');
+
+    // Intentar borrar del storage (ignorar error si no existe)
+    try {
+      const path = doc.url.includes('uploads/') ? doc.url.split('uploads/')[1] : null;
+      if (path) await this.storageService.delete(path);
+    } catch { /* ignorar */ }
+
+    await this.prisma.documentoBeneficiario.delete({ where: { id } });
+    return { success: true };
   }
 }

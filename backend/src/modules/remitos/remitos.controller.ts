@@ -19,7 +19,7 @@ import { extname } from 'path';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { RemitosService } from './remitos.service';
-import { StorageService } from './services/storage.service';
+import { StorageService } from '../../shared/storage/storage.service';
 import { CreateRemitoDto } from './dto/create-remito.dto';
 import { ConfirmarRemitoDto } from './dto/confirmar-remito.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
