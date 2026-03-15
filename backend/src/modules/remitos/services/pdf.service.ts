@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import * as puppeteer from 'puppeteer';
+import * as puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 
 // Filas vacías mínimas para que la tabla llegue hasta el pie
 const MIN_FILAS = 20;
@@ -10,15 +11,12 @@ export class PdfService implements OnModuleDestroy {
 
   private async getBrowser(): Promise<puppeteer.Browser> {
     if (!this.browser || !this.browser.connected) {
+      const executablePath = await chromium.executablePath();
       this.browser = await puppeteer.launch({
+        args: [...chromium.args, '--single-process', '--no-zygote'],
+        defaultViewport: chromium.defaultViewport,
+        executablePath,
         headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--single-process',
-        ],
       });
     }
     return this.browser;

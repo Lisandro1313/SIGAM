@@ -10,6 +10,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PUPPETEER_SKIP_DOWNLOAD
+        value: "true"
       - key: DATABASE_URL
         sync: false          # Supabase Transaction Pooler: postgres.PROJECT@aws-0-us-west-2.pooler.supabase.com:6543/postgres
       - key: DIRECT_URL
