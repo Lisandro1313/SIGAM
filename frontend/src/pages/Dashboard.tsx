@@ -28,10 +28,64 @@ const TIPS = [
   'Preparando el resumen operativo...',
   'Chequeando el aceite y el arroz...',
   'Cargando la información del mes...',
+  'Preparando agua para el mate...',
+  'Buscando recetas saludables en internet...',
+  'Calentando los bizcochitos...',
+  'Avisando al municipio que estás conectado...',
+  'Controlando la heladera del depósito...',
+  'Revisando si llegaron las lentejas...',
+  'Acomodando los paquetes de azúcar...',
+  'Chequeando la polenta x 500 grs...',
+  'Contando los aceites uno por uno...',
+  'Verificando el dulce de leche (urgente)...',
+  'Revisando el stock de galletitas...',
+  'Mandando un memo a Desarrollo Social...',
+  'Calculando cuánto arroz queda...',
+  'Actualizando el libro de inventario...',
+  'Coordinando con el chofer del camión...',
+  'Chequeando las fechas de vencimiento...',
+  'Preparando el informe del día...',
+  'Contando los beneficiarios nuevos...',
+  'Sincronizando con la secretaría...',
+  'Verificando que no falten remitos...',
+];
+
+const FRASES = [
+  '¿Qué es el tiempo? ¿Algo que pasa, o algo en lo que vivimos?',
+  '¿Somos realmente libres, o nuestras decisiones ya estaban condicionadas?',
+  '¿Te has convertido en la persona que querías ser?',
+  '¿Con qué sueñan las personas ciegas de nacimiento?',
+  '¿Cuál es tu verdadera filosofía de vida?',
+  'Si pudieras vivir para siempre, ¿lo harías? ¿Y si todos los demás también?',
+  '¿Qué es lo que más te asusta de tu futuro?',
+  '¿Por qué a veces se nos "pega" una canción y no podemos dejar de tararearla?',
+  '¿Preferirías conocer la fecha de tu muerte o la causa de la misma?',
+  '¿Tiene sentido ayudar a los demás si al final todos vamos a morir?',
+  '¿Cuál ha sido el error más grande de tu vida y qué aprendiste de él?',
+  '¿Qué cualidad valorás más en una amistad?',
+  'Si pudieras invitar a cualquier persona de la historia a cenar, ¿a quién elegirías?',
+  '¿Qué constituiría un "día perfecto" para vos?',
+  '¿La felicidad es un destino o una forma de viajar?',
+  '¿Cambia una persona realmente, o solo cambian las circunstancias?',
+  '¿Qué harías si supieras que nadie te está mirando y que no hay consecuencias?',
+  '¿Existe el altruismo puro, o siempre hay algo que ganamos al ayudar?',
+  '¿Tiene sentido buscarle un propósito a la vida, o el propósito se construye?',
+  '¿Por qué nos castañetean los dientes cuando sentimos frío?',
+  '¿Si un árbol cae en el bosque y nadie lo escucha, hace ruido?',
+  '¿Qué tan distinta sería tu vida si hubieras nacido en otro lugar?',
+  'Si pudieras cambiar una sola cosa del mundo, ¿qué sería?',
+  '¿Somos más el resultado de nuestros genes o de nuestras experiencias?',
+  '¿Qué significa realmente "tener éxito"?',
+  '¿Existe la objetividad, o todo pasa por el filtro de nuestra percepción?',
+  '¿Le tenés más miedo al fracaso o al arrepentimiento?',
+  '¿Puede existir la justicia perfecta?',
+  '¿Qué le dirías a tu yo de hace diez años?',
+  '¿Cuánto de lo que creés saber es realmente tuyo, y cuánto te lo contaron?',
 ];
 
 function LoadingDashboard() {
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
+  const [fraseIndex] = useState(() => Math.floor(Math.random() * FRASES.length));
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -44,9 +98,18 @@ function LoadingDashboard() {
     <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="60vh" gap={3}>
       <CircularProgress size={48} />
       <LinearProgress sx={{ width: 320, borderRadius: 4 }} />
-      <Typography variant="body1" color="text.secondary" sx={{ fontStyle: 'italic', textAlign: 'center', maxWidth: 360 }}>
+      <Typography variant="body1" color="text.secondary" sx={{ fontStyle: 'italic', textAlign: 'center', maxWidth: 380 }}>
         {TIPS[tipIndex]}
       </Typography>
+
+      <Box sx={{ mt: 2, px: 3, py: 2, borderLeft: '3px solid', borderColor: 'primary.main', maxWidth: 400, bgcolor: 'action.hover', borderRadius: '0 8px 8px 0' }}>
+        <Typography variant="caption" color="primary" fontWeight="bold" display="block" mb={0.5}>
+          Para pensar mientras esperás...
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+          "{FRASES[fraseIndex]}"
+        </Typography>
+      </Box>
     </Box>
   );
 }
