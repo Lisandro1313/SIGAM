@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Box, Grid, Card, CardContent, Typography, CircularProgress,
   Paper, Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, Chip, Divider,
+  TableRow, Chip, Divider, LinearProgress,
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -14,6 +14,42 @@ import {
 import api from '../services/api';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+
+const TIPS = [
+  'Verificando que los fideos estén bien contados...',
+  'Consultando el stock de yerba...',
+  'Calculando los kilos del mes...',
+  'Revisando el cronograma de entregas...',
+  'Preguntándole a la base de datos...',
+  'Ordenando los remitos por fecha...',
+  'Contando los beneficiarios activos...',
+  'Buscando los programas disponibles...',
+  'Sincronizando con el depósito...',
+  'Preparando el resumen operativo...',
+  'Chequeando el aceite y el arroz...',
+  'Cargando la información del mes...',
+];
+
+function LoadingDashboard() {
+  const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTipIndex(i => (i + 1) % TIPS.length);
+    }, 1800);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="60vh" gap={3}>
+      <CircularProgress size={48} />
+      <LinearProgress sx={{ width: 320, borderRadius: 4 }} />
+      <Typography variant="body1" color="text.secondary" sx={{ fontStyle: 'italic', textAlign: 'center', maxWidth: 360 }}>
+        {TIPS[tipIndex]}
+      </Typography>
+    </Box>
+  );
+}
 
 const ESTADO_COLOR: Record<string, any> = {
   BORRADOR: 'default',
@@ -38,7 +74,7 @@ export default function Dashboard() {
   }, []);
 
   if (loading) {
-    return <Box display="flex" justifyContent="center" mt={6}><CircularProgress /></Box>;
+    return <LoadingDashboard />;
   }
 
   const hoy = format(new Date(), "EEEE d 'de' MMMM", { locale: es });
