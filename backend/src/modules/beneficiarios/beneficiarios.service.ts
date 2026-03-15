@@ -6,6 +6,25 @@ import { CreateBeneficiarioDto } from './dto/create-beneficiario.dto';
 export class BeneficiariosService {
   constructor(private prisma: PrismaService) {}
 
+  private static readonly LOCALIDADES_LA_PLATA = [
+    'La Plata', 'Los Hornos', 'Gonnet', 'City Bell', 'Villa Elisa',
+    'Tolosa', 'Ringuelet', 'Villa Elvira', 'Altos de San Lorenzo',
+    'Lisandro Olmos', 'Melchor Romero', 'Arana', 'Abasto', 'Arturo Seguí',
+    'Etcheverry', 'El Pato', 'El Peligro', 'Joaquín Gorina', 'José Hernández',
+    'La Cumbre', 'Malvinas Argentinas', 'Parque Sicardi', 'Romero',
+    'Hernández', 'San Carlos',
+  ];
+
+  async getLocalidades(): Promise<string[]> {
+    const fromDb = await this.prisma.beneficiario.findMany({
+      where: { localidad: { not: null } },
+      select: { localidad: true },
+      distinct: ['localidad'],
+    });
+    const dbLocalidades = fromDb.map((b) => b.localidad as string).filter(Boolean);
+    return [...new Set([...BeneficiariosService.LOCALIDADES_LA_PLATA, ...dbLocalidades])].sort();
+  }
+
   async create(createBeneficiarioDto: CreateBeneficiarioDto) {
     return await this.prisma.beneficiario.create({
       data: createBeneficiarioDto,

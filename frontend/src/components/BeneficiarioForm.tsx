@@ -9,7 +9,13 @@ import {
   CircularProgress,
   MenuItem,
   Grid,
+  Box,
+  IconButton,
+  Tooltip,
+  Popover,
+  Typography,
 } from '@mui/material';
+import { AddCircleOutline as AddIcon } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
 
@@ -28,7 +34,11 @@ export default function BeneficiarioForm({
 }: BeneficiarioFormProps) {
   const [loading, setLoading] = useState(false);
   const [programas, setProgramas] = useState<any[]>([]);
+  const [localidades, setLocalidades] = useState<string[]>([]);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const [nuevaLocalidad, setNuevaLocalidad] = useState('');
   const { showNotification } = useNotificationStore();
+
   const [formData, setFormData] = useState({
     nombre: beneficiario?.nombre || '',
     tipo: beneficiario?.tipo || 'ESPACIO',
@@ -37,8 +47,6 @@ export default function BeneficiarioForm({
     telefono: beneficiario?.telefono || '',
     responsableNombre: beneficiario?.responsableNombre || '',
     responsableDNI: beneficiario?.responsableDNI || '',
-    lat: beneficiario?.lat || null,
-    lng: beneficiario?.lng || null,
     frecuenciaEntrega: beneficiario?.frecuenciaEntrega || 'EVENTUAL',
     programaId: beneficiario?.programaId || null,
     observaciones: beneficiario?.observaciones || '',
@@ -47,30 +55,34 @@ export default function BeneficiarioForm({
   });
 
   useEffect(() => {
-    loadProgramas();
-  }, []);
-
-  const loadProgramas = async () => {
-    try {
-      const response = await api.get('/programas');
-      setProgramas(response.data);
-    } catch (error) {
-      console.error('Error cargando programas:', error);
+    if (open) {
+      setFormData({
+        nombre: beneficiario?.nombre || '',
+        tipo: beneficiario?.tipo || 'ESPACIO',
+        direccion: beneficiario?.direccion || '',
+        localidad: beneficiario?.localidad || '',
+        telefono: beneficiario?.telefono || '',
+        responsableNombre: beneficiario?.responsableNombre || '',
+        responsableDNI: beneficiario?.responsableDNI || '',
+        frecuenciaEntrega: beneficiario?.frecuenciaEntrega || 'EVENTUAL',
+        programaId: beneficiario?.programaId || null,
+        observaciones: beneficiario?.observaciones || '',
+        kilosHabitual: beneficiario?.kilosHabitual || '',
+        activo: beneficiario?.activo ?? true,
+      });
+      api.get('/programas').then(r => setProgramas(r.data)).catch(() => {});
+      api.get('/beneficiarios/localidades').then(r => setLocalidades(r.data)).catch(() => {});
     }
-  };
+  }, [open, beneficiario]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       const data = {
         ...formData,
-        lat: formData.lat ? parseFloat(formData.lat as any) : null,
-        lng: formData.lng ? parseFloat(formData.lng as any) : null,
         kilosHabitual: formData.kilosHabitual ? parseFloat(formData.kilosHabitual as any) : null,
       };
-
       if (beneficiario) {
         await api.patch(`/beneficiarios/${beneficiario.id}`, data);
         showNotification('Beneficiario actualizado correctamente', 'success');
@@ -91,7 +103,18 @@ export default function BeneficiarioForm({
   };
 
   const handleChange = (field: string, value: any) => {
-    setFormData({ ...formData, [field]: value });
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAgregarLocalidad = () => {
+    const val = nuevaLocalidad.trim();
+    if (!val) return;
+    if (!localidades.includes(val)) {
+      setLocalidades(prev => [...prev, val].sort());
+    }
+    setFormData(prev => ({ ...prev, localidad: val }));
+    setNuevaLocalidad('');
+    setAnchorEl(null);
   };
 
   return (
@@ -102,6 +125,8 @@ export default function BeneficiarioForm({
       <form onSubmit={handleSubmit}>
         <DialogContent>
           <Grid container spacing={2}>
+
+            {/* Nombre */}
             <Grid item xs={12} md={8}>
               <TextField
                 fullWidth
@@ -112,6 +137,8 @@ export default function BeneficiarioForm({
                 required
               />
             </Grid>
+
+            {/* Tipo */}
             <Grid item xs={12} md={4}>
               <TextField
                 select
@@ -128,6 +155,8 @@ export default function BeneficiarioForm({
                 <MenuItem value="COMEDOR">Comedor</MenuItem>
               </TextField>
             </Grid>
+
+            {/* Dirección */}
             <Grid item xs={12} md={8}>
               <TextField
                 fullWidth
@@ -138,16 +167,65 @@ export default function BeneficiarioForm({
                 required
               />
             </Grid>
+
+            {/* Localidad con botón + */}
             <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                label="Localidad"
-                value={formData.localidad}
-                onChange={(e) => handleChange('localidad', e.target.value)}
-                margin="normal"
-                required
-              />
+              <Box display="flex" alignItems="center" gap={0.5} mt={2}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Localidad *"
+                  value={formData.localidad}
+                  onChange={(e) => handleChange('localidad', e.target.value)}
+                  required
+                  size="medium"
+                >
+                  {localidades.map(l => (
+                    <MenuItem key={l} value={l}>{l}</MenuItem>
+                  ))}
+                </TextField>
+                <Tooltip title="Agregar localidad">
+                  <IconButton
+                    color="primary"
+                    onClick={(e) => setAnchorEl(e.currentTarget)}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    <AddIcon />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+
+              {/* Popover nueva localidad */}
+              <Popover
+                open={Boolean(anchorEl)}
+                anchorEl={anchorEl}
+                onClose={() => { setAnchorEl(null); setNuevaLocalidad(''); }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+              >
+                <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, minWidth: 260 }}>
+                  <Typography variant="subtitle2">Nueva localidad</Typography>
+                  <TextField
+                    size="small"
+                    label="Nombre de la localidad"
+                    value={nuevaLocalidad}
+                    onChange={e => setNuevaLocalidad(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAgregarLocalidad()}
+                    autoFocus
+                    fullWidth
+                  />
+                  <Box display="flex" justifyContent="flex-end" gap={1}>
+                    <Button size="small" onClick={() => { setAnchorEl(null); setNuevaLocalidad(''); }}>
+                      Cancelar
+                    </Button>
+                    <Button size="small" variant="contained" onClick={handleAgregarLocalidad}>
+                      Agregar
+                    </Button>
+                  </Box>
+                </Box>
+              </Popover>
             </Grid>
+
+            {/* Teléfono */}
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
@@ -157,6 +235,8 @@ export default function BeneficiarioForm({
                 margin="normal"
               />
             </Grid>
+
+            {/* Responsable nombre */}
             <Grid item xs={12} md={8}>
               <TextField
                 fullWidth
@@ -167,6 +247,8 @@ export default function BeneficiarioForm({
                 required
               />
             </Grid>
+
+            {/* Responsable DNI */}
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
@@ -177,31 +259,9 @@ export default function BeneficiarioForm({
                 required
               />
             </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Latitud"
-                type="number"
-                value={formData.lat || ''}
-                onChange={(e) => handleChange('lat', e.target.value)}
-                margin="normal"
-                inputProps={{ step: 0.000001 }}
-                helperText="Coordenada GPS (opcional)"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Longitud"
-                type="number"
-                value={formData.lng || ''}
-                onChange={(e) => handleChange('lng', e.target.value)}
-                margin="normal"
-                inputProps={{ step: 0.000001 }}
-                helperText="Coordenada GPS (opcional)"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
+
+            {/* Frecuencia + Kilos + Programa */}
+            <Grid item xs={12} md={4}>
               <TextField
                 select
                 fullWidth
@@ -216,7 +276,7 @@ export default function BeneficiarioForm({
                 <MenuItem value="EVENTUAL">Eventual</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
                 label="Kilos habituales"
@@ -228,7 +288,7 @@ export default function BeneficiarioForm({
                 helperText="Kilos que recibe normalmente"
               />
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} md={4}>
               <TextField
                 select
                 fullWidth
@@ -238,13 +298,13 @@ export default function BeneficiarioForm({
                 margin="normal"
               >
                 <MenuItem value="">Sin programa</MenuItem>
-                {programas.map((programa) => (
-                  <MenuItem key={programa.id} value={programa.id}>
-                    {programa.nombre}
-                  </MenuItem>
+                {programas.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>{p.nombre}</MenuItem>
                 ))}
               </TextField>
             </Grid>
+
+            {/* Observaciones (solo Caso Particular) */}
             {formData.tipo === 'CASO_PARTICULAR' && (
               <Grid item xs={12}>
                 <TextField
@@ -259,12 +319,11 @@ export default function BeneficiarioForm({
                 />
               </Grid>
             )}
+
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={onClose} disabled={loading}>
-            Cancelar
-          </Button>
+          <Button onClick={onClose} disabled={loading}>Cancelar</Button>
           <Button type="submit" variant="contained" disabled={loading}>
             {loading ? <CircularProgress size={24} /> : 'Guardar'}
           </Button>

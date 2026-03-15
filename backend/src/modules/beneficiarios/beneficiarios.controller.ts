@@ -20,6 +20,12 @@ export class BeneficiariosController {
     return this.beneficiariosService.create(createBeneficiarioDto);
   }
 
+  @Get('localidades')
+  @ApiOperation({ summary: 'Listar localidades disponibles' })
+  getLocalidades() {
+    return this.beneficiariosService.getLocalidades();
+  }
+
   @Get()
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR')
   @ApiOperation({ summary: 'Listar beneficiarios' })
