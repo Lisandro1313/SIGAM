@@ -10,9 +10,8 @@ export class PdfService implements OnModuleDestroy {
 
   private async getBrowser(): Promise<puppeteer.Browser> {
     if (!this.browser || !this.browser.connected) {
-      this.browser = await puppeteer.launch({
+      const launchOptions: puppeteer.LaunchOptions = {
         headless: true,
-
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -20,7 +19,15 @@ export class PdfService implements OnModuleDestroy {
           '--disable-gpu',
           '--single-process',
         ],
-      });
+      };
+
+      // En producción (Render) usar el Chrome del sistema para evitar
+      // problemas con el Chromium bundled de Puppeteer
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      }
+
+      this.browser = await puppeteer.launch(launchOptions);
     }
     return this.browser;
   }

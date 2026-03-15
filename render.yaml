@@ -36,9 +36,11 @@ services:
         sync: false          # Supabase → service_role secret key
       - key: SUPABASE_STORAGE_BUCKET
         value: remitos
-      # Puppeteer descarga su propio Chromium (cacheado por Render entre builds)
-      - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/project/src/backend/.cache/puppeteer
+      # Usar Chrome del sistema en Render (evita descargar Chromium en cada build)
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "true"
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/google-chrome-stable
     plan: free
 
   # Frontend se despliega en Vercel (NO en Render) — ver frontend/vercel.json

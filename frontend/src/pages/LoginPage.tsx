@@ -140,6 +140,12 @@ export default function LoginPage() {
 
   useParticles(canvasRef);
 
+  // Ping al backend al cargar el login para reducir el cold start de Render
+  useEffect(() => {
+    const base = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    fetch(`${base}/health`).catch(() => {});
+  }, []);
+
   const refreshCaptcha = useCallback(() => {
     setCaptcha(pickCaptcha());
     setCaptchaValue('');

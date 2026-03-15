@@ -237,54 +237,52 @@ export class ReportesService {
     manana.setDate(manana.getDate() + 1);
     const en7dias = new Date(hoy);
     en7dias.setDate(en7dias.getDate() + 7);
+    const inicioMes = startOfMonth(new Date());
+    const finMes = endOfMonth(new Date());
 
-    // Remitos del día
-    const remitosDelDia = await this.prisma.remito.findMany({
-      where: { fecha: { gte: hoy, lt: manana } },
-      include: {
-        beneficiario: { select: { nombre: true } },
-        programa: { select: { nombre: true } },
-        deposito: { select: { nombre: true } },
-      },
-      orderBy: { fecha: 'desc' },
-    });
-
-    // Últimos 10 remitos (excluyendo hoy)
-    const remitosRecientes = await this.prisma.remito.findMany({
-      where: { fecha: { lt: hoy } },
-      include: {
-        beneficiario: { select: { nombre: true } },
-        programa: { select: { nombre: true } },
-        deposito: { select: { nombre: true } },
-      },
-      orderBy: { fecha: 'desc' },
-      take: 10,
-    });
-
-    // Cronograma próximos 7 días (entregas programadas pendientes)
-    const proximasEntregas = await this.prisma.entregaProgramada.findMany({
-      where: {
-        estado: { in: ['PENDIENTE', 'GENERADA'] },
-        fechaProgramada: { gte: hoy, lte: en7dias },
-      },
-      include: {
-        beneficiario: { select: { nombre: true, localidad: true } },
-        programa: { select: { nombre: true } },
-      },
-      orderBy: { fechaProgramada: 'asc' },
-    });
-
-    // Contadores rápidos para el mes
-    const remitosDelMes = await this.prisma.remito.count({
-      where: { fecha: { gte: startOfMonth(new Date()), lte: endOfMonth(new Date()) } },
-    });
-    const kgDelMes = await this.prisma.remito.aggregate({
-      where: {
-        fecha: { gte: startOfMonth(new Date()), lte: endOfMonth(new Date()) },
-        estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] },
-      },
-      _sum: { totalKg: true },
-    });
+    const [remitosDelDia, remitosRecientes, proximasEntregas, remitosDelMes, kgDelMes] =
+      await Promise.all([
+        this.prisma.remito.findMany({
+          where: { fecha: { gte: hoy, lt: manana } },
+          include: {
+            beneficiario: { select: { nombre: true } },
+            programa: { select: { nombre: true } },
+            deposito: { select: { nombre: true } },
+          },
+          orderBy: { fecha: 'desc' },
+        }),
+        this.prisma.remito.findMany({
+          where: { fecha: { lt: hoy } },
+          include: {
+            beneficiario: { select: { nombre: true } },
+            programa: { select: { nombre: true } },
+            deposito: { select: { nombre: true } },
+          },
+          orderBy: { fecha: 'desc' },
+          take: 10,
+        }),
+        this.prisma.entregaProgramada.findMany({
+          where: {
+            estado: { in: ['PENDIENTE', 'GENERADA'] },
+            fechaProgramada: { gte: hoy, lte: en7dias },
+          },
+          include: {
+            beneficiario: { select: { nombre: true, localidad: true } },
+            programa: { select: { nombre: true } },
+          },
+          orderBy: { fechaProgramada: 'asc' },
+        }),
+        this.prisma.remito.count({
+          where: { fecha: { gte: inicioMes, lte: finMes } },
+        }),
+        this.prisma.remito.aggregate({
+          where: {
+            fecha: { gte: inicioMes, lte: finMes },
+            estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] },
+          },
+          _sum: { totalKg: true },
+        }),
+      ]);
 
     return {
       resumenMes: {
