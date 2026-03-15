@@ -55,3 +55,6 @@ backend/pdfs/
 backups/
 *.sql
 !backend/prisma/migrations/**/*.sql
+
+# Puppeteer: Chrome descargado (no commitear ~120MB)
+backend/.cache/

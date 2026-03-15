@@ -4,7 +4,7 @@ services:
     name: sigam-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install --include=dev && (timeout 300 npx puppeteer browsers install chrome || true) && npx prisma generate && node --max-old-space-size=400 node_modules/.bin/nest build
+    buildCommand: npm install --include=dev && npx prisma generate && node --max-old-space-size=400 node_modules/.bin/nest build
     startCommand: npx prisma migrate deploy && node dist/main
     healthCheckPath: /health
     envVars:
@@ -36,9 +36,6 @@ services:
         sync: false          # Supabase → service_role secret key
       - key: SUPABASE_STORAGE_BUCKET
         value: remitos
-      # Chrome debe estar dentro del proyecto para ser accesible en runtime
-      - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/project/src/backend/.cache/puppeteer
     plan: free
 
   # Frontend se despliega en Vercel (NO en Render) — ver frontend/vercel.json
