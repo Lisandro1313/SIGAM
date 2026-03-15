@@ -12,8 +12,17 @@ import {
   TodayOutlined as TodayIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
+import { useAuthStore } from '../stores/authStore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+
+function getSaludo(nombre: string): string {
+  const hora = new Date().getHours();
+  const primerNombre = nombre.split(' ')[0];
+  if (hora >= 6 && hora < 12) return `¡Buenos días, ${primerNombre}!`;
+  if (hora >= 12 && hora < 20) return `¡Buenas tardes, ${primerNombre}!`;
+  return `¡Buenas noches, ${primerNombre}!`;
+}
 
 const TIPS = [
   'Verificando que los fideos estén bien contados...',
@@ -128,6 +137,7 @@ const ESTADO_COLOR: Record<string, any> = {
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
+  const user = useAuthStore(s => s.user);
 
   useEffect(() => {
     api.get('/reportes/dashboard')
@@ -141,82 +151,18 @@ export default function Dashboard() {
   }
 
   const hoy = format(new Date(), "EEEE d 'de' MMMM", { locale: es });
+  const saludo = getSaludo(user?.nombre ?? 'usuario');
 
   return (
     <Box>
       <Typography variant="h4" fontWeight="bold" gutterBottom>
-        Dashboard
+        {saludo}
       </Typography>
       <Typography variant="body2" color="text.secondary" mb={3} sx={{ textTransform: 'capitalize' }}>
         {hoy}
       </Typography>
 
-      {/* Resumen del mes */}
-      <Grid container spacing={2} mb={4}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="caption" color="text.secondary">REMITOS HOY</Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {data?.remitosDelDia?.length ?? 0}
-                  </Typography>
-                </Box>
-                <TodayIcon sx={{ fontSize: 36, color: 'primary.main' }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="caption" color="text.secondary">REMITOS DEL MES</Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {data?.resumenMes?.remitos ?? 0}
-                  </Typography>
-                </Box>
-                <ReceiptIcon sx={{ fontSize: 36, color: 'success.main' }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="caption" color="text.secondary">KG DEL MES</Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {(data?.resumenMes?.kg ?? 0).toFixed(0)}
-                  </Typography>
-                </Box>
-                <KgIcon sx={{ fontSize: 36, color: 'warning.main' }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="caption" color="text.secondary">PRÓXIMAS ENTREGAS</Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {data?.proximasEntregas?.length ?? 0}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">próximos 7 días</Typography>
-                </Box>
-                <CronogramaIcon sx={{ fontSize: 36, color: 'info.main' }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={3}>
+      <Grid container spacing={3} mb={3}>
         {/* Remitos del día */}
         <Grid item xs={12} md={6}>
           <Paper elevation={2} sx={{ p: 2 }}>
@@ -319,6 +265,74 @@ export default function Dashboard() {
           </Paper>
         </Grid>
 
+      </Grid>
+
+      {/* Resumen del mes */}
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="caption" color="text.secondary">REMITOS HOY</Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {data?.remitosDelDia?.length ?? 0}
+                  </Typography>
+                </Box>
+                <TodayIcon sx={{ fontSize: 36, color: 'primary.main' }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="caption" color="text.secondary">REMITOS DEL MES</Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {data?.resumenMes?.remitos ?? 0}
+                  </Typography>
+                </Box>
+                <ReceiptIcon sx={{ fontSize: 36, color: 'success.main' }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="caption" color="text.secondary">KG DEL MES</Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {(data?.resumenMes?.kg ?? 0).toFixed(0)}
+                  </Typography>
+                </Box>
+                <KgIcon sx={{ fontSize: 36, color: 'warning.main' }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="caption" color="text.secondary">PRÓXIMAS ENTREGAS</Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {data?.proximasEntregas?.length ?? 0}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">próximos 7 días</Typography>
+                </Box>
+                <CronogramaIcon sx={{ fontSize: 36, color: 'info.main' }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={3}>
         {/* Últimos remitos */}
         <Grid item xs={12}>
           <Paper elevation={2} sx={{ p: 2 }}>
