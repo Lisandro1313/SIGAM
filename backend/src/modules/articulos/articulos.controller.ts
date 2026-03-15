@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, UseInterceptors, UploadedFile, BadRequestException, Query } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ArticulosService } from './articulos.service';
 import { CreateArticuloDto } from './dto/create-articulo.dto';
@@ -26,6 +28,12 @@ export class ArticulosController {
     return this.articulosService.findAll();
   }
 
+  @Get('vencimientos')
+  @ApiOperation({ summary: 'Lotes próximos a vencer' })
+  getLotesProximos(@Query('dias') dias?: string) {
+    return this.articulosService.getLotesProximos(dias ? parseInt(dias) : 30);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener artículo por ID' })
   findOne(@Param('id') id: string) {
@@ -44,5 +52,45 @@ export class ArticulosController {
   @ApiOperation({ summary: 'Desactivar artículo' })
   remove(@Param('id') id: string) {
     return this.articulosService.remove(+id);
+  }
+
+  // ── Foto ──────────────────────────────────────────────────────────────────
+
+  @Post(':id/foto')
+  @Roles('ADMIN', 'LOGISTICA')
+  @UseInterceptors(FileInterceptor('foto', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Subir foto del artículo' })
+  async uploadFoto(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('No se recibió imagen');
+    const url = await this.articulosService.uploadFoto(+id, file);
+    return { fotoUrl: url };
+  }
+
+  // ── Lotes / Vencimientos ──────────────────────────────────────────────────
+
+  @Get(':id/lotes')
+  @ApiOperation({ summary: 'Listar lotes del artículo' })
+  getLotes(@Param('id') id: string) {
+    return this.articulosService.getLotes(+id);
+  }
+
+  @Post(':id/lotes')
+  @Roles('ADMIN', 'LOGISTICA')
+  @ApiOperation({ summary: 'Registrar lote con vencimiento' })
+  createLote(
+    @Param('id') id: string,
+    @Body() body: { depositoId: number; cantidad: number; fechaVencimiento: string; lote?: string },
+  ) {
+    return this.articulosService.createLote(+id, body);
+  }
+
+  @Delete(':id/lotes/:loteId')
+  @Roles('ADMIN', 'LOGISTICA')
+  @ApiOperation({ summary: 'Eliminar lote' })
+  deleteLote(@Param('loteId') loteId: string) {
+    return this.articulosService.deleteLote(+loteId);
   }
 }

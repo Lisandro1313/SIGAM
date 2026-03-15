@@ -177,6 +177,7 @@ model Deposito {
 
   // Usuarios asignados (LOGISTICA)
   usuarios Usuario[]
+  lotes    LoteArticulo[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -195,19 +196,37 @@ model Articulo {
   categoria      String?
   pesoUnitarioKg Float?  // Peso por unidad en kilogramos
   stockMinimo    Float?  // Alerta de stock mínimo
+  fotoUrl        String? // URL de foto del artículo
   activo         Boolean @default(true)
-  
+
   // Relaciones
   plantillaItems PlantillaItem[]
   remitoItems    RemitoItem[]
   movimientos    Movimiento[]
   stockItems     Stock[]
-  
+  lotes          LoteArticulo[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([activo])
   @@index([categoria])
+}
+
+model LoteArticulo {
+  id               Int      @id @default(autoincrement())
+  articulo         Articulo @relation(fields: [articuloId], references: [id], onDelete: Cascade)
+  articuloId       Int
+  deposito         Deposito @relation(fields: [depositoId], references: [id])
+  depositoId       Int
+  cantidad         Float
+  fechaVencimiento DateTime
+  lote             String?  // Número/código de lote (opcional)
+  createdAt        DateTime @default(now())
+
+  @@index([articuloId])
+  @@index([depositoId])
+  @@index([fechaVencimiento])
 }
 
 // ============================================================================

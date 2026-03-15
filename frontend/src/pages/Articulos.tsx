@@ -14,8 +14,10 @@ import {
   Chip,
   IconButton,
   Alert,
+  Tooltip,
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, VisibilityOutlined as ViewIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, VisibilityOutlined as ViewIcon, Warning as WarnIcon, PhotoCamera as FotoIcon } from '@mui/icons-material';
+import { differenceInDays, isPast } from 'date-fns';
 import api from '../services/api';
 import ArticuloForm from '../components/ArticuloForm';
 import SearchBar from '../components/SearchBar';
@@ -124,39 +126,54 @@ export default function ArticulosPage() {
             {filteredArticulos.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} align="center">
-                  <Typography variant="body2" color="text.secondary">
-                    No se encontraron artículos
-                  </Typography>
+                  <Typography variant="body2" color="text.secondary">No se encontraron artículos</Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              filteredArticulos.map((articulo) => (
-              <TableRow key={articulo.id} hover>
-                <TableCell><strong>{articulo.nombre}</strong></TableCell>
-                <TableCell>{articulo.descripcion || '-'}</TableCell>
-                <TableCell>{articulo.categoria || '-'}</TableCell>
-                <TableCell align="right">{articulo.pesoUnitarioKg?.toFixed(2) || '0.00'}</TableCell>
-                <TableCell align="right">{articulo.stockMinimo || 0}</TableCell>
-                <TableCell align="center">
-                  <Chip
-                    label={articulo.activo ? 'Activo' : 'Inactivo'}
-                    size="small"
-                    color={articulo.activo ? 'success' : 'default'}
-                  />
-                </TableCell>
-                <TableCell align="center">
-                  {soloLectura ? (
-                    <IconButton size="small" onClick={() => handleEdit(articulo)} title="Ver detalle">
-                      <ViewIcon />
-                    </IconButton>
-                  ) : (
-                    <IconButton size="small" onClick={() => handleEdit(articulo)}>
-                      <EditIcon />
-                    </IconButton>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))
+              filteredArticulos.map((articulo) => {
+                const lotesVenciendo = (articulo.lotes || []).filter((l: any) => {
+                  const dias = differenceInDays(new Date(l.fechaVencimiento), new Date());
+                  return isPast(new Date(l.fechaVencimiento)) || dias <= 30;
+                });
+                const hayVencido = lotesVenciendo.some((l: any) => isPast(new Date(l.fechaVencimiento)));
+                return (
+                  <TableRow key={articulo.id} hover>
+                    <TableCell>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {articulo.fotoUrl ? (
+                          <Box component="img" src={articulo.fotoUrl} alt={articulo.nombre}
+                            sx={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 0.5, border: '1px solid #eee', flexShrink: 0 }} />
+                        ) : (
+                          <Box sx={{ width: 36, height: 36, bgcolor: 'grey.100', borderRadius: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <FotoIcon sx={{ fontSize: 16, color: 'grey.400' }} />
+                          </Box>
+                        )}
+                        <Box>
+                          <strong>{articulo.nombre}</strong>
+                          {lotesVenciendo.length > 0 && (
+                            <Tooltip title={hayVencido ? 'Tiene lotes vencidos' : `${lotesVenciendo.length} lote(s) próximos a vencer`}>
+                              <WarnIcon sx={{ ml: 0.5, fontSize: 14, color: hayVencido ? 'error.main' : 'warning.main', verticalAlign: 'middle' }} />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell>{articulo.descripcion || '-'}</TableCell>
+                    <TableCell>{articulo.categoria || '-'}</TableCell>
+                    <TableCell align="right">{articulo.pesoUnitarioKg?.toFixed(2) || '0.00'}</TableCell>
+                    <TableCell align="right">{articulo.stockMinimo || 0}</TableCell>
+                    <TableCell align="center">
+                      <Chip label={articulo.activo ? 'Activo' : 'Inactivo'} size="small"
+                        color={articulo.activo ? 'success' : 'default'} />
+                    </TableCell>
+                    <TableCell align="center">
+                      <IconButton size="small" onClick={() => handleEdit(articulo)} title={soloLectura ? 'Ver detalle' : 'Editar'}>
+                        {soloLectura ? <ViewIcon fontSize="small" /> : <EditIcon fontSize="small" />}
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
