@@ -272,6 +272,7 @@ export class RemitosService {
     }
     if (filtros.programaId) where.programaId = parseInt(filtros.programaId);
     if (filtros.beneficiarioId) where.beneficiarioId = parseInt(filtros.beneficiarioId);
+    if (filtros.buscar) where.beneficiario = { nombre: { contains: filtros.buscar, mode: 'insensitive' } };
     if (filtros.depositoId && !usuarioDepositoId) where.depositoId = parseInt(filtros.depositoId);
     
     if (filtros.fechaDesde || filtros.fechaHasta) {
@@ -346,20 +347,30 @@ export class RemitosService {
       );
     }
 
-    return this.prisma.remito.update({
-      where: { id },
-      data: {
-        estado: RemitoEstado.ENTREGADO,
-        entregadoAt: new Date(),
-        entregadoNota: nota || null,
-        entregadoFoto: fotoPath || null,
-      },
-      include: {
-        beneficiario: true,
-        programa: true,
-        deposito: true,
-        items: { include: { articulo: true } },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const remitoActualizado = await tx.remito.update({
+        where: { id },
+        data: {
+          estado: RemitoEstado.ENTREGADO,
+          entregadoAt: new Date(),
+          entregadoNota: nota || null,
+          entregadoFoto: fotoPath || null,
+        },
+        include: {
+          beneficiario: true,
+          programa: true,
+          deposito: true,
+          items: { include: { articulo: true } },
+        },
+      });
+
+      // Marcar la entrega programada asociada como ENTREGADA
+      await tx.entregaProgramada.updateMany({
+        where: { remitoId: id },
+        data: { estado: 'ENTREGADA' },
+      });
+
+      return remitoActualizado;
     });
   }
 
