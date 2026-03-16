@@ -440,3 +440,17 @@ model Correlativo {
   
   updatedAt DateTime @updatedAt
 }
+
+// ============================================================================
+// ZONAS DEL MAPA
+// ============================================================================
+
+model Zona {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  color     String   @default("#3388ff")
+  geojson   String   // JSON: array de {lat, lng}
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,10 @@
+-- CreateTable: Zona
+CREATE TABLE "Zona" (
+  "id"        SERIAL PRIMARY KEY,
+  "nombre"    TEXT NOT NULL,
+  "color"     TEXT NOT NULL DEFAULT '#3388ff',
+  "geojson"   TEXT NOT NULL,
+  "activo"    BOOLEAN NOT NULL DEFAULT true,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

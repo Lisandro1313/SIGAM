@@ -14,6 +14,7 @@ import { CronogramaModule } from './modules/cronograma/cronograma.module';
 import { RemitosModule } from './modules/remitos/remitos.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { DepositosModule } from './modules/depositos/depositos.module';
+import { ZonasModule } from './modules/zonas/zonas.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { DepositosModule } from './modules/depositos/depositos.module';
     CronogramaModule,
     RemitosModule,
     ReportesModule,
+    ZonasModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente
