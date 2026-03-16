@@ -3,7 +3,7 @@ import {
   Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, FormControl, InputLabel, Select, MenuItem, Chip, Alert,
   Card, CardContent, CardActions, Grid, CircularProgress, Collapse,
-  IconButton, Divider, Tooltip,
+  Divider, Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -11,7 +11,6 @@ import {
   ExpandLess as CollapseIcon,
   AttachFile as AttachIcon,
   Warning as WarnIcon,
-  OpenInNew as OpenIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';

@@ -10,7 +10,6 @@ import {
   Close as CloseIcon,
   AttachFile as AttachIcon,
   Warning as WarnIcon,
-  OpenInNew as OpenIcon,
   CheckCircle as AprobIcon,
   Cancel as RechazarIcon,
   Visibility as VerIcon,
@@ -58,7 +57,6 @@ export default function CasosParticulares() {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Revisar (en_revision / aprobado / rechazado)
-  const [revisarEstado, setRevisarEstado] = useState('');
   const [notaRevision, setNotaRevision]   = useState('');
   const [revisando, setRevisando]         = useState(false);
   const [errRevisar, setErrRevisar]       = useState('');
