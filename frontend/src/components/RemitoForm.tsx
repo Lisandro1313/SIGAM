@@ -25,6 +25,7 @@ import {
   Typography,
   CircularProgress,
   Tooltip,
+  Alert,
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon, PlaylistAdd as PlantillaIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import api from '../services/api';
@@ -64,6 +65,7 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
 
   const [openNuevoBeneficiario, setOpenNuevoBeneficiario] = useState(false);
+  const [ultimaEntrega, setUltimaEntrega] = useState<string | null | 'loading'>('loading');
 
   // Step 2: Items
   const [articulos, setArticulos] = useState<any[]>([]);
@@ -229,6 +231,7 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
     setItems([]);
     setSelectedArticuloId('');
     setCantidad('');
+    setUltimaEntrega('loading');
     onClose();
   };
 
@@ -254,12 +257,32 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
                 <InputLabel>Beneficiario</InputLabel>
                 <Select
                   value={beneficiarioId}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const val = e.target.value;
                     setBeneficiarioId(val);
                     // Auto-completar programa del beneficiario
                     const b = beneficiarios.find((b) => b.id === parseInt(val));
                     if (b?.programaId) setProgramaId(String(b.programaId));
+                    // Buscar última entrega
+                    if (val) {
+                      setUltimaEntrega('loading');
+                      try {
+                        const res = await api.get('/remitos', { params: { beneficiarioId: val, estado: 'ENTREGADO' } });
+                        const entregados = res.data.filter((r: any) => r.entregadoAt || r.fecha);
+                        if (entregados.length > 0) {
+                          const ultimo = entregados.sort((a: any, b: any) =>
+                            new Date(b.entregadoAt || b.fecha).getTime() - new Date(a.entregadoAt || a.fecha).getTime()
+                          )[0];
+                          setUltimaEntrega(ultimo.entregadoAt || ultimo.fecha);
+                        } else {
+                          setUltimaEntrega(null);
+                        }
+                      } catch {
+                        setUltimaEntrega(null);
+                      }
+                    } else {
+                      setUltimaEntrega('loading');
+                    }
                   }}
                   label="Beneficiario"
                 >
@@ -280,6 +303,22 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
                 </IconButton>
               </Tooltip>
             </Box>
+
+            {/* Última entrega */}
+            {beneficiarioId && ultimaEntrega !== 'loading' && (
+              ultimaEntrega ? (
+                <Alert severity="info" sx={{ py: 0.5 }}>
+                  Última entrega:{' '}
+                  <strong>
+                    {new Date(ultimaEntrega).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </strong>
+                </Alert>
+              ) : (
+                <Alert severity="success" sx={{ py: 0.5 }}>
+                  Primera entrega para este beneficiario
+                </Alert>
+              )
+            )}
 
             <FormControl fullWidth required>
               <InputLabel>Depósito</InputLabel>

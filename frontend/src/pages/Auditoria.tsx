@@ -1,20 +1,33 @@
 import { useEffect, useState } from 'react';
 import {
-  Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, TextField, Button, FormControl, InputLabel, Select,
-  MenuItem, Chip, CircularProgress, Alert, Tooltip,
+  Box, Typography, Paper, TextField, Button, FormControl, InputLabel, Select,
+  MenuItem, Chip, CircularProgress, Alert, Avatar, Stack, Divider,
 } from '@mui/material';
-import { FilterAlt as FilterIcon, Security as AuditIcon } from '@mui/icons-material';
+import {
+  FilterAlt as FilterIcon, Security as AuditIcon,
+  AddCircle as CreateIcon, Edit as EditIcon, Delete as DeleteIcon,
+  PersonAdd as PersonAddIcon,
+} from '@mui/icons-material';
 import { format, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
 
-const METODO_COLOR: Record<string, 'error' | 'warning' | 'info' | 'success' | 'default'> = {
-  POST: 'success',
-  PUT: 'info',
-  PATCH: 'warning',
-  DELETE: 'error',
+// Mapeo método HTTP → tipo legible
+const TIPO_MAP: Record<string, { label: string; icon: typeof CreateIcon; color: string; bg: string }> = {
+  POST:   { label: 'Creación',      icon: CreateIcon,    color: '#2e7d32', bg: '#e8f5e9' },
+  PUT:    { label: 'Modificación',  icon: EditIcon,      color: '#1565c0', bg: '#e3f2fd' },
+  PATCH:  { label: 'Modificación',  icon: EditIcon,      color: '#1565c0', bg: '#e3f2fd' },
+  DELETE: { label: 'Eliminación',   icon: DeleteIcon,    color: '#c62828', bg: '#ffebee' },
 };
+
+// Tipos para el filtro (más amigable)
+const TIPOS_FILTRO = [
+  { label: 'Todos', value: '' },
+  { label: 'Creaciones', value: 'POST' },
+  { label: 'Modificaciones', value: 'PATCH' },
+  { label: 'Eliminaciones', value: 'DELETE' },
+];
+
 
 export default function Auditoria() {
   const [logs, setLogs]           = useState<any[]>([]);
@@ -56,7 +69,7 @@ export default function Auditoria() {
       {/* Header */}
       <Box display="flex" alignItems="center" gap={1.5} mb={3}>
         <AuditIcon color="primary" />
-        <Typography variant="h4" fontWeight="bold">Auditoría del Sistema</Typography>
+        <Typography variant="h4" fontWeight="bold">Registro de Actividad</Typography>
       </Box>
 
       {/* Filtros */}
@@ -81,20 +94,20 @@ export default function Auditoria() {
               ))}
             </Select>
           </FormControl>
-          <FormControl size="small" sx={{ width: 130 }}>
-            <InputLabel>Método</InputLabel>
-            <Select value={metodo} label="Método" onChange={(e) => setMetodo(e.target.value)}>
-              <MenuItem value="">Todos</MenuItem>
-              {['POST', 'PATCH', 'PUT', 'DELETE'].map((m) => (
-                <MenuItem key={m} value={m}>{m}</MenuItem>
+          <FormControl size="small" sx={{ width: 160 }}>
+            <InputLabel>Tipo de acción</InputLabel>
+            <Select value={metodo} label="Tipo de acción" onChange={(e) => setMetodo(e.target.value)}>
+              {TIPOS_FILTRO.map((t) => (
+                <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>
               ))}
             </Select>
           </FormControl>
           <TextField
-            label="Buscar en descripción" size="small" value={buscar}
+            label="Buscar" size="small" value={buscar}
             onChange={(e) => setBuscar(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') buscarLogs(); }}
-            sx={{ width: 220 }}
+            sx={{ width: 200 }}
+            placeholder="Nombre, descripción..."
           />
           <Button variant="contained" startIcon={<FilterIcon />} onClick={buscarLogs} disabled={loading}>
             Buscar
@@ -107,69 +120,78 @@ export default function Auditoria() {
       {loading ? (
         <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
       ) : logs.length === 0 ? (
-        <Alert severity="info">No hay registros en el período seleccionado con los filtros aplicados.</Alert>
+        <Alert severity="info">No hay actividad registrada en el período seleccionado.</Alert>
       ) : (
         <>
-          <Typography variant="caption" color="text.secondary" display="block" mb={1}>
-            {logs.length} registro{logs.length !== 1 ? 's' : ''} encontrado{logs.length !== 1 ? 's' : ''}
+          <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+            {logs.length} acción{logs.length !== 1 ? 'es' : ''} registrada{logs.length !== 1 ? 's' : ''}
           </Typography>
-          <TableContainer component={Paper} elevation={2}>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
-                  <TableCell>Fecha y hora</TableCell>
-                  <TableCell>Usuario</TableCell>
-                  <TableCell>Acción</TableCell>
-                  <TableCell>Descripción</TableCell>
-                  <TableCell>Ruta</TableCell>
-                  <TableCell>Datos</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id} hover>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Typography variant="caption">
-                        {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm:ss', { locale: es })}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="medium">{log.usuarioNombre || '—'}</Typography>
-                      {log.usuarioId && (
-                        <Typography variant="caption" color="text.secondary">ID {log.usuarioId}</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
+
+          <Stack spacing={1}>
+            {logs.map((log, index) => {
+              const tipo = TIPO_MAP[log.metodo] ?? { label: log.metodo, icon: PersonAddIcon, color: '#555', bg: '#f5f5f5' };
+              const IconComponent = tipo.icon;
+              const fecha = new Date(log.createdAt);
+              const esNuevoDia = index === 0 ||
+                format(fecha, 'dd/MM/yyyy') !== format(new Date(logs[index - 1].createdAt), 'dd/MM/yyyy');
+
+              return (
+                <Box key={log.id}>
+                  {/* Separador de día */}
+                  {esNuevoDia && (
+                    <Box display="flex" alignItems="center" gap={1} my={1.5}>
+                      <Divider sx={{ flex: 1 }} />
                       <Chip
-                        label={log.metodo}
+                        label={format(fecha, "EEEE d 'de' MMMM", { locale: es })}
                         size="small"
-                        color={METODO_COLOR[log.metodo] ?? 'default'}
+                        variant="outlined"
+                        sx={{ fontSize: 11, color: 'text.secondary' }}
                       />
-                    </TableCell>
-                    <TableCell sx={{ maxWidth: 280 }}>
-                      <Typography variant="body2">{log.descripcion || '—'}</Typography>
-                    </TableCell>
-                    <TableCell sx={{ maxWidth: 200 }}>
-                      <Typography variant="caption" color="text.secondary" noWrap>
-                        {log.ruta}
+                      <Divider sx={{ flex: 1 }} />
+                    </Box>
+                  )}
+
+                  {/* Tarjeta de actividad */}
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.5,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 1.5,
+                      borderLeft: `4px solid ${tipo.color}`,
+                      '&:hover': { bgcolor: 'grey.50' },
+                    }}
+                  >
+                    {/* Ícono de tipo */}
+                    <Avatar sx={{ bgcolor: tipo.bg, width: 36, height: 36, flexShrink: 0 }}>
+                      <IconComponent sx={{ fontSize: 18, color: tipo.color }} />
+                    </Avatar>
+
+                    {/* Contenido principal */}
+                    <Box flex={1} minWidth={0}>
+                      <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                        <Typography variant="body2" fontWeight="bold">
+                          {log.usuarioNombre || 'Sistema'}
+                        </Typography>
+                        <Chip
+                          label={tipo.label}
+                          size="small"
+                          sx={{ bgcolor: tipo.bg, color: tipo.color, fontWeight: 600, fontSize: 10, height: 20 }}
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                          {format(fecha, 'HH:mm', { locale: es })}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" mt={0.3}>
+                        {log.descripcion || '—'}
                       </Typography>
-                    </TableCell>
-                    <TableCell sx={{ maxWidth: 200 }}>
-                      {log.datos ? (
-                        <Tooltip title={log.datos} arrow>
-                          <Typography variant="caption" noWrap sx={{ cursor: 'help', borderBottom: '1px dashed #aaa' }}>
-                            {log.datos.length > 60 ? log.datos.slice(0, 60) + '…' : log.datos}
-                          </Typography>
-                        </Tooltip>
-                      ) : (
-                        <Typography variant="caption" color="text.disabled">—</Typography>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                    </Box>
+                  </Paper>
+                </Box>
+              );
+            })}
+          </Stack>
         </>
       )}
     </Box>

@@ -4,7 +4,13 @@ import {
   TableContainer, TableHead, TableRow, Chip, TextField, Button, Dialog,
   DialogTitle, DialogContent, DialogActions, Alert, Grid, Card, CardContent,
   FormControl, InputLabel, Select, MenuItem, Tooltip, IconButton, Collapse,
+  Tabs, Tab,
 } from '@mui/material';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+function resolveUrl(url: string) {
+  return url?.startsWith('http') ? url : `${API_BASE}/${(url ?? '').replace(/^\//, '')}`;
+}
 import {
   PhotoCamera as FotoIcon, Download as DownloadIcon, FilterAlt as FilterIcon,
   ExpandMore as ExpandIcon, ExpandLess as CollapseIcon, CheckCircle as CheckIcon,
@@ -24,6 +30,7 @@ export default function HistorialEntregas() {
   const [programas, setProgramas]   = useState<any[]>([]);
   const [loading, setLoading]       = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [tabPrograma, setTabPrograma] = useState<string>('todos');
 
   // Filtros
   const [fechaDesde, setFechaDesde]       = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
@@ -68,15 +75,26 @@ export default function HistorialEntregas() {
 
   const abrirFoto = (remito: any) => {
     setFotoRemito(remito);
-    setFotoUrl(remito.entregadoFoto);
+    setFotoUrl(resolveUrl(remito.entregadoFoto));
     setFotoDialog(true);
   };
 
-  const totalKg  = entregas.reduce((s, r) => s + (r.totalKg || 0), 0);
-  const conFoto  = entregas.filter((r) => r.entregadoFoto).length;
-  const sinFoto  = entregas.length - conFoto;
+  // Programas únicos de las entregas cargadas
+  const programasDisponibles = Array.from(
+    new Map(entregas.filter(r => r.programa).map(r => [r.programa.id, r.programa])).values()
+  ).sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-  const exportData = entregas.map((r) => ({
+  const entregasFiltradas = tabPrograma === 'todos'
+    ? entregas
+    : tabPrograma === 'sin_programa'
+    ? entregas.filter(r => !r.programa)
+    : entregas.filter(r => String(r.programa?.id) === tabPrograma);
+
+  const totalKg  = entregasFiltradas.reduce((s, r) => s + (r.totalKg || 0), 0);
+  const conFoto  = entregasFiltradas.filter((r) => r.entregadoFoto).length;
+  const sinFoto  = entregasFiltradas.length - conFoto;
+
+  const exportData = entregasFiltradas.map((r) => ({
     Numero:       r.numero,
     Fecha:        format(new Date(r.fecha), 'dd/MM/yyyy'),
     FechaEntrega: r.entregadoAt ? format(new Date(r.entregadoAt), 'dd/MM/yyyy HH:mm') : '',
@@ -143,12 +161,37 @@ export default function HistorialEntregas() {
         </Box>
       </Paper>
 
+      {/* Tabs por programa */}
+      {programasDisponibles.length > 0 && (
+        <Paper elevation={1} sx={{ mb: 2 }}>
+          <Tabs
+            value={tabPrograma}
+            onChange={(_, v) => setTabPrograma(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ borderBottom: 1, borderColor: 'divider' }}
+          >
+            <Tab label={`Todos (${entregas.length})`} value="todos" />
+            {programasDisponibles.map(p => (
+              <Tab
+                key={p.id}
+                label={`${p.nombre} (${entregas.filter(r => r.programa?.id === p.id).length})`}
+                value={String(p.id)}
+              />
+            ))}
+            {entregas.some(r => !r.programa) && (
+              <Tab label={`Sin programa (${entregas.filter(r => !r.programa).length})`} value="sin_programa" />
+            )}
+          </Tabs>
+        </Paper>
+      )}
+
       {/* Estadísticas */}
       <Grid container spacing={2} mb={3}>
         {[
-          { label: 'TOTAL ENTREGAS', value: entregas.length, color: 'primary', sub: 'en el período' },
+          { label: 'TOTAL ENTREGAS', value: entregasFiltradas.length, color: 'primary', sub: 'en el período' },
           { label: 'TOTAL KG ENTREGADOS', value: `${totalKg.toFixed(0)} kg`, color: 'success.main', sub: 'kilogramos' },
-          { label: 'CON FOTO FIRMADA', value: conFoto, color: 'info.main', sub: entregas.length > 0 ? `${Math.round((conFoto / entregas.length) * 100)}% del total` : '—' },
+          { label: 'CON FOTO FIRMADA', value: conFoto, color: 'info.main', sub: entregasFiltradas.length > 0 ? `${Math.round((conFoto / entregasFiltradas.length) * 100)}% del total` : '—' },
           { label: 'SIN FOTO', value: sinFoto, color: sinFoto > 0 ? 'warning.main' : 'text.disabled', sub: 'pendientes de documentar' },
         ].map((s, i) => (
           <Grid item xs={12} sm={3} key={i}>
@@ -166,7 +209,7 @@ export default function HistorialEntregas() {
       {/* Tabla */}
       {loading ? (
         <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
-      ) : entregas.length === 0 ? (
+      ) : entregasFiltradas.length === 0 ? (
         <Alert severity="info">No hay entregas en el período seleccionado con los filtros aplicados.</Alert>
       ) : (
         <TableContainer component={Paper} elevation={2}>
@@ -186,7 +229,7 @@ export default function HistorialEntregas() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {entregas.map((remito) => (
+              {entregasFiltradas.map((remito) => (
                 <>
                   <TableRow
                     key={remito.id}
@@ -282,7 +325,7 @@ export default function HistorialEntregas() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button variant="outlined" startIcon={<DownloadIcon />} href={fotoUrl} download target="_blank">
+          <Button variant="outlined" startIcon={<DownloadIcon />} onClick={() => window.open(fotoUrl, '_blank', 'noopener,noreferrer')}>
             Descargar
           </Button>
           <Button onClick={() => setFotoDialog(false)}>Cerrar</Button>

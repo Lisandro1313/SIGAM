@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import LoadingPage from '../components/LoadingPage';
 import api from '../services/api';
 import StockIngresoForm from '../components/StockIngresoForm';
 import StockTransferForm from '../components/StockTransferForm';
@@ -104,7 +105,7 @@ export default function StockPage() {
   };
 
   if (loading && depositos.length === 0) {
-    return <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>;
+    return <LoadingPage />;
   }
 
   return (

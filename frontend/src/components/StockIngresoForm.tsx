@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, CircularProgress, MenuItem,
-  Typography, Box, Chip,
+  Typography, Box, Chip, IconButton, Divider,
 } from '@mui/material';
-import { AttachFile as AttachIcon } from '@mui/icons-material';
+import { AttachFile as AttachIcon, Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
+
+interface ItemIngreso { articuloId: number; cantidad: number; }
 
 interface StockIngresoFormProps {
   open: boolean;
@@ -14,20 +16,18 @@ interface StockIngresoFormProps {
   onSuccess: () => void;
 }
 
+const emptyItem = (): ItemIngreso => ({ articuloId: 0, cantidad: 0 });
+
 export default function StockIngresoForm({ open, onClose, onSuccess }: StockIngresoFormProps) {
   const [loading, setLoading] = useState(false);
   const [depositos, setDepositos] = useState<any[]>([]);
   const [articulos, setArticulos] = useState<any[]>([]);
   const [archivo, setArchivo] = useState<File | null>(null);
+  const [depositoId, setDepositoId] = useState(0);
+  const [motivo, setMotivo] = useState('');
+  const [items, setItems] = useState<ItemIngreso[]>([emptyItem()]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotificationStore();
-
-  const [formData, setFormData] = useState({
-    depositoId: 0,
-    articuloId: 0,
-    cantidad: 0,
-    motivo: '',
-  });
 
   useEffect(() => {
     if (open) loadData();
@@ -41,33 +41,53 @@ export default function StockIngresoForm({ open, onClose, onSuccess }: StockIngr
       ]);
       setDepositos(depositosRes.data);
       setArticulos(articulosRes.data.filter((a: any) => a.activo));
-      if (depositosRes.data.length > 0) {
-        setFormData((prev) => ({ ...prev, depositoId: depositosRes.data[0].id }));
-      }
+      if (depositosRes.data.length > 0) setDepositoId(depositosRes.data[0].id);
     } catch (error) {
       console.error('Error cargando datos:', error);
     }
   };
 
+  const updateItem = (index: number, field: keyof ItemIngreso, value: number) => {
+    setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+  };
+
+  const addItem = () => setItems(prev => [...prev, emptyItem()]);
+  const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
+
+  const handleClose = () => {
+    setItems([emptyItem()]);
+    setMotivo('');
+    setArchivo(null);
+    onClose();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const validItems = items.filter(it => it.articuloId > 0 && it.cantidad > 0);
+    if (validItems.length === 0) {
+      showNotification('Agregá al menos un artículo con cantidad', 'warning');
+      return;
+    }
     setLoading(true);
     try {
-      const form = new FormData();
-      form.append('depositoId', String(formData.depositoId));
-      form.append('articuloId', String(formData.articuloId));
-      form.append('cantidad', String(formData.cantidad));
-      form.append('observaciones', formData.motivo);
-      if (archivo) form.append('documento', archivo);
-
-      await api.post('/stock/ingreso', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      showNotification('Ingreso de stock registrado correctamente', 'success');
+      for (let i = 0; i < validItems.length; i++) {
+        const form = new FormData();
+        form.append('depositoId', String(depositoId));
+        form.append('articuloId', String(validItems[i].articuloId));
+        form.append('cantidad', String(validItems[i].cantidad));
+        form.append('observaciones', motivo);
+        // El documento solo va en el primero
+        if (i === 0 && archivo) form.append('documento', archivo);
+        await api.post('/stock/ingreso', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      }
+      showNotification(
+        validItems.length === 1
+          ? 'Ingreso registrado correctamente'
+          : `${validItems.length} ingresos registrados correctamente`,
+        'success',
+      );
       onSuccess();
-      onClose();
-      setFormData({ depositoId: depositos[0]?.id || 0, articuloId: 0, cantidad: 0, motivo: '' });
-      setArchivo(null);
+      handleClose();
     } catch (error: any) {
       showNotification(error.response?.data?.message || 'Error al registrar ingreso', 'error');
     } finally {
@@ -76,38 +96,62 @@ export default function StockIngresoForm({ open, onClose, onSuccess }: StockIngr
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle>Registrar Ingreso de Stock</DialogTitle>
       <form onSubmit={handleSubmit}>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Registra mercadería que ingresa al depósito (compras, donaciones, etc.)
+            Registra mercadería que ingresa al depósito. Podés agregar varios artículos a la vez.
           </Typography>
 
-          <TextField select fullWidth label="Depósito" value={formData.depositoId}
-            onChange={(e) => setFormData({ ...formData, depositoId: parseInt(e.target.value) })}
+          <TextField select fullWidth label="Depósito" value={depositoId}
+            onChange={(e) => setDepositoId(parseInt(e.target.value))}
             margin="normal" required>
             {depositos.map((d) => <MenuItem key={d.id} value={d.id}>{d.nombre}</MenuItem>)}
           </TextField>
 
-          <TextField select fullWidth label="Artículo" value={formData.articuloId}
-            onChange={(e) => setFormData({ ...formData, articuloId: parseInt(e.target.value) })}
-            margin="normal" required>
-            <MenuItem value={0}>Seleccionar artículo</MenuItem>
-            {articulos.map((a) => (
-              <MenuItem key={a.id} value={a.id}>
-                {a.nombre}{a.categoria ? ` (${a.categoria})` : ''}
-              </MenuItem>
-            ))}
-          </TextField>
+          {/* Lista de artículos */}
+          <Box mt={2} mb={1}>
+            <Typography variant="caption" fontWeight="bold" color="text.secondary">
+              ARTÍCULOS
+            </Typography>
+          </Box>
 
-          <TextField fullWidth label="Cantidad" type="number" value={formData.cantidad}
-            onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value) })}
-            margin="normal" inputProps={{ min: 1 }} required />
+          {items.map((item, index) => (
+            <Box key={index} display="flex" gap={1} alignItems="center" mb={1}>
+              <TextField select label="Artículo" value={item.articuloId}
+                onChange={(e) => updateItem(index, 'articuloId', parseInt(e.target.value))}
+                sx={{ flex: 2 }} required size="small">
+                <MenuItem value={0}>Seleccionar...</MenuItem>
+                {articulos.map((a) => (
+                  <MenuItem key={a.id} value={a.id}>
+                    {a.nombre}{a.categoria ? ` (${a.categoria})` : ''}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-          <TextField fullWidth label="Motivo / Observaciones" value={formData.motivo}
-            onChange={(e) => setFormData({ ...formData, motivo: e.target.value })}
-            margin="normal" multiline rows={2}
+              <TextField label="Cantidad" type="number" value={item.cantidad || ''}
+                onChange={(e) => updateItem(index, 'cantidad', parseFloat(e.target.value))}
+                sx={{ flex: 1 }} required size="small"
+                inputProps={{ min: 0.01, step: 0.01 }} />
+
+              {items.length > 1 && (
+                <IconButton size="small" color="error" onClick={() => removeItem(index)}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
+          ))}
+
+          <Button size="small" startIcon={<AddIcon />} onClick={addItem} sx={{ mt: 0.5 }}>
+            Agregar artículo
+          </Button>
+
+          <Divider sx={{ my: 2 }} />
+
+          <TextField fullWidth label="Motivo / Observaciones" value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            multiline rows={2}
             placeholder="Ej: Compra proveedor, Donación, Ajuste inventario" required />
 
           {/* Documento adjunto */}
@@ -123,16 +167,14 @@ export default function StockIngresoForm({ open, onClose, onSuccess }: StockIngr
                 onClick={() => fileInputRef.current?.click()}>
                 {archivo ? 'Cambiar archivo' : 'Adjuntar documento'}
               </Button>
-              {archivo && (
-                <Chip label={archivo.name} size="small" onDelete={() => setArchivo(null)} />
-              )}
+              {archivo && <Chip label={archivo.name} size="small" onDelete={() => setArchivo(null)} />}
             </Box>
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={onClose} disabled={loading}>Cancelar</Button>
+          <Button onClick={handleClose} disabled={loading}>Cancelar</Button>
           <Button type="submit" variant="contained" disabled={loading}>
-            {loading ? <CircularProgress size={24} /> : 'Registrar Ingreso'}
+            {loading ? <CircularProgress size={24} /> : `Registrar${items.length > 1 ? ` (${items.length})` : ''}`}
           </Button>
         </DialogActions>
       </form>

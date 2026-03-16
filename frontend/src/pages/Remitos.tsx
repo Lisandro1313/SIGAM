@@ -21,6 +21,8 @@ import {
   TextField,
   Divider,
   Alert,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -39,15 +41,33 @@ import api from '../services/api';
 import RemitoForm from '../components/RemitoForm';
 import { useNotificationStore } from '../stores/notificationStore';
 import { useAuthStore } from '../stores/authStore';
+import LoadingPage from '../components/LoadingPage';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+function resolveUrl(url: string) {
+  return url.startsWith('http') ? url : `${API_BASE}/${url.replace(/^\//, '')}`;
+}
 
 export default function RemitosPage() {
   const [remitos, setRemitos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
+  const [tabPrograma, setTabPrograma] = useState<string>('todos');
   const { showNotification } = useNotificationStore();
   const { user } = useAuthStore();
   const puedeEntregar = user?.rol === 'ADMIN' || user?.rol === 'LOGISTICA' || user?.rol === 'ASISTENCIA_CRITICA';
   const puedeCrear = user?.rol !== 'VISOR';
+
+  // Programas únicos derivados de los remitos cargados
+  const programas = Array.from(
+    new Map(remitos.filter(r => r.programa).map(r => [r.programa.id, r.programa])).values()
+  ).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  const remitosVisibles = tabPrograma === 'todos'
+    ? remitos
+    : tabPrograma === 'sin_programa'
+    ? remitos.filter(r => !r.programa)
+    : remitos.filter(r => String(r.programa?.id) === tabPrograma);
 
   // Estado del diálogo de entregar
   const [entregarDialog, setEntregarDialog] = useState(false);
@@ -201,11 +221,7 @@ export default function RemitosPage() {
   };
 
   if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" mt={4}>
-        <CircularProgress />
-      </Box>
-    );
+    return <LoadingPage />;
   }
 
   return (
@@ -221,6 +237,29 @@ export default function RemitosPage() {
         )}
       </Box>
 
+      {/* Tabs por programa */}
+      <Paper elevation={1} sx={{ mb: 2 }}>
+        <Tabs
+          value={tabPrograma}
+          onChange={(_, v) => setTabPrograma(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label={`Todos (${remitos.length})`} value="todos" />
+          {programas.map(p => (
+            <Tab
+              key={p.id}
+              label={`${p.nombre} (${remitos.filter(r => r.programa?.id === p.id).length})`}
+              value={String(p.id)}
+            />
+          ))}
+          {remitos.some(r => !r.programa) && (
+            <Tab label={`Sin programa (${remitos.filter(r => !r.programa).length})`} value="sin_programa" />
+          )}
+        </Tabs>
+      </Paper>
+
       <TableContainer component={Paper} elevation={2}>
         <Table>
           <TableHead>
@@ -235,7 +274,7 @@ export default function RemitosPage() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {remitos.map((remito) => (
+            {remitosVisibles.map((remito) => (
               <TableRow key={remito.id} hover>
                 <TableCell>
                   <strong>{remito.numero || 'BORRADOR'}</strong>
@@ -408,7 +447,7 @@ export default function RemitosPage() {
                   {detalleRemito.entregadoFoto && (
                     <Box mt={1}>
                       <a
-                        href={`/uploads/${detalleRemito.entregadoFoto.replace(/^\/uploads\//, '').replace(/^uploads\//, '')}`}
+                        href={resolveUrl(detalleRemito.entregadoFoto)}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -423,10 +462,10 @@ export default function RemitosPage() {
                 /\.(jpg|jpeg|png|webp)$/i.test(detalleRemito.entregadoFoto) && (
                 <Box mb={2} textAlign="center">
                   <img
-                    src={`/uploads/${detalleRemito.entregadoFoto.replace(/^\/uploads\//, '').replace(/^uploads\//, '')}`}
+                    src={resolveUrl(detalleRemito.entregadoFoto)}
                     alt="Remito firmado"
                     style={{ maxWidth: '100%', maxHeight: 320, borderRadius: 8, border: '2px solid #4caf50', cursor: 'pointer' }}
-                    onClick={() => window.open(`/uploads/${detalleRemito.entregadoFoto.replace(/^\/uploads\//, '').replace(/^uploads\//, '')}`, '_blank')}
+                    onClick={() => window.open(resolveUrl(detalleRemito.entregadoFoto), '_blank')}
                   />
                   <Typography variant="caption" color="text.secondary" display="block">Clic para ampliar</Typography>
                 </Box>

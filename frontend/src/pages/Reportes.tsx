@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Box, Typography, CircularProgress, Paper, Grid, Card, CardContent,
+  Box, Typography, Paper, Grid, Card, CardContent,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tab, Tabs, Select, MenuItem, FormControl, InputLabel, Button,
   Chip, LinearProgress, Tooltip,
@@ -15,6 +15,7 @@ import {
 } from '@mui/icons-material';
 import api from '../services/api';
 import ExportExcelButton from '../components/ExportExcelButton';
+import LoadingPage from '../components/LoadingPage';
 
 const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const COLORES_PIE = ['#1565C0','#2E7D32','#6A1B9A','#00695C','#E65100','#AD1457','#283593','#00838F','#4527A0'];
@@ -93,7 +94,7 @@ export default function ReportesPage() {
   const totalKgMes = remitosDetalle.reduce((s, r) => s + (r.totalKg ?? 0), 0);
 
   if (loading && kilosPorMes.length === 0 && remitosDetalle.length === 0) {
-    return <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>;
+    return <LoadingPage />;
   }
 
   return (

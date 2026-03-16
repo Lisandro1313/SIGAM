@@ -455,7 +455,14 @@ export default function BeneficiariosPage() {
                   />
                   <ListItemSecondaryAction>
                     <Tooltip title="Abrir archivo">
-                      <IconButton size="small" href={doc.url} target="_blank" rel="noopener noreferrer">
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          const base = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                          const url = doc.url.startsWith('http') ? doc.url : `${base}/${doc.url}`;
+                          window.open(url, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
                         <OpenIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
