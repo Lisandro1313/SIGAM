@@ -257,6 +257,7 @@ model Movimiento {
   tipo            MovimientoTipo
   cantidad        Float
   observaciones   String?
+  documentoUrl    String?        // Remito/factura adjunta al ingreso
   fecha           DateTime       @default(now())
   
   // Artículo

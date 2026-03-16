@@ -1,10 +1,14 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MovimientoTipo } from '@prisma/client';
+import { StorageService } from '../../shared/storage/storage.service';
 
 @Injectable()
 export class StockService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private storageService: StorageService,
+  ) {}
 
   // Obtener stock por depósito
   async obtenerStockPorDeposito(depositoId: number) {
@@ -37,7 +41,14 @@ export class StockService {
     cantidad: number,
     usuarioId: number,
     observaciones?: string,
+    documento?: Express.Multer.File,
   ) {
+    let documentoUrl: string | undefined;
+    if (documento) {
+      const path = `stock/ingresos/${Date.now()}_${documento.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      documentoUrl = await this.storageService.upload(documento.buffer, path, documento.mimetype);
+    }
+
     return await this.prisma.$transaction(async (tx) => {
       // Crear movimiento de INGRESO
       await tx.movimiento.create({
@@ -48,6 +59,7 @@ export class StockService {
           depositoHaciaId: depositoId,
           usuarioId,
           observaciones,
+          documentoUrl: documentoUrl ?? null,
         },
       });
 

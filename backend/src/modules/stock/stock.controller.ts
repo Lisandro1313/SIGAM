@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Request, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, Request, Param, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { StockService } from './stock.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -26,14 +28,20 @@ export class StockController {
 
   @Post('ingreso')
   @Roles('ADMIN', 'LOGISTICA')
-  @ApiOperation({ summary: 'Registrar ingreso de mercadería' })
-  registrarIngreso(@Body() body: any, @Request() req) {
+  @UseInterceptors(FileInterceptor('documento', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Registrar ingreso de mercadería (con documento opcional)' })
+  registrarIngreso(
+    @Body() body: any,
+    @Request() req,
+    @UploadedFile() documento?: Express.Multer.File,
+  ) {
     return this.stockService.registrarIngreso(
-      body.articuloId,
-      body.depositoId,
-      body.cantidad,
+      parseInt(body.articuloId),
+      parseInt(body.depositoId),
+      parseFloat(body.cantidad),
       req.user.id,
       body.observaciones,
+      documento,
     );
   }
 
