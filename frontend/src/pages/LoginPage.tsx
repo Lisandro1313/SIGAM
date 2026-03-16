@@ -39,15 +39,14 @@ function useParticles(canvasRef: React.RefObject<HTMLCanvasElement>) {
     resize();
 
     class Particle {
-      x: number; y: number; baseX: number; baseY: number;
-      size: number; density: number; speedX: number; speedY: number;
-      constructor(x: number, y: number) {
-        this.x = this.baseX = x;
-        this.y = this.baseY = y;
+      x: number; y: number;
+      size: number; speedX: number; speedY: number;
+      constructor() {
+        this.x = Math.random() * c.width;
+        this.y = Math.random() * c.height;
         this.size = Math.random() * 3 + 1;
-        this.density = Math.random() * 30 + 5;
-        this.speedX = Math.random() * 3 - 1.5;
-        this.speedY = Math.random() * 3 - 1.5;
+        this.speedX = (Math.random() - 0.5) * 1.2;
+        this.speedY = (Math.random() - 0.5) * 1.2;
       }
       draw() {
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
@@ -56,30 +55,33 @@ function useParticles(canvasRef: React.RefObject<HTMLCanvasElement>) {
         ctx.fill();
       }
       update() {
-        this.x += this.speedX;
-        this.y += this.speedY;
-        if (this.x < 0 || this.x > c.width) this.speedX *= -1;
-        if (this.y < 0 || this.y > c.height) this.speedY *= -1;
         if (mouse.x != null && mouse.y != null) {
           const dx = mouse.x - this.x, dy = mouse.y - this.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < mouse.radius) {
-            const force = (mouse.radius - dist) / mouse.radius;
-            this.x -= (dx / dist) * force * this.density;
-            this.y -= (dy / dist) * force * this.density;
+            const force = (mouse.radius - dist) / mouse.radius * 3;
+            this.speedX -= (dx / dist) * force * 0.1;
+            this.speedY -= (dy / dist) * force * 0.1;
           }
         }
-        this.x += (this.baseX - this.x) * 0.05;
-        this.y += (this.baseY - this.y) * 0.05;
+        // límite de velocidad
+        const maxSpeed = 2.5;
+        const speed = Math.sqrt(this.speedX ** 2 + this.speedY ** 2);
+        if (speed > maxSpeed) { this.speedX = this.speedX / speed * maxSpeed; this.speedY = this.speedY / speed * maxSpeed; }
+        this.x += this.speedX;
+        this.y += this.speedY;
+        if (this.x < 0) { this.x = 0; this.speedX *= -1; }
+        if (this.x > c.width) { this.x = c.width; this.speedX *= -1; }
+        if (this.y < 0) { this.y = 0; this.speedY *= -1; }
+        if (this.y > c.height) { this.y = c.height; this.speedY *= -1; }
       }
     }
 
     let particles: Particle[] = [];
     const init = () => {
       particles = [];
-      const n = (c.width * c.height) / 6000;
-      for (let i = 0; i < n; i++)
-        particles.push(new Particle(Math.random() * c.width, Math.random() * c.height));
+      const n = Math.min(Math.floor((c.width * c.height) / 8000), 120);
+      for (let i = 0; i < n; i++) particles.push(new Particle());
     };
 
     const connect = () => {
@@ -240,19 +242,19 @@ export default function LoginPage() {
               src="/logo-municipalidad.jpg"
               alt="Municipalidad de La Plata"
               style={{
-                maxWidth: '100%',
+                maxWidth: '80%',
                 height: 'auto',
-                maxHeight: 80,
-                borderRadius: 8,
-                marginBottom: 16,
+                maxHeight: 130,
+                borderRadius: 10,
+                marginBottom: 14,
                 objectFit: 'contain',
               }}
             />
-            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: '#1a73e8', fontFamily: 'inherit' }}>
-              SIGAM
+            <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: '#1a73e8', fontFamily: 'inherit' }}>
+              Gestor Municipal
             </h1>
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#5f6368', fontFamily: 'inherit' }}>
-              Sistema Integral de Gestión Alimentaria Municipal
+            <p style={{ margin: '6px 0 0', fontSize: 12, color: '#5f6368', fontFamily: 'inherit' }}>
+              Secretaría de Desarrollo Social
             </p>
           </div>
 
@@ -345,7 +347,7 @@ export default function LoginPage() {
           </form>
 
           <p style={{ textAlign: 'center', marginTop: 24, marginBottom: 0, fontSize: 11, color: '#9aa0a6', fontFamily: 'inherit' }}>
-            Secretaría de Desarrollo Social · Municipalidad de La Plata
+            Municipalidad de La Plata
           </p>
         </div>
       </div>

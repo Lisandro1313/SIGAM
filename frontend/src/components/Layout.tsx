@@ -86,9 +86,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const drawer = (
     <div>
       <Toolbar sx={{ bgcolor: 'primary.main', color: 'white', flexDirection: 'column', alignItems: 'flex-start', py: 1.5 }}>
-        <Typography variant="h6" fontWeight="bold">SIGAM</Typography>
+        <Typography variant="h6" fontWeight="bold">Gestor Municipal</Typography>
         <Typography variant="caption" sx={{ opacity: 0.8 }}>
-          {esDeposito ? (user?.deposito?.nombre || 'Depósito') : 'Gestión Alimentaria Municipal'}
+          {esDeposito ? (user?.deposito?.nombre || 'Depósito') : 'Secretaría de Desarrollo Social'}
         </Typography>
       </Toolbar>
       <Divider />
