@@ -229,6 +229,106 @@ export class ReportesService {
     return alertas;
   }
 
+  // Reporte: Beneficiarios por programa (con totales de kg habitual)
+  async beneficiariosPorPrograma() {
+    const programas = await this.prisma.programa.findMany({
+      where: { activo: true },
+      include: {
+        beneficiarios: {
+          where: { activo: true },
+          select: { id: true, tipo: true, kilosHabitual: true, frecuenciaEntrega: true },
+        },
+      },
+    });
+    return programas.map(p => ({
+      programa: p.nombre,
+      programaId: p.id,
+      tipo: p.tipo,
+      total: p.beneficiarios.length,
+      kgHabitualTotal: p.beneficiarios.reduce((s, b) => s + (b.kilosHabitual ?? 0), 0),
+      porTipo: p.beneficiarios.reduce((acc: any, b) => {
+        acc[b.tipo] = (acc[b.tipo] ?? 0) + 1; return acc;
+      }, {}),
+      porFrecuencia: p.beneficiarios.reduce((acc: any, b) => {
+        if (b.frecuenciaEntrega) acc[b.frecuenciaEntrega] = (acc[b.frecuenciaEntrega] ?? 0) + 1; return acc;
+      }, {}),
+    }));
+  }
+
+  // Reporte: Remitos con detalle para exportación personalizada
+  async remitosDetalle(mes?: number, anio?: number, programaId?: number, estado?: string) {
+    const where: any = {};
+    if (mes && anio) {
+      const fecha = new Date(anio, mes - 1, 1);
+      where.fecha = { gte: startOfMonth(fecha), lte: endOfMonth(fecha) };
+    }
+    if (programaId) where.programaId = programaId;
+    if (estado) where.estado = estado;
+
+    const remitos = await this.prisma.remito.findMany({
+      where,
+      include: {
+        beneficiario: { select: { nombre: true, tipo: true, localidad: true } },
+        programa: { select: { nombre: true } },
+        deposito: { select: { nombre: true } },
+        items: { include: { articulo: { select: { nombre: true, categoria: true } } } },
+      },
+      orderBy: { fecha: 'desc' },
+      take: 500,
+    });
+
+    return remitos.map(r => ({
+      id: r.id,
+      numero: r.numero,
+      fecha: r.fecha.toISOString().slice(0, 10),
+      estado: r.estado,
+      beneficiario: r.beneficiario?.nombre ?? '',
+      tipoBeneficiario: r.beneficiario?.tipo ?? '',
+      localidad: r.beneficiario?.localidad ?? '',
+      programa: r.programa?.nombre ?? '',
+      deposito: r.deposito?.nombre ?? '',
+      totalKg: r.totalKg ?? 0,
+      items: r.items.map(i => `${i.articulo.nombre} x${i.cantidad}`).join(' | '),
+      cantidadItems: r.items.length,
+    }));
+  }
+
+  // Reporte: Resumen de entregas del mes (entregadas vs no entregadas)
+  async resumenEntregasMes(mes: number, anio: number) {
+    const fecha = new Date(anio, mes - 1, 1);
+    const inicio = startOfMonth(fecha);
+    const fin = endOfMonth(fecha);
+
+    const entregas = await this.prisma.entregaProgramada.findMany({
+      where: { fechaProgramada: { gte: inicio, lte: fin } },
+      include: {
+        beneficiario: { select: { nombre: true, tipo: true, localidad: true, kilosHabitual: true } },
+        programa: { select: { nombre: true } },
+      },
+      orderBy: [{ estado: 'asc' }, { fechaProgramada: 'asc' }],
+    });
+
+    const resumen = {
+      total: entregas.length,
+      pendientes: entregas.filter(e => e.estado === 'PENDIENTE').length,
+      generadas: entregas.filter(e => e.estado === 'GENERADA').length,
+      entregadas: entregas.filter(e => e.estado === 'ENTREGADA').length,
+      canceladas: entregas.filter(e => e.estado === 'CANCELADA').length,
+      kgProgramado: entregas.reduce((s, e) => s + (e.kilos ?? e.beneficiario?.kilosHabitual ?? 0), 0),
+      detalle: entregas.map(e => ({
+        id: e.id,
+        beneficiario: e.beneficiario?.nombre ?? '',
+        tipo: e.beneficiario?.tipo ?? '',
+        localidad: e.beneficiario?.localidad ?? '',
+        programa: e.programa?.nombre ?? '',
+        fechaProgramada: e.fechaProgramada.toISOString().slice(0, 10),
+        kilos: e.kilos ?? e.beneficiario?.kilosHabitual ?? 0,
+        estado: e.estado,
+      })),
+    };
+    return resumen;
+  }
+
   // Dashboard: Resumen operativo
   async dashboard() {
     const hoy = new Date();

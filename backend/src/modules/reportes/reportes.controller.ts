@@ -69,4 +69,30 @@ export class ReportesController {
   stockBajo() {
     return this.reportesService.stockBajo();
   }
+
+  @Get('beneficiarios-por-programa')
+  @ApiOperation({ summary: 'Beneficiarios activos agrupados por programa' })
+  beneficiariosPorPrograma() {
+    return this.reportesService.beneficiariosPorPrograma();
+  }
+
+  @Get('remitos-detalle')
+  @ApiOperation({ summary: 'Detalle de remitos con filtros para exportación' })
+  remitosDetalle(
+    @Query('mes') mes?: string,
+    @Query('anio') anio?: string,
+    @Query('programaId') programaId?: string,
+    @Query('estado') estado?: string,
+  ) {
+    const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
+    return this.reportesService.remitosDetalle(m, a, programaId ? parseInt(programaId) : undefined, estado);
+  }
+
+  @Get('resumen-entregas-mes')
+  @ApiOperation({ summary: 'Resumen de entregas de un mes: pendientes, generadas, entregadas' })
+  resumenEntregasMes(@Query('mes') mes: string, @Query('anio') anio: string) {
+    const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
+    if (!m || !a) throw new BadRequestException('mes y anio son obligatorios');
+    return this.reportesService.resumenEntregasMes(m, a);
+  }
 }
