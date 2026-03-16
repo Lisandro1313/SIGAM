@@ -15,8 +15,20 @@ export class CronogramaController {
   @Post('generar')
   @Roles('ADMIN', 'LOGISTICA')
   @ApiOperation({ summary: 'Generar cronograma automático para un mes' })
-  generarCronograma(@Body() body: { mes: number; anio: number }) {
-    return this.cronogramaService.generarCronogramaMensual(body.mes, body.anio);
+  generarCronograma(@Body() body: { mes: number; anio: number; kgPorDia?: number }) {
+    return this.cronogramaService.generarCronogramaMensual(body.mes, body.anio, body.kgPorDia);
+  }
+
+  @Get('resumen-generacion')
+  @ApiOperation({ summary: 'Preview de lo que generaría el cronograma del mes' })
+  resumenGeneracion(@Query('mes') mes: string, @Query('anio') anio: string) {
+    return this.cronogramaService.resumenGeneracion(parseInt(mes), parseInt(anio));
+  }
+
+  @Get('ultimas-entregas')
+  @ApiOperation({ summary: 'Últimas entregas por beneficiario' })
+  ultimasEntregas() {
+    return this.cronogramaService.getUltimasEntregas();
   }
 
   @Get()

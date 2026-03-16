@@ -2,11 +2,13 @@
 import {
   Box, Typography, Paper, IconButton, Button, TextField,
   Autocomplete, Tooltip, Chip, CircularProgress, Select,
-  MenuItem, FormControl, Tab, Tabs,
+  MenuItem, FormControl, Tab, Tabs, Dialog, DialogTitle,
+  DialogContent, DialogActions, Alert, InputAdornment,
 } from '@mui/material';
 import {
   ChevronLeft, ChevronRight, Add as AddIcon, Delete as DeleteIcon,
   Receipt as ReceiptIcon, Today as TodayIcon, PlaylistAdd as PasteIcon,
+  AutoAwesome as GenerarIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -56,6 +58,8 @@ const COLS = [
 const GRID = COLS.map(c=>`${c.w}px`).join(' ');
 const MINW = COLS.reduce((a,c)=>a+c.w,0);
 
+interface UltimaEntrega { fecha: string; estado: string; }
+
 export default function CronogramaPage() {
   const { showNotification } = useNotificationStore();
   const [semanaInicio, setSemanaInicio] = useState<Date>(()=>startOfWeek(new Date()));
@@ -67,6 +71,19 @@ export default function CronogramaPage() {
   const [tabIdx, setTabIdx] = useState(0);  // 0 = Todos, 1+ = programa
   const [loading, setLoading] = useState(false);
   const timers = useRef<Record<string,ReturnType<typeof setTimeout>>>({});
+
+  // Generar mes dialog
+  const hoy = new Date();
+  const [genOpen, setGenOpen] = useState(false);
+  const [genMes, setGenMes] = useState(hoy.getMonth() + 1);
+  const [genAnio, setGenAnio] = useState(hoy.getFullYear());
+  const [genKgPorDia, setGenKgPorDia] = useState('');
+  const [genResumen, setGenResumen] = useState<{pendientes:number;yaExisten:number;totalKg:number}|null>(null);
+  const [genLoadingResumen, setGenLoadingResumen] = useState(false);
+  const [genGenerating, setGenGenerating] = useState(false);
+
+  // Últimas entregas por beneficiario
+  const [ultimasEntregas, setUltimasEntregas] = useState<Record<number, UltimaEntrega>>({});
 
   const semanaFin = addDays(semanaInicio, 6);
   const semanaLabel = `${semanaInicio.getDate()} ${MESES_ES[semanaInicio.getMonth()]} - ${semanaFin.getDate()} ${MESES_ES[semanaFin.getMonth()]} ${semanaFin.getFullYear()}`;
@@ -84,11 +101,13 @@ export default function CronogramaPage() {
       api.get('/depositos'),
       api.get('/beneficiarios?limit=500'),
       api.get('/programas'),
-    ]).then(([depR, benR, proR]) => {
+      api.get('/cronograma/ultimas-entregas'),
+    ]).then(([depR, benR, proR, ultR]) => {
       setDepositos(depR.data);
       if (depR.data.length > 0) setDepDefault(depR.data[0].id);
       setTodosLosBens(benR.data?.data ?? benR.data);
       setProgramas(proR.data.filter((p:any) => p.activo));
+      setUltimasEntregas(ultR.data ?? {});
     }).catch(()=>{});
   }, []);
 
@@ -205,6 +224,39 @@ export default function CronogramaPage() {
 
   const colorTab = (i:number) => COLORES_TAB[i % COLORES_TAB.length];
 
+  async function loadResumen(mes: number, anio: number) {
+    setGenResumen(null);
+    setGenLoadingResumen(true);
+    try {
+      const r = await api.get(`/cronograma/resumen-generacion?mes=${mes}&anio=${anio}`);
+      setGenResumen(r.data);
+    } catch { showNotification('Error cargando resumen', 'error'); }
+    finally { setGenLoadingResumen(false); }
+  }
+
+  function handleOpenGen() {
+    setGenOpen(true);
+    loadResumen(genMes, genAnio);
+  }
+
+  async function handleConfirmarGenerar() {
+    setGenGenerating(true);
+    try {
+      const body: any = { mes: genMes, anio: genAnio };
+      if (genKgPorDia) body.kgPorDia = parseFloat(genKgPorDia);
+      const r = await api.post('/cronograma/generar', body);
+      showNotification(`Cronograma generado: ${r.data.entregasCreadas} entregas creadas`, 'success');
+      setGenOpen(false);
+      loadPlanilla();
+      // Refresh últimas entregas
+      api.get('/cronograma/ultimas-entregas').then(u => setUltimasEntregas(u.data ?? {})).catch(()=>{});
+    } catch(e:any) {
+      showNotification(e.response?.data?.message ?? 'Error generando', 'error');
+    } finally { setGenGenerating(false); }
+  }
+
+  const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
   return (
     <Box>
       {/* Header */}
@@ -220,6 +272,9 @@ export default function CronogramaPage() {
           <Typography variant="body1" fontWeight="bold" minWidth={230} textAlign="center">{semanaLabel}</Typography>
           <Tooltip title="Semana siguiente"><IconButton onClick={()=>setSemanaInicio(p=>addDays(p,7))}><ChevronRight/></IconButton></Tooltip>
           <Tooltip title="Hoy"><IconButton onClick={()=>setSemanaInicio(startOfWeek(new Date()))}><TodayIcon/></IconButton></Tooltip>
+          <Button variant="contained" startIcon={<GenerarIcon/>} onClick={handleOpenGen} size="small" sx={{bgcolor:'#1a237e'}}>
+            Generar mes
+          </Button>
         </Box>
       </Box>
 
@@ -282,7 +337,10 @@ export default function CronogramaPage() {
                         onChange={(_,v)=>handleSelectBen(dia.fecha,fila,v)} disabled={tieneRemito}
                         filterOptions={(opts,{inputValue})=>opts.filter(o=>o.nombre.toLowerCase().includes(inputValue.toLowerCase()))}
                         renderInput={params=><TextField {...params} placeholder="Escribir nombre..." variant="standard" InputProps={{...params.InputProps,disableUnderline:tieneRemito}} sx={{'& input':{fontSize:13}}}/>}
-                        renderOption={(props,o)=><li {...props} key={o.id}><Box><Typography variant="body2" fontWeight="bold">{o.nombre}</Typography><Typography variant="caption" color="text.secondary">{o.tipo}{o.programa?` · ${o.programa.nombre}`:''}{o.kilosHabitual?` · ${o.kilosHabitual}kg`:''}</Typography></Box></li>}
+                        renderOption={(props,o)=>{
+                          const ult = ultimasEntregas[o.id];
+                          return <li {...props} key={o.id}><Box><Typography variant="body2" fontWeight="bold">{o.nombre}</Typography><Typography variant="caption" color="text.secondary">{o.tipo}{o.programa?` · ${o.programa.nombre}`:''}{o.kilosHabitual?` · ${o.kilosHabitual}kg`:''}{ult?` · Últ: ${ult.fecha}`:''}</Typography></Box></li>;
+                        }}
                         noOptionsText="Sin resultados"
                       />
                     </Box>
@@ -357,6 +415,56 @@ export default function CronogramaPage() {
           </Box>
         </Box>
       )}
+
+      {/* Dialog: Generar mes */}
+      <Dialog open={genOpen} onClose={()=>setGenOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{fontWeight:'bold'}}>Generar cronograma mensual</DialogTitle>
+        <DialogContent>
+          <Box display="flex" gap={2} mt={1} mb={2}>
+            <FormControl fullWidth size="small">
+              <Select value={genMes} onChange={e=>{const m=Number(e.target.value);setGenMes(m);loadResumen(m,genAnio);}}>
+                {MESES_NOMBRE.map((mn,i)=><MenuItem key={i+1} value={i+1}>{mn}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <TextField
+              size="small" label="Año" type="number" value={genAnio}
+              onChange={e=>{const a=Number(e.target.value);setGenAnio(a);if(a>2000&&a<2100)loadResumen(genMes,a);}}
+              sx={{width:100}}
+            />
+          </Box>
+
+          <TextField
+            size="small" fullWidth label="Límite kg por día (opcional)"
+            value={genKgPorDia}
+            onChange={e=>setGenKgPorDia(e.target.value)}
+            type="number"
+            InputProps={{endAdornment:<InputAdornment position="end">kg</InputAdornment>}}
+            helperText="Si no se indica, se distribuye sin límite de capacidad"
+            sx={{mb:2}}
+          />
+
+          {genLoadingResumen && <Box display="flex" justifyContent="center" my={2}><CircularProgress size={24}/></Box>}
+
+          {genResumen && !genLoadingResumen && (
+            <Alert severity={genResumen.pendientes === 0 ? 'info' : 'success'} sx={{mb:1}}>
+              <Typography variant="body2"><strong>{genResumen.pendientes}</strong> entregas a crear · <strong>{genResumen.yaExisten}</strong> ya existentes</Typography>
+              <Typography variant="body2">Peso total estimado: <strong>{genResumen.totalKg} kg</strong></Typography>
+              {genResumen.pendientes === 0 && <Typography variant="body2" mt={0.5}>Ya están todas las entregas generadas para este mes.</Typography>}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setGenOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained" onClick={handleConfirmarGenerar}
+            disabled={genGenerating || !genResumen || genResumen.pendientes === 0}
+            startIcon={genGenerating?<CircularProgress size={16}/>:<GenerarIcon/>}
+            sx={{bgcolor:'#1a237e'}}
+          >
+            {genGenerating ? 'Generando...' : `Generar ${genResumen?.pendientes ?? ''} entregas`}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

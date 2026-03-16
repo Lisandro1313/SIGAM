@@ -11,82 +11,82 @@ export class CronogramaService {
     private remitosService: RemitosService,
   ) {}
 
-  // Generar cronograma automático para un mes
-  async generarCronogramaMensual(mes: number, anio: number) {
-    const fecha = new Date(anio, mes - 1, 15); // Día 15 del mes
+  // Generar cronograma automático distribuido en días hábiles
+  async generarCronogramaMensual(mes: number, anio: number, kgPorDia?: number) {
+    const fecha = new Date(anio, mes - 1, 1);
     const inicioMes = startOfMonth(fecha);
     const finMes = endOfMonth(fecha);
 
-    // Buscar beneficiarios activos con frecuencia mensual
     const beneficiarios = await this.prisma.beneficiario.findMany({
-      where: {
-        activo: true,
-        frecuenciaEntrega: {
-          in: ['MENSUAL', 'BIMESTRAL'],
-        },
-      },
-      include: {
-        programa: true,
-      },
+      where: { activo: true, frecuenciaEntrega: { in: ['MENSUAL', 'BIMESTRAL'] } },
+      include: { programa: true },
     });
 
-    const entregasCreadas = [];
-
-    for (const beneficiario of beneficiarios) {
-      // Verificar si ya tiene entrega programada para ese mes
-      const entregaExistente = await this.prisma.entregaProgramada.findFirst({
-        where: {
-          beneficiarioId: beneficiario.id,
-          fechaProgramada: {
-            gte: inicioMes,
-            lte: finMes,
-          },
-        },
+    const aCrear: any[] = [];
+    for (const b of beneficiarios) {
+      const existente = await this.prisma.entregaProgramada.findFirst({
+        where: { beneficiarioId: b.id, fechaProgramada: { gte: inicioMes, lte: finMes } },
       });
+      if (existente) continue;
 
-      if (!entregaExistente) {
-        // Verificar frecuencia bimestral
-        if (beneficiario.frecuenciaEntrega === 'BIMESTRAL') {
-          // Verificar si tuvo entrega el mes anterior
-          const mesAnterior = addMonths(fecha, -1);
-          const entregaMesAnterior = await this.prisma.entregaProgramada.findFirst({
-            where: {
-              beneficiarioId: beneficiario.id,
-              fechaProgramada: {
-                gte: startOfMonth(mesAnterior),
-                lte: endOfMonth(mesAnterior),
-              },
-            },
-          });
-
-          if (entregaMesAnterior) {
-            continue; // Saltar este mes
-          }
-        }
-
-        // Crear entrega programada
-        const entrega = await this.prisma.entregaProgramada.create({
-          data: {
-            beneficiarioId: beneficiario.id,
-            programaId: beneficiario.programaId,
-            fechaProgramada: new Date(anio, mes - 1, 15), // Día 15 por defecto
-            estado: EntregaEstado.PENDIENTE,
-          },
-          include: {
-            beneficiario: true,
-            programa: true,
-          },
+      if (b.frecuenciaEntrega === 'BIMESTRAL') {
+        const mesAnt = addMonths(fecha, -1);
+        const entregaAnt = await this.prisma.entregaProgramada.findFirst({
+          where: { beneficiarioId: b.id, fechaProgramada: { gte: startOfMonth(mesAnt), lte: endOfMonth(mesAnt) } },
         });
-
-        entregasCreadas.push(entrega);
+        if (entregaAnt) continue;
       }
+      aCrear.push(b);
     }
 
-    return {
-      success: true,
-      entregasCreadas: entregasCreadas.length,
-      entregas: entregasCreadas,
-    };
+    if (aCrear.length === 0) return { success: true, entregasCreadas: 0, entregas: [] };
+
+    // Obtener días hábiles (lun-sáb) del mes
+    const diasHabiles: Date[] = [];
+    const cursor = new Date(inicioMes);
+    while (cursor <= finMes) {
+      if (cursor.getDay() !== 0) diasHabiles.push(new Date(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    // Distribuir con límite de kg por día
+    const kgLimite = kgPorDia ?? 999999;
+    const kgPorFecha: Record<string, number> = {};
+    const entregasCreadas = [];
+
+    for (const b of aCrear) {
+      let fechaAsignada: Date = diasHabiles[0];
+      for (const dia of diasHabiles) {
+        const key = dia.toISOString().slice(0, 10);
+        if ((kgPorFecha[key] ?? 0) + (b.kilosHabitual ?? 0) <= kgLimite) {
+          fechaAsignada = dia;
+          kgPorFecha[key] = (kgPorFecha[key] ?? 0) + (b.kilosHabitual ?? 0);
+          break;
+        }
+      }
+      // Si no cabe en ningún día, asignar al día con menos kg
+      if (!kgPorFecha[fechaAsignada.toISOString().slice(0, 10)]) {
+        fechaAsignada = diasHabiles.reduce((min, d) =>
+          (kgPorFecha[d.toISOString().slice(0, 10)] ?? 0) < (kgPorFecha[min.toISOString().slice(0, 10)] ?? 0) ? d : min
+        );
+        const key = fechaAsignada.toISOString().slice(0, 10);
+        kgPorFecha[key] = (kgPorFecha[key] ?? 0) + (b.kilosHabitual ?? 0);
+      }
+
+      const entrega = await this.prisma.entregaProgramada.create({
+        data: {
+          beneficiarioId: b.id,
+          programaId: b.programaId,
+          fechaProgramada: fechaAsignada,
+          kilos: b.kilosHabitual ?? undefined,
+          estado: EntregaEstado.PENDIENTE,
+        },
+        include: { beneficiario: true, programa: true },
+      });
+      entregasCreadas.push(entrega);
+    }
+
+    return { success: true, entregasCreadas: entregasCreadas.length, entregas: entregasCreadas };
   }
 
   // Obtener entregas programadas
@@ -213,6 +213,59 @@ export class CronogramaService {
       detalleErrores: errores,
       remitos: remitosGenerados,
     };
+  }
+
+  // Resumen de lo que generaría el mes (preview antes de confirmar)
+  async resumenGeneracion(mes: number, anio: number) {
+    const fecha = new Date(anio, mes - 1, 1);
+    const inicioMes = startOfMonth(fecha);
+    const finMes = endOfMonth(fecha);
+
+    const beneficiarios = await this.prisma.beneficiario.findMany({
+      where: { activo: true, frecuenciaEntrega: { in: ['MENSUAL', 'BIMESTRAL'] } },
+      include: { programa: true },
+    });
+
+    const pendientes: any[] = [];
+    const yaExisten: any[] = [];
+
+    for (const b of beneficiarios) {
+      const existente = await this.prisma.entregaProgramada.findFirst({
+        where: { beneficiarioId: b.id, fechaProgramada: { gte: inicioMes, lte: finMes } },
+      });
+      if (existente) { yaExisten.push(b); continue; }
+
+      if (b.frecuenciaEntrega === 'BIMESTRAL') {
+        const mesAnt = addMonths(fecha, -1);
+        const entregaAnt = await this.prisma.entregaProgramada.findFirst({
+          where: { beneficiarioId: b.id, fechaProgramada: { gte: startOfMonth(mesAnt), lte: endOfMonth(mesAnt) } },
+        });
+        if (entregaAnt) continue;
+      }
+      pendientes.push(b);
+    }
+
+    const totalKg = pendientes.reduce((s: number, b: any) => s + (b.kilosHabitual ?? 0), 0);
+    return { pendientes: pendientes.length, yaExisten: yaExisten.length, totalKg };
+  }
+
+  // Últimas entregas por beneficiario (referencia en planilla)
+  async getUltimasEntregas(): Promise<Record<number, { fecha: string; estado: string }>> {
+    const entregas = await this.prisma.entregaProgramada.findMany({
+      where: { estado: { in: ['ENTREGADA', 'GENERADA'] } },
+      select: { beneficiarioId: true, fechaProgramada: true, estado: true },
+      orderBy: { fechaProgramada: 'desc' },
+    });
+    const mapa: Record<number, { fecha: string; estado: string }> = {};
+    for (const e of entregas) {
+      if (!mapa[e.beneficiarioId]) {
+        mapa[e.beneficiarioId] = {
+          fecha: e.fechaProgramada.toISOString().slice(0, 10),
+          estado: e.estado,
+        };
+      }
+    }
+    return mapa;
   }
 
   // Actualizar fecha de entrega
