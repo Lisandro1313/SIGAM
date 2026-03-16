@@ -236,6 +236,18 @@ export default function LoginPage() {
 
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <img
+              src="/logo-municipalidad.jpg"
+              alt="Municipalidad de La Plata"
+              style={{
+                maxWidth: '100%',
+                height: 'auto',
+                maxHeight: 80,
+                borderRadius: 8,
+                marginBottom: 16,
+                objectFit: 'contain',
+              }}
+            />
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: '#1a73e8', fontFamily: 'inherit' }}>
               SIGAM
             </h1>

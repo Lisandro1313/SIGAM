@@ -81,14 +81,20 @@ export class RemitosController {
   @Get()
   @ApiOperation({ summary: 'Listar remitos con filtros' })
   findAll(@Query() query: any, @Request() req) {
-    // LOGISTICA: auto-filtra por su depósito asignado
+    // LOGISTICA con depósito: auto-filtra por su depósito asignado
     const esLogistica = req.user.rol === 'LOGISTICA' && req.user.depositoId;
-    return this.remitosService.findAll(query, esLogistica ? req.user.depositoId : undefined);
+    // ASISTENCIA_CRITICA: auto-filtra al depósito CITA
+    const esCita = req.user.rol === 'ASISTENCIA_CRITICA';
+    return this.remitosService.findAll(
+      query,
+      esLogistica ? req.user.depositoId : undefined,
+      esCita ? 'CITA' : undefined,
+    );
   }
 
   @Post(':id/entregar')
   @ApiOperation({ summary: 'Marcar remito como entregado (con foto opcional)' })
-  @Roles('ADMIN', 'LOGISTICA')
+  @Roles('ADMIN', 'LOGISTICA', 'ASISTENCIA_CRITICA')
   @UseInterceptors(
     FileInterceptor('foto', {
       storage: memoryStorage(),

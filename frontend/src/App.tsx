@@ -18,12 +18,15 @@ import MapaPage from './pages/Mapa';
 import UsuariosPage from './pages/Usuarios';
 import DepositoHome from './pages/DepositoHome';
 import HistorialEntregas from './pages/HistorialEntregas';
+import Auditoria from './pages/Auditoria';
+import Tareas from './pages/Tareas';
 
 function HomeRedirect() {
   const { user } = useAuthStore();
   // Esperamos a que el store se hidrate antes de decidir a dónde ir
   if (user == null) return null;
-  if (user.depositoId != null) return <Navigate to="/deposito" replace />;
+  if (user.depositoId != null || user.rol === 'ASISTENCIA_CRITICA') return <Navigate to="/deposito" replace />;
+  if (user.rol === 'TRABAJADORA_SOCIAL') return <Navigate to="/beneficiarios" replace />;
   return <ProtectedRoute seccion="dashboard"><Dashboard /></ProtectedRoute>;
 }
 
@@ -53,6 +56,8 @@ function App() {
           <Route path="/reportes" element={<ProtectedRoute seccion="reportes"><ReportesPage /></ProtectedRoute>} />
           <Route path="/usuarios" element={<ProtectedRoute seccion="usuarios"><UsuariosPage /></ProtectedRoute>} />
           <Route path="/historial-entregas" element={<ProtectedRoute seccion="historial-entregas"><HistorialEntregas /></ProtectedRoute>} />
+          <Route path="/tareas" element={<ProtectedRoute seccion="tareas"><Tareas /></ProtectedRoute>} />
+          <Route path="/auditoria" element={<ProtectedRoute seccion="auditoria"><Auditoria /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>

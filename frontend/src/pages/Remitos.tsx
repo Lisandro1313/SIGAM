@@ -46,7 +46,7 @@ export default function RemitosPage() {
   const [formOpen, setFormOpen] = useState(false);
   const { showNotification } = useNotificationStore();
   const { user } = useAuthStore();
-  const puedeEntregar = user?.rol === 'ADMIN' || user?.rol === 'LOGISTICA';
+  const puedeEntregar = user?.rol === 'ADMIN' || user?.rol === 'LOGISTICA' || user?.rol === 'ASISTENCIA_CRITICA';
   const puedeCrear = user?.rol !== 'VISOR';
 
   // Estado del diálogo de entregar

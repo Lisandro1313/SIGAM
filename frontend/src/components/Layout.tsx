@@ -33,6 +33,8 @@ import {
   Assignment as ArticleIcon,
   ManageAccounts as UsersIcon,
   LocalShipping as DepositoIcon,
+  Security as AuditIcon,
+  CheckCircle as TareasIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { puedeAcceder, ROL_LABELS, Rol } from '../utils/permisos';
@@ -52,14 +54,17 @@ const menuItems = [
   { text: 'Mapa',          icon: <MapIcon />,        path: '/mapa',          seccion: 'mapa' },
   { text: 'Reportes',      icon: <ReportIcon />,     path: '/reportes',               seccion: 'reportes' },
   { text: 'Historial Entregas', icon: <DepositoIcon />, path: '/historial-entregas',   seccion: 'historial-entregas' },
+  { text: 'Tareas',        icon: <TareasIcon />,     path: '/tareas',                 seccion: 'tareas' },
+  { text: 'Auditoría',     icon: <AuditIcon />,      path: '/auditoria',              seccion: 'auditoria' },
   { text: 'Usuarios',      icon: <UsersIcon />,      path: '/usuarios',               seccion: 'usuarios' },
 ];
 
 // Menú restringido para usuarios de depósito (LOGISTICA + depositoId)
 const menuDeposito = [
-  { text: 'Remitos de Hoy', icon: <DepositoIcon />, path: '/deposito',   seccion: 'deposito' },
-  { text: 'Artículos',      icon: <ArticleIcon />, path: '/articulos',  seccion: 'articulos' },
-  { text: 'Stock',          icon: <InventoryIcon />, path: '/stock',      seccion: 'stock' },
+  { text: 'Remitos de Hoy',     icon: <DepositoIcon />,  path: '/deposito',           seccion: 'deposito' },
+  { text: 'Artículos',          icon: <ArticleIcon />,   path: '/articulos',          seccion: 'articulos' },
+  { text: 'Stock',              icon: <InventoryIcon />, path: '/stock',              seccion: 'stock' },
+  { text: 'Historial Entregas', icon: <TareasIcon />,    path: '/historial-entregas', seccion: 'historial-entregas' },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -70,7 +75,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
   const rolLabel = user?.rol ? ROL_LABELS[user.rol as Rol] ?? user.rol : '';
-  const esDeposito = !!(user?.depositoId);
+  // Usuarios de depósito físico (LOGISTICA con depositoId) O Asistencia Crítica (CITA)
+  const esDeposito = !!(user?.depositoId) || user?.rol === 'ASISTENCIA_CRITICA';
 
   // Si es usuario de depósito, menú restringido; si no, filtrar por rol
   const visibleItems = esDeposito

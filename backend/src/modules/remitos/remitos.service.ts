@@ -249,12 +249,16 @@ export class RemitosService {
   }
 
   // Listar remitos con filtros
-  async findAll(filtros: any, usuarioDepositoId?: number) {
+  async findAll(filtros: any, usuarioDepositoId?: number, depositoCodigo?: string) {
     const where: any = {};
 
-    // LOGISTICA: solo ve los remitos de su depósito
+    // LOGISTICA con depósito: solo ve los remitos de su depósito
     if (usuarioDepositoId) {
       where.depositoId = usuarioDepositoId;
+    }
+    // ASISTENCIA_CRITICA: solo ve remitos del depósito CITA
+    if (depositoCodigo) {
+      where.deposito = { codigo: depositoCodigo };
     }
 
     if (filtros.estado) {

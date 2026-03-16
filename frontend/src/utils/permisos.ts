@@ -42,6 +42,8 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'mapa',
     'reportes',
     'historial-entregas',
+    'tareas',
+    'auditoria',
     'usuarios',
   ],
   LOGISTICA: [
@@ -51,6 +53,8 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'stock',
     'remitos',
     'reportes',
+    'historial-entregas',
+    'tareas',
   ],
   OPERADOR_PROGRAMA: [
     'dashboard',
@@ -59,12 +63,16 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'beneficiarios',
     'remitos',
     'reportes',
+    'tareas',
   ],
   TRABAJADORA_SOCIAL: [
     'beneficiarios',  // Solo ver y cargar relevamiento
+    'tareas',
   ],
   ASISTENCIA_CRITICA: [
-    'remitos',        // Solo sus remitos
+    'remitos',
+    'stock',
+    'historial-entregas',
   ],
   VISOR: [
     'dashboard',

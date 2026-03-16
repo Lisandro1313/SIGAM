@@ -92,7 +92,8 @@ model Programa {
   movimientos       Movimiento[]
   entregas          EntregaProgramada[]
   remitos           Remito[]
-  
+  tareas            Tarea[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -439,6 +440,50 @@ model Correlativo {
   ultimo Int    @default(1001648)
   
   updatedAt DateTime @updatedAt
+}
+
+// ============================================================================
+// AUDITORÍA
+// ============================================================================
+
+model AuditoriaLog {
+  id            Int      @id @default(autoincrement())
+  usuarioId     Int?
+  usuarioNombre String?
+  metodo        String   // POST, PATCH, DELETE
+  ruta          String   // URL path
+  descripcion   String?  // Descripción human-readable
+  datos         String?  // Snippet JSON del body (truncado)
+  createdAt     DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([createdAt])
+  @@index([ruta])
+}
+
+// ============================================================================
+// TAREAS / PENDIENTES
+// ============================================================================
+
+model Tarea {
+  id                  Int       @id @default(autoincrement())
+  titulo              String
+  descripcion         String?
+  estado              String    @default("PENDIENTE") // PENDIENTE, EN_CURSO, COMPLETADA, CANCELADA
+  prioridad           String    @default("MEDIA")     // BAJA, MEDIA, ALTA, URGENTE
+  asignadoA           String?
+  programa            Programa? @relation(fields: [programaId], references: [id])
+  programaId          Int?
+  vencimiento         DateTime?
+  completadoAt        DateTime?
+  completadoPorNombre String?
+  completadoNota      String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([estado])
+  @@index([programaId])
+  @@index([createdAt])
 }
 
 // ============================================================================

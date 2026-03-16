@@ -29,6 +29,7 @@ import {
 import { Delete as DeleteIcon, Add as AddIcon, PlaylistAdd as PlantillaIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
+import { useAuthStore } from '../stores/authStore';
 import BeneficiarioForm from './BeneficiarioForm';
 
 interface RemitoFormProps {
@@ -50,6 +51,8 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const showNotification = useNotificationStore((state) => state.showNotification);
+  const { user } = useAuthStore();
+  const esCita = user?.rol === 'ASISTENCIA_CRITICA';
 
   // Step 1: Datos básicos
   const [beneficiarios, setBeneficiarios] = useState<any[]>([]);
@@ -106,7 +109,12 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
   const loadDepositos = async () => {
     try {
       const response = await api.get('/depositos');
-      setDepositos(response.data);
+      const todos = response.data as any[];
+      // ASISTENCIA_CRITICA solo ve y puede usar el depósito CITA
+      const filtrados = esCita ? todos.filter((d) => d.codigo === 'CITA') : todos;
+      setDepositos(filtrados);
+      // Pre-seleccionar automáticamente si solo hay uno disponible
+      if (filtrados.length === 1) setDepositoId(String(filtrados[0].id));
     } catch (error) {
       console.error('Error cargando depósitos:', error);
     }

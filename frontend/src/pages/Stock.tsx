@@ -33,7 +33,7 @@ const TIPO_COLOR: Record<string, 'success' | 'error' | 'warning' | 'info'> = {
 
 export default function StockPage() {
   const { user } = useAuthStore();
-  const soloLectura = !!(user?.depositoId);
+  const soloLectura = !!(user?.depositoId) || !['ADMIN', 'LOGISTICA'].includes(user?.rol ?? '');
 
   const [stock, setStock] = useState<any[]>([]);
   const [movimientos, setMovimientos] = useState<any[]>([]);
@@ -64,10 +64,14 @@ export default function StockPage() {
         api.get('/depositos'),
         api.get('/reportes/stock-bajo'),
       ]);
-      setDepositos(depositosRes.data);
+      const esCita = user?.rol === 'ASISTENCIA_CRITICA';
+      const todos = depositosRes.data as any[];
+      // ASISTENCIA_CRITICA solo ve el depósito CITA
+      const depositosFiltrados = esCita ? todos.filter((d) => d.codigo === 'CITA') : todos;
+      setDepositos(depositosFiltrados);
       setStockBajo(stockBajoRes.data);
-      if (depositosRes.data.length > 0) {
-        await loadStock(depositosRes.data[0].id);
+      if (depositosFiltrados.length > 0) {
+        await loadStock(depositosFiltrados[0].id);
       }
     } catch (error) {
       console.error('Error cargando datos:', error);

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
@@ -15,6 +15,9 @@ import { RemitosModule } from './modules/remitos/remitos.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { DepositosModule } from './modules/depositos/depositos.module';
 import { ZonasModule } from './modules/zonas/zonas.module';
+import { AuditoriaModule } from './modules/auditoria/auditoria.module';
+import { AuditoriaInterceptor } from './modules/auditoria/auditoria.interceptor';
+import { TareasModule } from './modules/tareas/tareas.module';
 
 @Module({
   imports: [
@@ -48,12 +51,19 @@ import { ZonasModule } from './modules/zonas/zonas.module';
     RemitosModule,
     ReportesModule,
     ZonasModule,
+    AuditoriaModule,
+    TareasModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    // Interceptor global de auditoría
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditoriaInterceptor,
     },
   ],
 })

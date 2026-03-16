@@ -201,7 +201,7 @@ export default function DepositoHome() {
             {hoyStr}
           </Typography>
           <Typography variant="body2" sx={{ opacity: 0.7, mt: 0.5 }}>
-            {user?.deposito?.nombre || 'Depósito'}
+            {user?.rol === 'ASISTENCIA_CRITICA' ? 'Secretaría de Asistencia Crítica · CITA' : (user?.deposito?.nombre || 'Depósito')}
           </Typography>
         </Box>
         <Box textAlign="center">

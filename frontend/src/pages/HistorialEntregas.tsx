@@ -13,8 +13,12 @@ import { format, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
 import ExportExcelButton from '../components/ExportExcelButton';
+import { useAuthStore } from '../stores/authStore';
 
 export default function HistorialEntregas() {
+  const { user } = useAuthStore();
+  const esCita = user?.rol === 'ASISTENCIA_CRITICA';
+
   const [entregas, setEntregas]     = useState<any[]>([]);
   const [depositos, setDepositos]   = useState<any[]>([]);
   const [programas, setProgramas]   = useState<any[]>([]);
@@ -38,7 +42,9 @@ export default function HistorialEntregas() {
       api.get('/depositos'),
       api.get('/programas'),
     ]).then(([depR, proR]) => {
-      setDepositos(depR.data);
+      const todos = depR.data as any[];
+      // ASISTENCIA_CRITICA solo ve el depósito CITA
+      setDepositos(esCita ? todos.filter((d) => d.codigo === 'CITA') : todos);
       setProgramas(proR.data.filter((p: any) => p.activo));
     }).catch(() => {});
     buscarEntregas();
