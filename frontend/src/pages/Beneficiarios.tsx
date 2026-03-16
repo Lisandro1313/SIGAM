@@ -26,7 +26,6 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   Divider,
-  Badge,
 } from '@mui/material';
 import {
   Add as AddIcon,

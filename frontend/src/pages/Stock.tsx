@@ -10,7 +10,6 @@ import {
   SwapHoriz as TransferIcon,
   Warning as WarningIcon,
   Description as DocIcon,
-  OpenInNew as OpenIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
