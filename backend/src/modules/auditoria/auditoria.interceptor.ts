@@ -50,6 +50,12 @@ const DESCRIPCIONES: Array<{ pattern: RegExp; metodo: string; desc: string }> = 
   { pattern: /^\/tareas\/\d+$/, metodo: 'PATCH', desc: 'Editó tarea' },
   { pattern: /^\/tareas\/\d+\/completar$/, metodo: 'POST', desc: 'Completó tarea' },
   { pattern: /^\/tareas\/\d+$/, metodo: 'DELETE', desc: 'Eliminó tarea' },
+  // Casos particulares
+  { pattern: /^\/casos$/, metodo: 'POST', desc: 'Creó caso particular' },
+  { pattern: /^\/casos\/\d+\/revisar$/, metodo: 'PATCH', desc: 'Revisó caso particular' },
+  { pattern: /^\/casos\/\d+\/generar-remito$/, metodo: 'POST', desc: 'Generó remito desde caso particular' },
+  { pattern: /^\/casos\/\d+\/documentos$/, metodo: 'POST', desc: 'Subió documento de caso' },
+  { pattern: /^\/casos\/\d+\/documentos\/\d+$/, metodo: 'DELETE', desc: 'Eliminó documento de caso' },
 ];
 
 function buildDescripcion(method: string, path: string): string {

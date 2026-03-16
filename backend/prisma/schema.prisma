@@ -129,6 +129,7 @@ model Beneficiario {
   remitos            Remito[]
   movimientos        Movimiento[]
   documentos         DocumentoBeneficiario[]
+  casos              Caso[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -395,7 +396,10 @@ model Remito {
   
   // Entrega programada asociada (si existe)
   entrega         EntregaProgramada?
-  
+
+  // Caso particular que generó este remito (si aplica)
+  caso            Caso?
+
   // Email enviado
   emailEnviado    Boolean       @default(false)
   fechaEnvio      DateTime?
@@ -498,4 +502,93 @@ model Zona {
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ============================================================================
+// CASOS PARTICULARES (Trabajadoras Sociales + Asistencia Crítica)
+// ============================================================================
+
+enum CasoEstado {
+  PENDIENTE
+  EN_REVISION
+  APROBADO
+  RECHAZADO
+  RESUELTO
+}
+
+enum CasoPrioridad {
+  NORMAL
+  ALTA
+  URGENTE
+}
+
+enum CasoTipo {
+  ALIMENTARIO
+  MERCADERIA
+  MIXTO
+}
+
+model Caso {
+  id                  Int           @id @default(autoincrement())
+
+  // Datos del solicitante
+  nombreSolicitante   String
+  dni                 String?
+  direccion           String?
+  barrio              String?
+  telefono            String?
+  descripcion         String
+
+  // Clasificación
+  prioridad           CasoPrioridad @default(NORMAL)
+  tipo                CasoTipo
+  estado              CasoEstado    @default(PENDIENTE)
+
+  // Auditoría de flujo
+  notaRevision        String?
+  revisadoAt          DateTime?
+
+  // Quién lo creó
+  creadoPorId         Int
+  creadoPorNombre     String
+
+  // Quién lo revisó
+  revisadoPorId       Int?
+  revisadoPorNombre   String?
+
+  // Beneficiario vinculado (si ya existe en sistema)
+  beneficiario        Beneficiario? @relation(fields: [beneficiarioId], references: [id])
+  beneficiarioId      Int?
+
+  // Remito generado al resolver
+  remito              Remito?       @relation(fields: [remitoId], references: [id])
+  remitoId            Int?          @unique
+
+  // Alerta de cruce con otro programa
+  alertaCruce         Boolean       @default(false)
+  detalleCruce        String?
+
+  documentos          DocumentoCaso[]
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([estado])
+  @@index([prioridad])
+  @@index([creadoPorId])
+  @@index([dni])
+  @@index([createdAt])
+}
+
+model DocumentoCaso {
+  id        Int      @id @default(autoincrement())
+  caso      Caso     @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  casoId    Int
+  nombre    String
+  archivo   String
+  url       String
+  tipo      String?
+  createdAt DateTime @default(now())
+
+  @@index([casoId])
 }

@@ -18,6 +18,7 @@ import { ZonasModule } from './modules/zonas/zonas.module';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { AuditoriaInterceptor } from './modules/auditoria/auditoria.interceptor';
 import { TareasModule } from './modules/tareas/tareas.module';
+import { CasosModule } from './modules/casos/casos.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { TareasModule } from './modules/tareas/tareas.module';
     ZonasModule,
     AuditoriaModule,
     TareasModule,
+    CasosModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente

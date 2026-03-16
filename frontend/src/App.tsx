@@ -20,6 +20,8 @@ import DepositoHome from './pages/DepositoHome';
 import HistorialEntregas from './pages/HistorialEntregas';
 import Auditoria from './pages/Auditoria';
 import Tareas from './pages/Tareas';
+import MisCasos from './pages/MisCasos';
+import CasosParticulares from './pages/CasosParticulares';
 
 function HomeRedirect() {
   const { user } = useAuthStore();
@@ -58,6 +60,8 @@ function App() {
           <Route path="/historial-entregas" element={<ProtectedRoute seccion="historial-entregas"><HistorialEntregas /></ProtectedRoute>} />
           <Route path="/tareas" element={<ProtectedRoute seccion="tareas"><Tareas /></ProtectedRoute>} />
           <Route path="/auditoria" element={<ProtectedRoute seccion="auditoria"><Auditoria /></ProtectedRoute>} />
+          <Route path="/mis-casos" element={<ProtectedRoute seccion="mis-casos"><MisCasos /></ProtectedRoute>} />
+          <Route path="/casos-particulares" element={<ProtectedRoute seccion="casos-particulares"><CasosParticulares /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>

@@ -35,6 +35,8 @@ import {
   LocalShipping as DepositoIcon,
   Security as AuditIcon,
   CheckCircle as TareasIcon,
+  ContactSupport as MisCasosIcon,
+  FolderSpecial as CasosParticularesIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { puedeAcceder, ROL_LABELS, Rol } from '../utils/permisos';
@@ -55,8 +57,10 @@ const menuItems = [
   { text: 'Reportes',      icon: <ReportIcon />,     path: '/reportes',               seccion: 'reportes' },
   { text: 'Historial Entregas', icon: <DepositoIcon />, path: '/historial-entregas',   seccion: 'historial-entregas' },
   { text: 'Tareas',        icon: <TareasIcon />,     path: '/tareas',                 seccion: 'tareas' },
-  { text: 'Auditoría',     icon: <AuditIcon />,      path: '/auditoria',              seccion: 'auditoria' },
-  { text: 'Usuarios',      icon: <UsersIcon />,      path: '/usuarios',               seccion: 'usuarios' },
+  { text: 'Auditoría',          icon: <AuditIcon />,               path: '/auditoria',          seccion: 'auditoria' },
+  { text: 'Usuarios',           icon: <UsersIcon />,               path: '/usuarios',           seccion: 'usuarios' },
+  { text: 'Casos Particulares', icon: <CasosParticularesIcon />,   path: '/casos-particulares', seccion: 'casos-particulares' },
+  { text: 'Mis Casos',          icon: <MisCasosIcon />,            path: '/mis-casos',          seccion: 'mis-casos' },
 ];
 
 // Menú restringido para usuarios de depósito (LOGISTICA + depositoId)
@@ -65,6 +69,7 @@ const menuDeposito = [
   { text: 'Artículos',          icon: <ArticleIcon />,   path: '/articulos',          seccion: 'articulos' },
   { text: 'Stock',              icon: <InventoryIcon />, path: '/stock',              seccion: 'stock' },
   { text: 'Historial Entregas', icon: <TareasIcon />,    path: '/historial-entregas', seccion: 'historial-entregas' },
+  { text: 'Mis Casos',          icon: <MisCasosIcon />,  path: '/mis-casos',          seccion: 'mis-casos' },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {

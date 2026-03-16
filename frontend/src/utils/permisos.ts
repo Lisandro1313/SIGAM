@@ -45,6 +45,7 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'tareas',
     'auditoria',
     'usuarios',
+    'casos-particulares',
   ],
   LOGISTICA: [
     'dashboard',
@@ -64,15 +65,18 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'remitos',
     'reportes',
     'tareas',
+    'casos-particulares',
   ],
   TRABAJADORA_SOCIAL: [
-    'beneficiarios',  // Solo ver y cargar relevamiento
+    'beneficiarios',
     'tareas',
+    'mis-casos',
   ],
   ASISTENCIA_CRITICA: [
     'remitos',
     'stock',
     'historial-entregas',
+    'mis-casos',
   ],
   VISOR: [
     'dashboard',
