@@ -28,6 +28,13 @@ export class BeneficiariosController {
     return this.beneficiariosService.getLocalidades();
   }
 
+  @Get('check-dni/:dni')
+  @Roles('ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA')
+  @ApiOperation({ summary: 'Verificar si un DNI ya está registrado como responsable de otro beneficiario' })
+  checkDni(@Param('dni') dni: string) {
+    return this.beneficiariosService.checkDni(dni);
+  }
+
   @Get()
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR')
   @ApiOperation({ summary: 'Listar beneficiarios' })

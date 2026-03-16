@@ -76,6 +76,13 @@ export default function BeneficiariosPage() {
   const [observaciones, setObservaciones] = useState('');
   const [savingRelevamiento, setSavingRelevamiento] = useState(false);
 
+  // Desactivar (baja)
+  const [bajaOpen, setBajaOpen]             = useState(false);
+  const [bajaBeneficiario, setBajaBeneficiario] = useState<any>(null);
+  const [motivoBaja, setMotivoBaja]         = useState('');
+  const [notaBaja, setNotaBaja]             = useState('');
+  const [guardandoBaja, setGuardandoBaja]   = useState(false);
+
   // Documentos
   const [docsOpen, setDocsOpen] = useState(false);
   const [docsTarget, setDocsTarget] = useState<any>(null);
@@ -91,7 +98,8 @@ export default function BeneficiariosPage() {
   const puedeEditar = user ? puedeHacer(user.rol, 'beneficiarios.editar') : false;
   const puedeCrear  = user ? puedeHacer(user.rol, 'beneficiarios.crear')  : false;
   const puedeRelevamiento = user ? puedeHacer(user.rol, 'beneficiarios.relevamiento') : false;
-  const puedeSubirDocs = user ? ['ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL'].includes(user.rol) : false;
+  const puedeSubirDocs  = user ? ['ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL'].includes(user.rol) : false;
+  const puedeEliminar   = user ? puedeHacer(user.rol, 'beneficiarios.eliminar') : false;
 
   useEffect(() => { loadBeneficiarios(); }, []);
 
@@ -103,6 +111,28 @@ export default function BeneficiariosPage() {
       console.error('Error cargando beneficiarios:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAbrirBaja = (beneficiario: any) => {
+    setBajaBeneficiario(beneficiario);
+    setMotivoBaja('');
+    setNotaBaja('');
+    setBajaOpen(true);
+  };
+
+  const handleConfirmarBaja = async () => {
+    if (!bajaBeneficiario || !motivoBaja) return;
+    setGuardandoBaja(true);
+    try {
+      await api.patch(`/beneficiarios/${bajaBeneficiario.id}`, { activo: false, motivoBaja, notaBaja: notaBaja || null });
+      showNotification(`${bajaBeneficiario.nombre} desactivado correctamente`, 'success');
+      setBajaOpen(false);
+      loadBeneficiarios();
+    } catch {
+      showNotification('Error al desactivar el beneficiario', 'error');
+    } finally {
+      setGuardandoBaja(false);
     }
   };
 
@@ -317,6 +347,13 @@ export default function BeneficiariosPage() {
                         </IconButton>
                       </Tooltip>
                     )}
+                    {puedeEliminar && (
+                      <Tooltip title="Desactivar beneficiario">
+                        <IconButton size="small" color="error" onClick={() => handleAbrirBaja(beneficiario)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
@@ -342,6 +379,36 @@ export default function BeneficiariosPage() {
         onSuccess={() => { loadBeneficiarios(); handleCloseForm(); }}
         beneficiario={selectedBeneficiario}
       />
+
+      {/* Dialog desactivar / baja */}
+      <Dialog open={bajaOpen} onClose={() => setBajaOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Desactivar beneficiario</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <Typography variant="body2">
+            ¿Desactivar a <strong>{bajaBeneficiario?.nombre}</strong>? Esta acción se puede revertir editando el registro.
+          </Typography>
+          <TextField
+            select fullWidth label="Motivo de baja *"
+            value={motivoBaja} onChange={(e) => setMotivoBaja(e.target.value)}
+          >
+            <MenuItem value="FALLECIDO">Fallecido/a</MenuItem>
+            <MenuItem value="MUDANZA">Se mudó fuera del área</MenuItem>
+            <MenuItem value="SUPERO_CRITERIOS">Superó criterios de elegibilidad</MenuItem>
+            <MenuItem value="SOLICITUD_PROPIA">Solicitud propia</MenuItem>
+            <MenuItem value="OTRO">Otro</MenuItem>
+          </TextField>
+          <TextField
+            fullWidth label="Nota adicional (opcional)" multiline rows={2}
+            value={notaBaja} onChange={(e) => setNotaBaja(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBajaOpen(false)}>Cancelar</Button>
+          <Button variant="contained" color="error" disabled={!motivoBaja || guardandoBaja} onClick={handleConfirmarBaja}>
+            {guardandoBaja ? <CircularProgress size={20} /> : 'Desactivar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Dialog relevamiento */}
       <Dialog open={relevamientoOpen} onClose={() => setRelevamientoOpen(false)} maxWidth="sm" fullWidth>

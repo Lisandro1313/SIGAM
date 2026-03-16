@@ -29,6 +29,18 @@ export class BeneficiariosService {
     return [...new Set([...BeneficiariosService.LOCALIDADES_LA_PLATA, ...dbLocalidades])].sort();
   }
 
+  async checkDni(dni: string) {
+    const encontrados = await this.prisma.beneficiario.findMany({
+      where: { responsableDNI: dni, activo: true },
+      include: { programa: { select: { nombre: true } } },
+    });
+    if (encontrados.length === 0) return { encontrado: false, detalle: null };
+    const detalle = encontrados
+      .map(b => `"${b.nombre}" en ${b.programa?.nombre ?? 'sin programa'}`)
+      .join(', ');
+    return { encontrado: true, detalle };
+  }
+
   async create(createBeneficiarioDto: CreateBeneficiarioDto) {
     return await this.prisma.beneficiario.create({
       data: createBeneficiarioDto,

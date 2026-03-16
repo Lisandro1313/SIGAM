@@ -385,19 +385,29 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
               </Typography>
             </Paper>
 
-            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+            <Box sx={{ display: 'flex', gap: 2, mb: 1, flexWrap: 'wrap' }}>
               <FormControl fullWidth>
                 <InputLabel>Artículo</InputLabel>
                 <Select
                   value={selectedArticuloId}
-                  onChange={(e) => setSelectedArticuloId(e.target.value)}
+                  onChange={(e) => { setSelectedArticuloId(e.target.value); setCantidad(''); }}
                   label="Artículo"
                 >
-                  {articulos.map((a) => (
-                    <MenuItem key={a.id} value={a.id}>
-                      {a.nombre}{a.categoria ? ` (${a.categoria})` : ''}
-                    </MenuItem>
-                  ))}
+                  {articulos.map((a) => {
+                    const stockDeposito = depositoId
+                      ? a.stockItems?.find((s: any) => s.depositoId === parseInt(depositoId))?.cantidad ?? 0
+                      : null;
+                    return (
+                      <MenuItem key={a.id} value={a.id}>
+                        {a.nombre}{a.categoria ? ` (${a.categoria})` : ''}
+                        {stockDeposito !== null && (
+                          <Typography component="span" variant="caption" sx={{ ml: 1, color: stockDeposito <= (a.stockMinimo ?? 0) ? 'warning.main' : 'text.secondary' }}>
+                            · Stock: {stockDeposito}
+                          </Typography>
+                        )}
+                      </MenuItem>
+                    );
+                  })}
                 </Select>
               </FormControl>
 
@@ -414,6 +424,60 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
                 Agregar
               </Button>
             </Box>
+
+            {/* Alerta de stock bajo para el artículo seleccionado */}
+            {(() => {
+              if (!selectedArticuloId || !depositoId) return null;
+              const art = articulos.find((a) => a.id === parseInt(selectedArticuloId));
+              if (!art) return null;
+              const stockDisponible = art.stockItems?.find((s: any) => s.depositoId === parseInt(depositoId))?.cantidad ?? 0;
+              const cantNum = parseFloat(cantidad) || 0;
+              const yaEnRemito = items.filter((i) => i.articuloId === art.id).reduce((s, i) => s + i.cantidad, 0);
+              const restante = stockDisponible - yaEnRemito;
+              if (restante <= 0) {
+                return (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    <strong>Sin stock disponible</strong> — {art.nombre} no tiene unidades en este depósito.
+                    {articulos.filter(a => a.id !== art.id && (a.stockItems?.find((s: any) => s.depositoId === parseInt(depositoId))?.cantidad ?? 0) > 0).length > 0 && (
+                      <> Alternativas con stock: {articulos
+                        .filter(a => a.id !== art.id)
+                        .map(a => ({ ...a, stock: a.stockItems?.find((s: any) => s.depositoId === parseInt(depositoId))?.cantidad ?? 0 }))
+                        .filter(a => a.stock > 0)
+                        .sort((a, b) => b.stock - a.stock)
+                        .slice(0, 3)
+                        .map(a => `${a.nombre} (${a.stock})`)
+                        .join(', ')}.
+                      </>
+                    )}
+                  </Alert>
+                );
+              }
+              if (cantNum > restante) {
+                return (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    Stock disponible: <strong>{restante}</strong> unidades. Cantidad solicitada ({cantNum}) supera el disponible.
+                    Para compensar el kilaje podés agregar:{' '}
+                    {articulos
+                      .filter(a => a.id !== art.id)
+                      .map(a => ({ ...a, stock: a.stockItems?.find((s: any) => s.depositoId === parseInt(depositoId))?.cantidad ?? 0 }))
+                      .filter(a => a.stock > 0)
+                      .sort((a, b) => b.stock - a.stock)
+                      .slice(0, 3)
+                      .map(a => `${a.nombre} (${a.stock} disponibles)`)
+                      .join(', ')}.
+                  </Alert>
+                );
+              }
+              if (art.stockMinimo != null && restante < art.stockMinimo) {
+                return (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Stock bajo mínimo — quedan <strong>{restante}</strong> unidades (mínimo: {art.stockMinimo}).
+                  </Alert>
+                );
+              }
+              return null;
+            })()}
+
 
             <TableContainer component={Paper}>
               <Table size="small">

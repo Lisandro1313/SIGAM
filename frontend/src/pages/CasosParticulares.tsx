@@ -35,6 +35,13 @@ const TIPO_LABEL: Record<string, string> = {
 };
 const ESTADOS = ['TODOS', 'PENDIENTE', 'EN_REVISION', 'APROBADO', 'RECHAZADO', 'RESUELTO'];
 
+function esUrgenteVencido(caso: any): boolean {
+  if (caso.prioridad !== 'URGENTE') return false;
+  if (!['PENDIENTE', 'EN_REVISION'].includes(caso.estado)) return false;
+  const horas = (Date.now() - new Date(caso.createdAt).getTime()) / 3600000;
+  return horas > 24;
+}
+
 function resolveUrl(url: string) {
   if (!url) return url;
   if (url.startsWith('http')) return url;
@@ -254,7 +261,12 @@ export default function CasosParticulares() {
                   <TableCell>{c.dni ?? '—'}</TableCell>
                   <TableCell>{TIPO_LABEL[c.tipo] ?? c.tipo}</TableCell>
                   <TableCell>
-                    <Chip label={c.prioridad} size="small" color={PRIORIDAD_COLOR[c.prioridad] ?? 'default'} variant="outlined" />
+                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                      <Chip label={c.prioridad} size="small" color={PRIORIDAD_COLOR[c.prioridad] ?? 'default'} variant="outlined" />
+                      {esUrgenteVencido(c) && (
+                        <Chip label="+24h" size="small" color="error" sx={{ fontSize: '0.6rem', height: 16 }} />
+                      )}
+                    </Box>
                   </TableCell>
                   <TableCell>
                     <Chip label={c.estado.replace('_', ' ')} size="small" color={ESTADO_COLOR[c.estado] ?? 'default'} />
@@ -289,6 +301,7 @@ export default function CasosParticulares() {
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
               <Chip label={casoSel.estado.replace('_', ' ')} color={ESTADO_COLOR[casoSel.estado] ?? 'default'} />
               <Chip label={casoSel.prioridad} color={PRIORIDAD_COLOR[casoSel.prioridad] ?? 'default'} variant="outlined" />
+              {esUrgenteVencido(casoSel) && <Chip label="Sin atención +24h" size="small" color="error" />}
               <Chip label={TIPO_LABEL[casoSel.tipo] ?? casoSel.tipo} variant="outlined" />
             </Box>
 

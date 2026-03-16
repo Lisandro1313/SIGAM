@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Box, Grid, Card, CardContent, Typography,
   Paper, Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, Chip, Divider,
+  TableRow, Chip, Divider, Alert, List, ListItem, ListItemText,
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -10,6 +10,8 @@ import {
   CalendarMonth as CronogramaIcon,
   History as HistoryIcon,
   TodayOutlined as TodayIcon,
+  WarningAmber as StockAlertIcon,
+  EventBusy as VencimientoIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
@@ -41,6 +43,8 @@ const ESTADO_COLOR: Record<string, any> = {
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
+  const [stockAlertas, setStockAlertas] = useState<any[]>([]);
+  const [lotesProximos, setLotesProximos] = useState<any[]>([]);
   const user = useAuthStore(s => s.user);
 
   useEffect(() => {
@@ -48,6 +52,8 @@ export default function Dashboard() {
       .then(r => setData(r.data))
       .catch(e => console.error(e))
       .finally(() => setLoading(false));
+    api.get('/stock/alertas').then(r => setStockAlertas(r.data)).catch(() => {});
+    api.get('/articulos/vencimientos?dias=30').then(r => setLotesProximos(r.data)).catch(() => {});
   }, []);
 
   if (loading) {
@@ -235,6 +241,72 @@ export default function Dashboard() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Alertas de stock mínimo + Lotes próximos a vencer */}
+      {(stockAlertas.length > 0 || lotesProximos.length > 0) && (
+        <Grid container spacing={3} mb={3}>
+          {stockAlertas.length > 0 && (
+            <Grid item xs={12} md={6}>
+              <Paper elevation={2} sx={{ p: 2, borderLeft: '4px solid', borderLeftColor: 'warning.main' }}>
+                <Box display="flex" alignItems="center" gap={1} mb={1}>
+                  <StockAlertIcon color="warning" />
+                  <Typography variant="h6" fontWeight="bold">Stock bajo mínimo</Typography>
+                  <Chip label={stockAlertas.length} size="small" color="warning" />
+                </Box>
+                <Divider sx={{ mb: 1 }} />
+                <List dense disablePadding>
+                  {stockAlertas.slice(0, 6).map((a: any) => (
+                    <ListItem key={`${a.articuloId}-${a.depositoId}`} disablePadding sx={{ py: 0.3 }}>
+                      <ListItemText
+                        primary={<Typography variant="body2" fontWeight="bold">{a.nombre}</Typography>}
+                        secondary={
+                          <Typography variant="caption" color="text.secondary">
+                            {a.deposito} · Stock: <strong>{a.stockActual}</strong> / Mín: {a.stockMinimo} · Falta: <strong style={{ color: '#ed6c02' }}>{a.deficit.toFixed(0)}</strong>
+                          </Typography>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+                {stockAlertas.length > 6 && (
+                  <Typography variant="caption" color="text.secondary">+{stockAlertas.length - 6} más</Typography>
+                )}
+              </Paper>
+            </Grid>
+          )}
+          {lotesProximos.length > 0 && (
+            <Grid item xs={12} md={6}>
+              <Paper elevation={2} sx={{ p: 2, borderLeft: '4px solid', borderLeftColor: 'error.main' }}>
+                <Box display="flex" alignItems="center" gap={1} mb={1}>
+                  <VencimientoIcon color="error" />
+                  <Typography variant="h6" fontWeight="bold">Lotes próximos a vencer</Typography>
+                  <Chip label={lotesProximos.length} size="small" color="error" />
+                </Box>
+                <Divider sx={{ mb: 1 }} />
+                <List dense disablePadding>
+                  {lotesProximos.slice(0, 6).map((l: any) => (
+                    <ListItem key={l.id} disablePadding sx={{ py: 0.3 }}>
+                      <ListItemText
+                        primary={<Typography variant="body2" fontWeight="bold">{l.articulo?.nombre ?? l.articuloId}</Typography>}
+                        secondary={
+                          <Typography variant="caption" color="text.secondary">
+                            {l.deposito?.nombre} · Vence: <strong style={{ color: '#d32f2f' }}>
+                              {new Date(l.fechaVencimiento).toLocaleDateString('es-AR')}
+                            </strong> · {l.cantidad} u.
+                          </Typography>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+                {lotesProximos.length > 6 && (
+                  <Typography variant="caption" color="text.secondary">+{lotesProximos.length - 6} más</Typography>
+                )}
+              </Paper>
+            </Grid>
+          )}
+        </Grid>
+      )}
 
       <Grid container spacing={3}>
         {/* Últimos remitos */}

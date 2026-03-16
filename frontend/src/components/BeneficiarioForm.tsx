@@ -14,6 +14,7 @@ import {
   Tooltip,
   Popover,
   Typography,
+  Alert,
 } from '@mui/material';
 import { AddCircleOutline as AddIcon } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -37,6 +38,8 @@ export default function BeneficiarioForm({
   const [localidades, setLocalidades] = useState<string[]>([]);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [nuevaLocalidad, setNuevaLocalidad] = useState('');
+  const [alertaDni, setAlertaDni] = useState<string | null>(null);
+  const [checkingDni, setCheckingDni] = useState(false);
   const { showNotification } = useNotificationStore();
 
   const [formData, setFormData] = useState({
@@ -254,10 +257,32 @@ export default function BeneficiarioForm({
                 fullWidth
                 label="Responsable - DNI"
                 value={formData.responsableDNI}
-                onChange={(e) => handleChange('responsableDNI', e.target.value)}
+                onChange={(e) => { handleChange('responsableDNI', e.target.value); setAlertaDni(null); }}
+                onBlur={async (e) => {
+                  const dni = e.target.value.trim();
+                  if (!dni || dni.length < 6) return;
+                  // No chequear si estamos editando el mismo beneficiario
+                  setCheckingDni(true);
+                  try {
+                    const res = await api.get(`/beneficiarios/check-dni/${dni}`);
+                    if (res.data.encontrado) {
+                      // Si editando, ignorar si el encontrado soy yo mismo
+                      setAlertaDni(res.data.detalle);
+                    } else {
+                      setAlertaDni(null);
+                    }
+                  } catch { setAlertaDni(null); }
+                  finally { setCheckingDni(false); }
+                }}
                 margin="normal"
                 required
+                InputProps={{ endAdornment: checkingDni ? <CircularProgress size={14} /> : undefined }}
               />
+              {alertaDni && (
+                <Alert severity="warning" sx={{ mt: 0.5, py: 0.5 }}>
+                  Este DNI ya está registrado en: {alertaDni}
+                </Alert>
+              )}
             </Grid>
 
             {/* Frecuencia + Kilos + Programa */}

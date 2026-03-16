@@ -160,6 +160,29 @@ export class StockService {
     });
   }
 
+  // Alertas de stock mínimo
+  async obtenerAlertas() {
+    const stocks = await this.prisma.stock.findMany({
+      include: {
+        articulo: { select: { id: true, nombre: true, categoria: true, stockMinimo: true } },
+        deposito: { select: { id: true, nombre: true } },
+      },
+    });
+    return stocks
+      .filter(s => s.articulo.stockMinimo != null && s.cantidad < s.articulo.stockMinimo)
+      .map(s => ({
+        articuloId: s.articuloId,
+        nombre: s.articulo.nombre,
+        categoria: s.articulo.categoria,
+        depositoId: s.depositoId,
+        deposito: s.deposito.nombre,
+        stockActual: s.cantidad,
+        stockMinimo: s.articulo.stockMinimo!,
+        deficit: s.articulo.stockMinimo! - s.cantidad,
+      }))
+      .sort((a, b) => b.deficit - a.deficit);
+  }
+
   // Obtener movimientos
   async obtenerMovimientos(filtros?: any) {
     const where: any = {};

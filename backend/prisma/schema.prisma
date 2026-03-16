@@ -118,6 +118,8 @@ model Beneficiario {
   frecuenciaEntrega  String?  // MENSUAL, BIMESTRAL, EVENTUAL
   kilosHabitual      Float?   // Kilos que recibe habitualmente este espacio
   activo             Boolean  @default(true)
+  motivoBaja         String?  // FALLECIDO, MUDANZA, SUPERO_CRITERIOS, SOLICITUD_PROPIA, OTRO
+  notaBaja           String?
   observaciones      String?
   
   // Programa al que pertenece

@@ -20,6 +20,12 @@ export class StockController {
     return this.stockService.obtenerTodoElStock();
   }
 
+  @Get('alertas')
+  @ApiOperation({ summary: 'Artículos con stock por debajo del mínimo configurado' })
+  obtenerAlertas() {
+    return this.stockService.obtenerAlertas();
+  }
+
   @Get('deposito/:id')
   @ApiOperation({ summary: 'Obtener stock por depósito' })
   obtenerPorDeposito(@Param('id') id: string) {
