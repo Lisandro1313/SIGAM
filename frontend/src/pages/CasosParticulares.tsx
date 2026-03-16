@@ -91,7 +91,6 @@ export default function CasosParticulares() {
 
   const abrirDetalle = (caso: any) => {
     setCasoSel(caso);
-    setRevisarEstado('');
     setNotaRevision('');
     setErrRevisar('');
     setDrawerOpen(true);
