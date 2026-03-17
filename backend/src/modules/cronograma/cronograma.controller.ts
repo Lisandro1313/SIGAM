@@ -33,8 +33,11 @@ export class CronogramaController {
 
   @Get()
   @ApiOperation({ summary: 'Obtener entregas programadas' })
-  obtenerEntregas(@Query() query: any) {
-    return this.cronogramaService.obtenerEntregas(query);
+  obtenerEntregas(@Query() query: any, @Request() req) {
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
+      : 'PA';
+    return this.cronogramaService.obtenerEntregas(query, secretaria);
   }
 
   // ---- PLANILLA MANUAL ----
@@ -44,11 +47,16 @@ export class CronogramaController {
   obtenerPlanilla(
     @Query('desde') desde: string,
     @Query('hasta') hasta: string,
-    @Query('programaId') programaId?: string,
+    @Query('programaId') programaId: string,
+    @Request() req,
   ) {
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
+      : 'PA';
     return this.cronogramaService.obtenerPlanilla(
       desde, hasta,
       programaId ? parseInt(programaId) : undefined,
+      secretaria,
     );
   }
 
@@ -81,7 +89,7 @@ export class CronogramaController {
     @Body() body: { depositoId: number },
     @Request() req,
   ) {
-    return this.cronogramaService.generarRemitoDesFila(+id, body.depositoId, req.user.id);
+    return this.cronogramaService.generarRemitoDesFila(+id, body.depositoId, req.user.id, req.user.rol);
   }
 
   // ---- FIN PLANILLA MANUAL ----
@@ -98,6 +106,7 @@ export class CronogramaController {
       body.anio,
       body.depositoId,
       req.user.id,
+      req.user.rol,
     );
   }
 

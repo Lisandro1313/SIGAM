@@ -40,7 +40,7 @@ export class RemitosController {
   @ApiOperation({ summary: 'Crear remito borrador' })
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'ASISTENCIA_CRITICA')
   create(@Body() createRemitoDto: CreateRemitoDto, @Request() req) {
-    return this.remitosService.create(createRemitoDto, req.user.id);
+    return this.remitosService.create(createRemitoDto, { id: req.user.id, rol: req.user.rol });
   }
 
   @Post(':id/confirmar')
@@ -85,10 +85,15 @@ export class RemitosController {
     const esLogistica = req.user.rol === 'LOGISTICA' && req.user.depositoId;
     // ASISTENCIA_CRITICA: auto-filtra al depósito CITA
     const esCita = req.user.rol === 'ASISTENCIA_CRITICA';
+    // Determinar secretaría por rol
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
+      : 'PA';
     return this.remitosService.findAll(
       query,
       esLogistica ? req.user.depositoId : undefined,
       esCita ? 'CITA' : undefined,
+      secretaria,
     );
   }
 

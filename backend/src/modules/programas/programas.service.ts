@@ -25,9 +25,11 @@ export class ProgramasService {
     return [...new Set([...ProgramasService.DEFAULT_TIPOS, ...dbTipos])];
   }
 
-  async findAll() {
+  async findAll(secretaria?: string | null) {
+    const where: any = { activo: true };
+    if (secretaria) where.secretaria = secretaria;
     return await this.prisma.programa.findMany({
-      where: { activo: true },
+      where,
       include: {
         _count: {
           select: { beneficiarios: true, remitos: true },

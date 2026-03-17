@@ -19,7 +19,30 @@ export class RemitosService {
   ) {}
 
   // Generar número correlativo único
-  async generarNumeroRemito(): Promise<string> {
+  async generarNumeroRemito(secretaria: string = 'PA'): Promise<string> {
+    if (secretaria === 'CITA') {
+      return await this.prisma.$transaction(async (tx) => {
+        let correlativo = await tx.correlativo.findUnique({
+          where: { clave: 'remito_cita' },
+        });
+
+        if (!correlativo) {
+          correlativo = await tx.correlativo.create({
+            data: { clave: 'remito_cita', ultimo: 0 },
+          });
+        }
+
+        const siguiente = correlativo.ultimo + 1;
+
+        await tx.correlativo.update({
+          where: { clave: 'remito_cita' },
+          data: { ultimo: siguiente },
+        });
+
+        return `CITA ${siguiente}`;
+      });
+    }
+
     return await this.prisma.$transaction(async (tx) => {
       // Obtener correlativo con lock
       let correlativo = await tx.correlativo.findUnique({
@@ -44,8 +67,9 @@ export class RemitosService {
   }
 
   // Crear remito borrador
-  async create(createRemitoDto: CreateRemitoDto, usuarioId: number) {
-    const numero = await this.generarNumeroRemito();
+  async create(createRemitoDto: CreateRemitoDto, usuario: { id: number; rol?: string }) {
+    const secretaria = usuario.rol === 'ASISTENCIA_CRITICA' ? 'CITA' : 'PA';
+    const numero = await this.generarNumeroRemito(secretaria);
 
     // Calcular peso total
     let totalKg = 0;
@@ -67,6 +91,7 @@ export class RemitosService {
         estado: RemitoEstado.BORRADOR,
         totalKg,
         observaciones: createRemitoDto.observaciones,
+        secretaria,
         items: {
           create: createRemitoDto.items.map((item) => ({
             articuloId: item.articuloId,
@@ -91,7 +116,8 @@ export class RemitosService {
   }
 
   // Confirmar remito (ACCIÓN CRÍTICA)
-  async confirmar(id: number, dto: ConfirmarRemitoDto, usuarioId: number) {
+  async confirmar(id: number, dto: ConfirmarRemitoDto, usuarioId: number | { id: number; rol?: string }) {
+    const uid = typeof usuarioId === 'object' ? usuarioId.id : usuarioId;
     return await this.prisma.$transaction(async (tx) => {
       // Obtener remito con items
       const remito = await tx.remito.findUnique({
@@ -142,7 +168,7 @@ export class RemitosService {
             tipo: MovimientoTipo.EGRESO,
             cantidad: item.cantidad,
             articuloId: item.articuloId,
-            usuarioId,
+            usuarioId: uid,
             programaId: remito.programaId,
             beneficiarioId: remito.beneficiarioId,
             remitoId: remito.id,
@@ -249,7 +275,7 @@ export class RemitosService {
   }
 
   // Listar remitos con filtros
-  async findAll(filtros: any, usuarioDepositoId?: number, depositoCodigo?: string) {
+  async findAll(filtros: any, usuarioDepositoId?: number, depositoCodigo?: string, secretaria?: string | null) {
     const where: any = {};
 
     // LOGISTICA con depósito: solo ve los remitos de su depósito
@@ -259,6 +285,10 @@ export class RemitosService {
     // ASISTENCIA_CRITICA: solo ve remitos del depósito CITA
     if (depositoCodigo) {
       where.deposito = { codigo: depositoCodigo };
+    }
+    // Filtrar por secretaría (null = LOGISTICA/VISOR, ve todo)
+    if (secretaria) {
+      where.secretaria = secretaria;
     }
 
     if (filtros.estado) {

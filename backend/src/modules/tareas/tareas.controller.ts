@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TareasService } from './tareas.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -15,14 +15,19 @@ export class TareasController {
   @Get()
   @ApiOperation({ summary: 'Listar tareas' })
   findAll(
-    @Query('estado') estado?: string,
-    @Query('programaId') programaId?: string,
-    @Query('prioridad') prioridad?: string,
+    @Query('estado') estado: string,
+    @Query('programaId') programaId: string,
+    @Query('prioridad') prioridad: string,
+    @Request() req,
   ) {
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
+      : 'PA';
     return this.tareasService.findAll({
       estado,
       programaId: programaId ? parseInt(programaId) : undefined,
       prioridad,
+      secretaria,
     });
   }
 

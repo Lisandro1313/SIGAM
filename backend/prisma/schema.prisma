@@ -84,6 +84,7 @@ model Programa {
   usaPlantilla   Boolean  @default(true)
   descuentaStock Boolean  @default(true)
   activo         Boolean  @default(true)
+  secretaria     String   @default("PA")
   
   // Relaciones
   plantillas        Plantilla[]
@@ -202,6 +203,7 @@ model Articulo {
   stockMinimo    Float?  // Alerta de stock mínimo
   fotoUrl        String? // URL de foto del artículo
   activo         Boolean @default(true)
+  secretaria     String  @default("PA")
 
   // Relaciones
   plantillaItems PlantillaItem[]
@@ -358,7 +360,10 @@ model EntregaProgramada {
   // Remito generado (cuando pasa a GENERADA)
   remito           Remito?       @relation(fields: [remitoId], references: [id])
   remitoId         Int?          @unique
-  
+
+  // Secretaría
+  secretaria       String        @default("PA")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -410,6 +415,9 @@ model Remito {
   entregadoAt    DateTime?
   entregadoNota  String?
   entregadoFoto  String?   // path relativo: uploads/remitos/foto.jpg
+
+  // Secretaría
+  secretaria     String        @default("PA")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -478,6 +486,7 @@ model Tarea {
   estado              String    @default("PENDIENTE") // PENDIENTE, EN_CURSO, COMPLETADA, CANCELADA
   prioridad           String    @default("MEDIA")     // BAJA, MEDIA, ALTA, URGENTE
   asignadoA           String?
+  secretaria          String    @default("PA")
   programa            Programa? @relation(fields: [programaId], references: [id])
   programaId          Int?
   vencimiento         DateTime?

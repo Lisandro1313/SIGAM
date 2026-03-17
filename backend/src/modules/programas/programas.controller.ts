@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ProgramasService } from './programas.service';
 import { CreateProgramaDto } from './dto/create-programa.dto';
@@ -28,8 +28,11 @@ export class ProgramasController {
 
   @Get()
   @ApiOperation({ summary: 'Listar programas' })
-  findAll() {
-    return this.programasService.findAll();
+  findAll(@Request() req) {
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
+      : 'PA';
+    return this.programasService.findAll(secretaria);
   }
 
   @Get(':id')

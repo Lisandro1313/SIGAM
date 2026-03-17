@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, SetMetadata, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, SetMetadata, BadRequestException, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ReportesService } from './reportes.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -21,6 +21,13 @@ function parseFiltroFecha(mes?: string, anio?: string): { mes?: number; anio?: n
   return result;
 }
 
+function getSecretaria(req: any): string | null {
+  const rol = req.user?.rol;
+  if (rol === 'ASISTENCIA_CRITICA') return 'CITA';
+  if (rol === 'LOGISTICA' || rol === 'VISOR') return null;
+  return 'PA';
+}
+
 @ApiTags('reportes')
 @Controller('reportes')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -31,36 +38,36 @@ export class ReportesController {
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Dashboard con resumen general' })
-  dashboard() {
-    return this.reportesService.dashboard();
+  dashboard(@Request() req) {
+    return this.reportesService.dashboard(getSecretaria(req));
   }
 
   @Get('kilos-por-mes')
   @ApiOperation({ summary: 'Total de kilos entregados por mes' })
-  kilosPorMes(@Query('mes') mes?: string, @Query('anio') anio?: string) {
+  kilosPorMes(@Query('mes') mes: string, @Query('anio') anio: string, @Request() req) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.kilosPorMes(m, a);
+    return this.reportesService.kilosPorMes(m, a, getSecretaria(req));
   }
 
   @Get('entregas-por-localidad')
   @ApiOperation({ summary: 'Entregas agrupadas por localidad' })
-  entregasPorLocalidad(@Query('mes') mes?: string, @Query('anio') anio?: string) {
+  entregasPorLocalidad(@Query('mes') mes: string, @Query('anio') anio: string, @Request() req) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.entregasPorLocalidad(m, a);
+    return this.reportesService.entregasPorLocalidad(m, a, getSecretaria(req));
   }
 
   @Get('articulos-mas-distribuidos')
   @ApiOperation({ summary: 'Artículos más distribuidos' })
-  articulosMasDistribuidos(@Query('mes') mes?: string, @Query('anio') anio?: string) {
+  articulosMasDistribuidos(@Query('mes') mes: string, @Query('anio') anio: string, @Request() req) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.articulosMasDistribuidos(m, a);
+    return this.reportesService.articulosMasDistribuidos(m, a, getSecretaria(req));
   }
 
   @Get('entregas-por-programa')
   @ApiOperation({ summary: 'Entregas por programa' })
-  entregasPorPrograma(@Query('mes') mes?: string, @Query('anio') anio?: string) {
+  entregasPorPrograma(@Query('mes') mes: string, @Query('anio') anio: string, @Request() req) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.entregasPorPrograma(m, a);
+    return this.reportesService.entregasPorPrograma(m, a, getSecretaria(req));
   }
 
   @Get('stock-bajo')
@@ -79,20 +86,21 @@ export class ReportesController {
   @Get('remitos-detalle')
   @ApiOperation({ summary: 'Detalle de remitos con filtros para exportación' })
   remitosDetalle(
-    @Query('mes') mes?: string,
-    @Query('anio') anio?: string,
-    @Query('programaId') programaId?: string,
-    @Query('estado') estado?: string,
+    @Query('mes') mes: string,
+    @Query('anio') anio: string,
+    @Query('programaId') programaId: string,
+    @Query('estado') estado: string,
+    @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.remitosDetalle(m, a, programaId ? parseInt(programaId) : undefined, estado);
+    return this.reportesService.remitosDetalle(m, a, programaId ? parseInt(programaId) : undefined, estado, getSecretaria(req));
   }
 
   @Get('resumen-entregas-mes')
   @ApiOperation({ summary: 'Resumen de entregas de un mes: pendientes, generadas, entregadas' })
-  resumenEntregasMes(@Query('mes') mes: string, @Query('anio') anio: string) {
+  resumenEntregasMes(@Query('mes') mes: string, @Query('anio') anio: string, @Request() req) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
     if (!m || !a) throw new BadRequestException('mes y anio son obligatorios');
-    return this.reportesService.resumenEntregasMes(m, a);
+    return this.reportesService.resumenEntregasMes(m, a, getSecretaria(req));
   }
 }

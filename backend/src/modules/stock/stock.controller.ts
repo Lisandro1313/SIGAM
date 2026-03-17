@@ -16,8 +16,11 @@ export class StockController {
 
   @Get()
   @ApiOperation({ summary: 'Obtener todo el stock' })
-  obtenerTodo() {
-    return this.stockService.obtenerTodoElStock();
+  obtenerTodo(@Request() req) {
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
+      : 'PA';
+    return this.stockService.obtenerTodoElStock(secretaria);
   }
 
   @Get('alertas')
@@ -28,8 +31,11 @@ export class StockController {
 
   @Get('deposito/:id')
   @ApiOperation({ summary: 'Obtener stock por depósito' })
-  obtenerPorDeposito(@Param('id') id: string) {
-    return this.stockService.obtenerStockPorDeposito(+id);
+  obtenerPorDeposito(@Param('id') id: string, @Request() req) {
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
+      : 'PA';
+    return this.stockService.obtenerStockPorDeposito(+id, secretaria);
   }
 
   @Post('ingreso')

@@ -90,7 +90,7 @@ export class CronogramaService {
   }
 
   // Obtener entregas programadas
-  async obtenerEntregas(filtros?: any) {
+  async obtenerEntregas(filtros?: any, secretaria?: string | null) {
     const where: any = {};
 
     if (filtros?.estado) where.estado = filtros.estado;
@@ -102,6 +102,7 @@ export class CronogramaService {
         lte: endOfMonth(fecha),
       };
     }
+    if (secretaria) where.secretaria = secretaria;
 
     return await this.prisma.entregaProgramada.findMany({
       where,
@@ -117,7 +118,7 @@ export class CronogramaService {
   }
 
   // Generar remitos masivamente a partir del cronograma
-  async generarRemitosMasivos(mes: number, anio: number, depositoId: number, usuarioId: number) {
+  async generarRemitosMasivos(mes: number, anio: number, depositoId: number, usuarioId: number, usuarioRol?: string) {
     const fecha = new Date(anio, mes - 1, 15);
     const inicioMes = startOfMonth(fecha);
     const finMes = endOfMonth(fecha);
@@ -185,7 +186,7 @@ export class CronogramaService {
                 : undefined,
             })),
           },
-          usuarioId,
+          { id: usuarioId, rol: usuarioRol },
         );
 
         // Actualizar entrega programada
@@ -293,7 +294,7 @@ export class CronogramaService {
   // ============================================================================
 
   // Obtener planilla para un rango de fechas
-  async obtenerPlanilla(desde: string, hasta: string, programaId?: number) {
+  async obtenerPlanilla(desde: string, hasta: string, programaId?: number, secretaria?: string | null) {
     const desdeDate = new Date(desde);
     desdeDate.setHours(0, 0, 0, 0);
     const hastaDate = new Date(hasta);
@@ -304,6 +305,7 @@ export class CronogramaService {
       estado: { not: EntregaEstado.CANCELADA },
     };
     if (programaId) where.programaId = programaId;
+    if (secretaria) where.secretaria = secretaria;
 
     const entregas = await this.prisma.entregaProgramada.findMany({
       where,
@@ -398,7 +400,7 @@ export class CronogramaService {
   }
 
   // Generar remito desde una fila de la planilla
-  async generarRemitoDesFila(id: number, depositoId: number, usuarioId: number) {
+  async generarRemitoDesFila(id: number, depositoId: number, usuarioId: number, usuarioRol?: string) {
     const entrega = await this.prisma.entregaProgramada.findUnique({
       where: { id },
       include: {
@@ -437,7 +439,7 @@ export class CronogramaService {
             : undefined,
         })),
       },
-      usuarioId,
+      { id: usuarioId, rol: usuarioRol },
     );
 
     await this.prisma.entregaProgramada.update({

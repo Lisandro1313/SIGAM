@@ -7,14 +7,16 @@ export class ReportesService {
   constructor(private prisma: PrismaService) {}
 
   // Reporte: Kilos entregados por mes (retorna los últimos N meses si no se especifica)
-  async kilosPorMes(mes?: number, anio?: number) {
+  async kilosPorMes(mes?: number, anio?: number, secretaria?: string | null) {
     // Si se pasan parámetros válidos, retorna un solo mes
     if (mes && anio && !isNaN(mes) && !isNaN(anio)) {
       const fecha = new Date(anio, mes - 1, 1);
       const inicio = startOfMonth(fecha);
       const fin = endOfMonth(fecha);
+      const where: any = { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
+      if (secretaria) where.secretaria = secretaria;
       const remitos = await this.prisma.remito.findMany({
-        where: { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } },
+        where,
         select: { totalKg: true },
       });
       const totalKilos = remitos.reduce((sum, r) => sum + (r.totalKg || 0), 0);
@@ -28,8 +30,10 @@ export class ReportesService {
       const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
       const inicio = startOfMonth(fecha);
       const fin = endOfMonth(fecha);
+      const mesWhere: any = { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
+      if (secretaria) mesWhere.secretaria = secretaria;
       const remitos = await this.prisma.remito.findMany({
-        where: { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } },
+        where: mesWhere,
         select: { totalKg: true },
       });
       const totalKilos = remitos.reduce((sum, r) => sum + (r.totalKg || 0), 0);
@@ -46,7 +50,7 @@ export class ReportesService {
   }
 
   // Reporte: Entregas por localidad
-  async entregasPorLocalidad(mes?: number, anio?: number) {
+  async entregasPorLocalidad(mes?: number, anio?: number, secretaria?: string | null) {
     const where: any = {
       estado: {
         in: ['CONFIRMADO', 'ENVIADO'],
@@ -60,6 +64,7 @@ export class ReportesService {
         lte: endOfMonth(fecha),
       };
     }
+    if (secretaria) where.secretaria = secretaria;
 
     const remitos = await this.prisma.remito.findMany({
       where,
@@ -101,7 +106,7 @@ export class ReportesService {
   }
 
   // Reporte: Artículos más distribuidos
-  async articulosMasDistribuidos(mes?: number, anio?: number) {
+  async articulosMasDistribuidos(mes?: number, anio?: number, secretaria?: string | null) {
     const where: any = {};
 
     if (mes && anio) {
@@ -111,6 +116,7 @@ export class ReportesService {
         lte: endOfMonth(fecha),
       };
     }
+    if (secretaria) where.secretaria = secretaria;
 
     const items = await this.prisma.remitoItem.findMany({
       where: {
@@ -146,7 +152,7 @@ export class ReportesService {
   }
 
   // Reporte: Entregas por programa
-  async entregasPorPrograma(mes?: number, anio?: number) {
+  async entregasPorPrograma(mes?: number, anio?: number, secretaria?: string | null) {
     const where: any = {
       estado: {
         in: ['CONFIRMADO', 'ENVIADO'],
@@ -160,6 +166,7 @@ export class ReportesService {
         lte: endOfMonth(fecha),
       };
     }
+    if (secretaria) where.secretaria = secretaria;
 
     const remitos = await this.prisma.remito.findMany({
       where,
@@ -256,7 +263,7 @@ export class ReportesService {
   }
 
   // Reporte: Remitos con detalle para exportación personalizada
-  async remitosDetalle(mes?: number, anio?: number, programaId?: number, estado?: string) {
+  async remitosDetalle(mes?: number, anio?: number, programaId?: number, estado?: string, secretaria?: string | null) {
     const where: any = {};
     if (mes && anio) {
       const fecha = new Date(anio, mes - 1, 1);
@@ -264,6 +271,7 @@ export class ReportesService {
     }
     if (programaId) where.programaId = programaId;
     if (estado) where.estado = estado;
+    if (secretaria) where.secretaria = secretaria;
 
     const remitos = await this.prisma.remito.findMany({
       where,
@@ -294,13 +302,16 @@ export class ReportesService {
   }
 
   // Reporte: Resumen de entregas del mes (entregadas vs no entregadas)
-  async resumenEntregasMes(mes: number, anio: number) {
+  async resumenEntregasMes(mes: number, anio: number, secretaria?: string | null) {
     const fecha = new Date(anio, mes - 1, 1);
     const inicio = startOfMonth(fecha);
     const fin = endOfMonth(fecha);
 
+    const where: any = { fechaProgramada: { gte: inicio, lte: fin } };
+    if (secretaria) where.secretaria = secretaria;
+
     const entregas = await this.prisma.entregaProgramada.findMany({
-      where: { fechaProgramada: { gte: inicio, lte: fin } },
+      where,
       include: {
         beneficiario: { select: { nombre: true, tipo: true, localidad: true, kilosHabitual: true } },
         programa: { select: { nombre: true } },
@@ -330,7 +341,7 @@ export class ReportesService {
   }
 
   // Dashboard: Resumen operativo
-  async dashboard() {
+  async dashboard(secretaria?: string | null) {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     const manana = new Date(hoy);
@@ -340,10 +351,12 @@ export class ReportesService {
     const inicioMes = startOfMonth(new Date());
     const finMes = endOfMonth(new Date());
 
+    const secFilter = secretaria ? { secretaria } : {};
+
     const [remitosDelDia, remitosRecientes, proximasEntregas, remitosDelMes, kgDelMes] =
       await Promise.all([
         this.prisma.remito.findMany({
-          where: { fecha: { gte: hoy, lt: manana } },
+          where: { fecha: { gte: hoy, lt: manana }, ...secFilter },
           include: {
             beneficiario: { select: { nombre: true } },
             programa: { select: { nombre: true } },
@@ -352,7 +365,7 @@ export class ReportesService {
           orderBy: { fecha: 'desc' },
         }),
         this.prisma.remito.findMany({
-          where: { fecha: { lt: hoy } },
+          where: { fecha: { lt: hoy }, ...secFilter },
           include: {
             beneficiario: { select: { nombre: true } },
             programa: { select: { nombre: true } },
@@ -365,6 +378,7 @@ export class ReportesService {
           where: {
             estado: { in: ['PENDIENTE', 'GENERADA'] },
             fechaProgramada: { gte: hoy, lte: en7dias },
+            ...(secretaria ? { secretaria } : {}),
           },
           include: {
             beneficiario: { select: { nombre: true, localidad: true } },
@@ -373,12 +387,13 @@ export class ReportesService {
           orderBy: { fechaProgramada: 'asc' },
         }),
         this.prisma.remito.count({
-          where: { fecha: { gte: inicioMes, lte: finMes } },
+          where: { fecha: { gte: inicioMes, lte: finMes }, ...secFilter },
         }),
         this.prisma.remito.aggregate({
           where: {
             fecha: { gte: inicioMes, lte: finMes },
             estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] },
+            ...secFilter,
           },
           _sum: { totalKg: true },
         }),

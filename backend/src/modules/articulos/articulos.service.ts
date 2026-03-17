@@ -27,12 +27,15 @@ export class ArticulosService {
     });
   }
 
-  async findAll() {
+  async findAll(secretaria?: string | null) {
     const hoy = new Date();
     const en30dias = new Date(hoy.getTime() + 30 * 24 * 60 * 60 * 1000);
 
+    const where: any = { activo: true };
+    if (secretaria) where.secretaria = secretaria;
+
     return await this.prisma.articulo.findMany({
-      where: { activo: true },
+      where,
       include: {
         stockItems: { include: { deposito: true } },
         lotes: {

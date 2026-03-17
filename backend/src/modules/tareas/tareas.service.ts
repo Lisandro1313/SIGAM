@@ -5,7 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class TareasService {
   constructor(private prisma: PrismaService) {}
 
-  findAll(filtros?: { estado?: string; programaId?: number; prioridad?: string }) {
+  findAll(filtros?: { estado?: string; programaId?: number; prioridad?: string; secretaria?: string | null }) {
     const where: any = {};
     if (filtros?.estado) {
       const estados = filtros.estado.split(',').map((s) => s.trim()).filter(Boolean);
@@ -13,6 +13,7 @@ export class TareasService {
     }
     if (filtros?.programaId) where.programaId = filtros.programaId;
     if (filtros?.prioridad) where.prioridad = filtros.prioridad;
+    if (filtros?.secretaria) where.secretaria = filtros.secretaria;
     return this.prisma.tarea.findMany({
       where,
       include: { programa: { select: { id: true, nombre: true } } },

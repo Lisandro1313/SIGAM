@@ -477,11 +477,19 @@ function RemitoCard({
           <Typography variant="h6" fontWeight="bold">
             {remito.numero}
           </Typography>
-          <Chip
-            label={ESTADO_LABEL[remito.estado] ?? remito.estado}
-            color={ESTADO_COLOR[remito.estado] ?? 'default'}
-            size="small"
-          />
+          <Box display="flex" gap={0.5} alignItems="center">
+            <Chip
+              label={remito.secretaria === 'CITA' ? 'Asistencia Crítica' : 'Pol. Alimentaria'}
+              color={remito.secretaria === 'CITA' ? 'warning' : 'primary'}
+              size="small"
+              variant="outlined"
+            />
+            <Chip
+              label={ESTADO_LABEL[remito.estado] ?? remito.estado}
+              color={ESTADO_COLOR[remito.estado] ?? 'default'}
+              size="small"
+            />
+          </Box>
         </Box>
 
         {/* Beneficiario y programa */}

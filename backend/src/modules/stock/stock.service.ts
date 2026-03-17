@@ -11,9 +11,11 @@ export class StockService {
   ) {}
 
   // Obtener stock por depósito
-  async obtenerStockPorDeposito(depositoId: number) {
+  async obtenerStockPorDeposito(depositoId: number, secretaria?: string | null) {
+    const where: any = { depositoId };
+    if (secretaria) where.articulo = { secretaria };
     return await this.prisma.stock.findMany({
-      where: { depositoId },
+      where,
       include: {
         articulo: true,
         deposito: true,
@@ -25,8 +27,10 @@ export class StockService {
   }
 
   // Obtener todo el stock
-  async obtenerTodoElStock() {
+  async obtenerTodoElStock(secretaria?: string | null) {
+    const where: any = secretaria ? { articulo: { secretaria } } : {};
     return await this.prisma.stock.findMany({
+      where,
       include: {
         articulo: true,
         deposito: true,
