@@ -27,7 +27,7 @@ function HomeRedirect() {
   const { user } = useAuthStore();
   // Esperamos a que el store se hidrate antes de decidir a dónde ir
   if (user == null) return null;
-  if (user.depositoId != null || user.rol === 'ASISTENCIA_CRITICA') return <Navigate to="/deposito" replace />;
+  if (user.depositoId != null) return <Navigate to="/deposito" replace />;
   if (user.rol === 'TRABAJADORA_SOCIAL') return <Navigate to="/mis-casos" replace />;
   return <ProtectedRoute seccion="dashboard"><Dashboard /></ProtectedRoute>;
 }

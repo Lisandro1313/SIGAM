@@ -80,8 +80,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
   const rolLabel = user?.rol ? ROL_LABELS[user.rol as Rol] ?? user.rol : '';
-  // Usuarios de depósito físico (LOGISTICA con depositoId) O Asistencia Crítica (CITA)
-  const esDeposito = !!(user?.depositoId) || user?.rol === 'ASISTENCIA_CRITICA';
+  // Usuarios de depósito físico: LOGISTICA con depositoId asignado
+  const esDeposito = !!(user?.depositoId);
 
   // Si es usuario de depósito, menú restringido; si no, filtrar por rol
   const visibleItems = esDeposito
@@ -93,7 +93,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <Toolbar sx={{ bgcolor: 'primary.main', color: 'white', flexDirection: 'column', alignItems: 'flex-start', py: 1.5 }}>
         <Typography variant="h6" fontWeight="bold">Gestor Municipal</Typography>
         <Typography variant="caption" sx={{ opacity: 0.8 }}>
-          {esDeposito ? (user?.deposito?.nombre || 'Depósito') : 'Secretaría de Desarrollo Social'}
+          {esDeposito
+            ? (user?.deposito?.nombre || 'Depósito')
+            : user?.rol === 'ASISTENCIA_CRITICA'
+              ? 'Dirección de Asistencia Crítica'
+              : 'Secretaría de Desarrollo Social'}
         </Typography>
       </Toolbar>
       <Divider />
