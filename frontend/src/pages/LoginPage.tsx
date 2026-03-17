@@ -15,6 +15,17 @@ const CAPTCHA_QUESTIONS = [
   { question: '¿Cuántas letras tiene la palabra "casa"?', correct: '4', options: ['4', '5', '3'] },
   { question: 'En "Los niños juegan", ¿cuál es el sujeto?', correct: 'Los niños', options: ['Los niños', 'Juegan', 'Los'] },
   { question: '¿Qué animal hace "miau"?', correct: 'Gato', options: ['Gato', 'Perro', 'Vaca'] },
+  // Preguntas peronistas
+  { question: '¿En qué año asumió Perón por primera vez la presidencia?', correct: '1946', options: ['1946', '1943', '1952'] },
+  { question: '¿Cómo se llamaba la esposa de Juan Domingo Perón, símbolo del pueblo?', correct: 'Eva Duarte', options: ['Eva Duarte', 'Isabel Martínez', 'Blanca Luz Brum'] },
+  { question: '¿Cuál es el himno no oficial del peronismo?', correct: 'La Marchita', options: ['La Marchita', 'El himno nacional', 'El vals criollo'] },
+  { question: '¿Qué doctrina política fundó Perón?', correct: 'Justicialismo', options: ['Justicialismo', 'Liberalismo', 'Socialismo'] },
+  { question: '"La única verdad es..." ¿cómo sigue?', correct: 'La realidad', options: ['La realidad', 'El pueblo', 'La justicia'] },
+  { question: '¿Qué significan las tres banderas del peronismo?', correct: 'Justicia Social, Independencia Económica, Soberanía Política', options: ['Justicia Social, Independencia Económica, Soberanía Política', 'Libertad, Igualdad, Fraternidad', 'Trabajo, Salud, Educación'] },
+  { question: '¿Qué día se recuerda a Evita cada 26 de julio?', correct: 'Su fallecimiento', options: ['Su fallecimiento', 'Su cumpleaños', 'Su asunción'] },
+  { question: '¿Quién dijo "Alpargatas sí, libros no"? (slogan que Perón rechazaba)', correct: 'Fue un insulto antiperonista', options: ['Fue un insulto antiperonista', 'Evita Perón', 'Juan Domingo Perón'] },
+  { question: '¿Qué organismo creó Perón para proteger a los trabajadores?', correct: 'CGT', options: ['CGT', 'FMI', 'ONU'] },
+  { question: '¿En qué barrio de Buenos Aires nació Eva Perón?', correct: 'Los Toldos (provincia)', options: ['Los Toldos (provincia)', 'La Boca', 'Palermo'] },
 ];
 
 function pickCaptcha() {
@@ -273,11 +284,11 @@ export default function LoginPage() {
             {/* Email */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 500, color: '#202124', fontFamily: 'inherit' }}>
-                Email:
+                Usuario:
               </label>
               <input
                 className="login-input"
-                type="email"
+                type="text"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required

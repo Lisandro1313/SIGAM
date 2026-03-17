@@ -30,7 +30,7 @@ async function main() {
     {
       email:      'admin@sigam.com',
       nombre:     'Administrador SIGAM',
-      password:   'Admin2024',
+      password:   'Admin2026',
       rol:        'ADMIN',
       depositoId: null,
       programaId: null,
@@ -39,25 +39,25 @@ async function main() {
     {
       email:      'pa@sigam.com',
       nombre:     'Política Alimentaria',
-      password:   'PA2024',
+      password:   'PA2026',
       rol:        'ADMIN',          // ve todo el sistema operativo
       depositoId: null,
       programaId: null,
       info:       'Coordinación de Política Alimentaria — acceso completo',
     },
     {
-      email:      'cita@sigam.com',
-      nombre:     'Asistencia Crítica CITA',
-      password:   'CITA2024',
+      email:      'asistenciacritica@sigam.com',
+      nombre:     'Asistencia Crítica',
+      password:   'AsistenciaCritica2026',
       rol:        'ASISTENCIA_CRITICA',
-      depositoId: null,             // filtrado por código CITA en el backend
+      depositoId: null,
       programaId: null,
-      info:       'Panel CITA: remitos, stock y entregas del depósito CITA',
+      info:       'Operador del programa Asistencia Crítica',
     },
     {
       email:      'deposito.cita@sigam.com',
       nombre:     'Depósito CITA',
-      password:   'DepCITA2024',
+      password:   'DepCITA2026',
       rol:        'LOGISTICA',
       depositoId: depCita.id,
       programaId: null,
@@ -66,7 +66,7 @@ async function main() {
     {
       email:      'deposito.logistica@sigam.com',
       nombre:     'Depósito Logística',
-      password:   'DepLog2024',
+      password:   'DepLog2026',
       rol:        'LOGISTICA',
       depositoId: depLogistica.id,
       programaId: null,
@@ -75,7 +75,7 @@ async function main() {
     {
       email:      'social@sigam.com',
       nombre:     'Trabajadora Social',
-      password:   'Social2024',
+      password:   'Social2026',
       rol:        'TRABAJADORA_SOCIAL',
       depositoId: null,
       programaId: null,
@@ -84,7 +84,7 @@ async function main() {
     {
       email:      'visor@sigam.com',
       nombre:     'Visor Directivo',
-      password:   'Visor2024',
+      password:   'Visor2026',
       rol:        'VISOR',
       depositoId: null,
       programaId: null,
