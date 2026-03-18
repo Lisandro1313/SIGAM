@@ -9,6 +9,7 @@ import {
   Step,
   StepLabel,
   Box,
+  Autocomplete,
   FormControl,
   InputLabel,
   Select,
@@ -253,46 +254,58 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
         {activeStep === 0 && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-              <FormControl fullWidth required>
-                <InputLabel>Beneficiario</InputLabel>
-                <Select
-                  value={beneficiarioId}
-                  onChange={async (e) => {
-                    const val = e.target.value;
-                    setBeneficiarioId(val);
-                    // Auto-completar programa del beneficiario
-                    const b = beneficiarios.find((b) => b.id === parseInt(val));
-                    if (b?.programaId) setProgramaId(String(b.programaId));
-                    // Buscar última entrega
-                    if (val) {
-                      setUltimaEntrega('loading');
-                      try {
-                        const res = await api.get('/remitos', { params: { beneficiarioId: val, estado: 'ENTREGADO' } });
-                        const entregados = res.data.filter((r: any) => r.entregadoAt || r.fecha);
-                        if (entregados.length > 0) {
-                          const ultimo = entregados.sort((a: any, b: any) =>
-                            new Date(b.entregadoAt || b.fecha).getTime() - new Date(a.entregadoAt || a.fecha).getTime()
-                          )[0];
-                          setUltimaEntrega(ultimo.entregadoAt || ultimo.fecha);
-                        } else {
-                          setUltimaEntrega(null);
-                        }
-                      } catch {
+              <Autocomplete
+                fullWidth
+                options={beneficiarios}
+                getOptionLabel={(b: any) => b.nombre + (b.localidad ? ` — ${b.localidad}` : '')}
+                filterOptions={(options, { inputValue }) => {
+                  const q = inputValue.toLowerCase();
+                  return options.filter((b: any) =>
+                    b.nombre.toLowerCase().includes(q) ||
+                    (b.localidad && b.localidad.toLowerCase().includes(q)) ||
+                    (b.responsableDNI && b.responsableDNI.includes(q))
+                  );
+                }}
+                value={beneficiarios.find((b: any) => String(b.id) === beneficiarioId) || null}
+                onChange={async (_e, b: any) => {
+                  const val = b ? String(b.id) : '';
+                  setBeneficiarioId(val);
+                  if (b?.programaId) setProgramaId(String(b.programaId));
+                  if (val) {
+                    setUltimaEntrega('loading');
+                    try {
+                      const res = await api.get('/remitos', { params: { beneficiarioId: val, estado: 'ENTREGADO' } });
+                      const entregados = res.data.filter((r: any) => r.entregadoAt || r.fecha);
+                      if (entregados.length > 0) {
+                        const ultimo = entregados.sort((a: any, b: any) =>
+                          new Date(b.entregadoAt || b.fecha).getTime() - new Date(a.entregadoAt || a.fecha).getTime()
+                        )[0];
+                        setUltimaEntrega(ultimo.entregadoAt || ultimo.fecha);
+                      } else {
                         setUltimaEntrega(null);
                       }
-                    } else {
-                      setUltimaEntrega('loading');
+                    } catch {
+                      setUltimaEntrega(null);
                     }
-                  }}
-                  label="Beneficiario"
-                >
-                  {beneficiarios.map((b) => (
-                    <MenuItem key={b.id} value={b.id}>
-                      {b.nombre} - {b.localidad}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  } else {
+                    setUltimaEntrega('loading');
+                  }
+                }}
+                renderOption={(props, b: any) => (
+                  <li {...props} key={b.id}>
+                    <Box>
+                      <Typography variant="body2" fontWeight="medium">{b.nombre}</Typography>
+                      {b.localidad && (
+                        <Typography variant="caption" color="text.secondary">{b.localidad}</Typography>
+                      )}
+                    </Box>
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField {...params} label="Beneficiario *" placeholder="Escribí para buscar..." />
+                )}
+                noOptionsText="No se encontraron beneficiarios"
+              />
               <Tooltip title="Crear nuevo beneficiario">
                 <IconButton
                   color="primary"
