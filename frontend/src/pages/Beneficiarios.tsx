@@ -38,6 +38,7 @@ import {
   HourglassEmpty as PendienteIcon,
   CloudUpload as UploadIcon,
   OpenInNew as OpenIcon,
+  InfoOutlined as InfoIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import BeneficiarioForm from '../components/BeneficiarioForm';
@@ -92,6 +93,11 @@ export default function BeneficiariosPage() {
   const [docNombre, setDocNombre] = useState('');
   const [docTipo, setDocTipo] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Detalle beneficiario
+  const [detalleOpen, setDetalleOpen] = useState(false);
+  const [detalleData, setDetalleData] = useState<any>(null);
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
 
   const { user } = useAuthStore();
   const { showNotification } = useNotificationStore();
@@ -227,6 +233,23 @@ export default function BeneficiariosPage() {
     }
   };
 
+  // ── Detalle ──────────────────────────────────────────────────────────────────
+
+  const handleAbrirDetalle = async (beneficiario: any) => {
+    setDetalleOpen(true);
+    setDetalleData(null);
+    setLoadingDetalle(true);
+    try {
+      const res = await api.get(`/beneficiarios/${beneficiario.id}`);
+      setDetalleData(res.data);
+    } catch {
+      showNotification('Error cargando datos del beneficiario', 'error');
+      setDetalleOpen(false);
+    } finally {
+      setLoadingDetalle(false);
+    }
+  };
+
   // ────────────────────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -310,7 +333,15 @@ export default function BeneficiariosPage() {
             ) : (
               paginatedBeneficiarios.map((beneficiario) => (
                 <TableRow key={beneficiario.id} hover>
-                  <TableCell><strong>{beneficiario.nombre}</strong></TableCell>
+                  <TableCell>
+                    <Box
+                      component="span"
+                      sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 'bold', '&:hover': { textDecoration: 'underline' } }}
+                      onClick={() => handleAbrirDetalle(beneficiario)}
+                    >
+                      {beneficiario.nombre}
+                    </Box>
+                  </TableCell>
                   <TableCell>
                     <Chip label={beneficiario.tipo} size="small" />
                   </TableCell>
@@ -430,6 +461,107 @@ export default function BeneficiariosPage() {
           <Button variant="contained" onClick={handleGuardarRelevamiento} disabled={savingRelevamiento}>
             {savingRelevamiento ? <CircularProgress size={24} /> : 'Guardar'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog detalle beneficiario */}
+      <Dialog open={detalleOpen} onClose={() => setDetalleOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <InfoIcon color="primary" />
+            {detalleData?.nombre || 'Cargando...'}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {loadingDetalle ? (
+            <Box display="flex" justifyContent="center" py={4}><CircularProgress /></Box>
+          ) : detalleData ? (
+            <Box display="flex" flexDirection="column" gap={2}>
+              {/* Datos principales */}
+              <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5}>
+                {[
+                  { label: 'Tipo', value: detalleData.tipo },
+                  { label: 'Programa', value: detalleData.programa?.nombre || '—' },
+                  { label: 'Dirección', value: detalleData.direccion || '—' },
+                  { label: 'Localidad', value: detalleData.localidad || '—' },
+                  { label: 'Teléfono', value: detalleData.telefono || '—' },
+                  { label: 'Frecuencia entrega', value: detalleData.frecuenciaEntrega || '—' },
+                  { label: 'Responsable', value: detalleData.responsableNombre || '—' },
+                  { label: 'DNI responsable', value: detalleData.responsableDNI || '—' },
+                ].map(({ label, value }) => (
+                  <Box key={label}>
+                    <Typography variant="caption" color="text.secondary">{label}</Typography>
+                    <Typography variant="body2" fontWeight="medium">{value}</Typography>
+                  </Box>
+                ))}
+              </Box>
+
+              {detalleData.observaciones && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Observaciones</Typography>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{detalleData.observaciones}</Typography>
+                </Box>
+              )}
+
+              <Divider />
+
+              {/* Últimos remitos */}
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>Últimos remitos</Typography>
+                {detalleData.remitos?.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">Sin remitos registrados</Typography>
+                ) : (
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Número</TableCell>
+                        <TableCell>Fecha</TableCell>
+                        <TableCell>Estado</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {detalleData.remitos?.map((r: any) => (
+                        <TableRow key={r.id}>
+                          <TableCell>{r.numero}</TableCell>
+                          <TableCell>{new Date(r.fecha).toLocaleDateString('es-AR')}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={r.estado}
+                              size="small"
+                              color={r.estado === 'ENTREGADO' ? 'success' : r.estado === 'CONFIRMADO' ? 'primary' : 'default'}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </Box>
+            </Box>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            startIcon={<DocsIcon />}
+            onClick={() => {
+              setDetalleOpen(false);
+              if (detalleData) handleAbrirDocs(detalleData);
+            }}
+          >
+            Documentos
+          </Button>
+          {puedeEditar && detalleData && (
+            <Button
+              startIcon={<EditIcon />}
+              onClick={() => {
+                setDetalleOpen(false);
+                handleEdit(detalleData);
+              }}
+            >
+              Editar
+            </Button>
+          )}
+          <Button onClick={() => setDetalleOpen(false)}>Cerrar</Button>
         </DialogActions>
       </Dialog>
 

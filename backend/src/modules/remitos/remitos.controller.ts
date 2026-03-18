@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Delete,
@@ -125,6 +126,32 @@ export class RemitosController {
       fotoUrl = await this.storageService.uploadFoto(foto.buffer, filename, foto.mimetype);
     }
     return this.remitosService.marcarEntregado(+id, body.nota, fotoUrl);
+  }
+
+  @Patch(':id/entrega')
+  @ApiOperation({ summary: 'Editar datos de entrega ya registrada (nota, foto, fecha)' })
+  @Roles('ADMIN', 'LOGISTICA', 'ASISTENCIA_CRITICA')
+  @UseInterceptors(
+    FileInterceptor('foto', {
+      storage: memoryStorage(),
+      fileFilter: (_req, file, cb) => {
+        const allowed = /jpeg|jpg|png|webp|pdf/;
+        cb(null, allowed.test(extname(file.originalname).toLowerCase()));
+      },
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  async actualizarEntrega(
+    @Param('id') id: string,
+    @UploadedFile() foto: Express.Multer.File,
+    @Body() body: { nota?: string; fecha?: string },
+  ) {
+    let fotoUrl: string | undefined;
+    if (foto) {
+      const filename = `remito-${Date.now()}-${Math.round(Math.random() * 1e6)}${extname(foto.originalname)}`;
+      fotoUrl = await this.storageService.uploadFoto(foto.buffer, filename, foto.mimetype);
+    }
+    return this.remitosService.actualizarEntrega(+id, body.nota, fotoUrl, body.fecha);
   }
 
   @Get(':id')

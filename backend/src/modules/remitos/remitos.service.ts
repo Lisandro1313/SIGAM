@@ -291,11 +291,6 @@ export class RemitosService {
       where.secretaria = secretaria;
     }
 
-    // ASISTENCIA_CRITICA: solo ve los remitos de su programa
-    if (usuarioProgramaId) {
-      where.programaId = usuarioProgramaId;
-    }
-
     if (filtros.estado) {
       // Soporta multi-estado: ?estado=CONFIRMADO,ENVIADO o ?estado=CONFIRMADO&estado=ENVIADO
       const estados = Array.isArray(filtros.estado)
@@ -389,6 +384,26 @@ export class RemitosService {
     }
 
     return remito;
+  }
+
+  // Editar datos de entrega ya registrada (nota, foto, fecha)
+  async actualizarEntrega(id: number, nota?: string, fotoPath?: string, fecha?: string) {
+    const remito = await this.prisma.remito.findUnique({ where: { id } });
+    if (!remito) throw new NotFoundException('Remito no encontrado');
+    if (remito.estado !== RemitoEstado.ENTREGADO) {
+      throw new BadRequestException('Solo se puede editar la entrega de remitos ya entregados');
+    }
+
+    const data: any = {};
+    if (nota !== undefined) data.entregadoNota = nota;
+    if (fotoPath !== undefined) data.entregadoFoto = fotoPath;
+    if (fecha) data.entregadoAt = new Date(fecha);
+
+    return this.prisma.remito.update({
+      where: { id },
+      data,
+      include: { beneficiario: true, programa: true, deposito: true, items: { include: { articulo: true } } },
+    });
   }
 
   // Marcar remito como entregado (con nota y foto opcional)

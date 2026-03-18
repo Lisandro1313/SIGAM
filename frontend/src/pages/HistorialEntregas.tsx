@@ -14,6 +14,7 @@ function resolveUrl(url: string) {
 import {
   PhotoCamera as FotoIcon, Download as DownloadIcon, FilterAlt as FilterIcon,
   ExpandMore as ExpandIcon, ExpandLess as CollapseIcon, CheckCircle as CheckIcon,
+  Edit as EditIcon, CloudUpload as UploadIcon, Person as PersonIcon,
 } from '@mui/icons-material';
 import { format, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -43,6 +44,84 @@ export default function HistorialEntregas() {
   const [fotoDialog, setFotoDialog] = useState(false);
   const [fotoUrl, setFotoUrl]       = useState('');
   const [fotoRemito, setFotoRemito] = useState<any>(null);
+
+  // Diálogo editar entrega
+  const [editDialog, setEditDialog]   = useState(false);
+  const [editRemito, setEditRemito]   = useState<any>(null);
+  const [editNota, setEditNota]       = useState('');
+  const [editFecha, setEditFecha]     = useState('');
+  const [editFoto, setEditFoto]       = useState<File | null>(null);
+  const [guardandoEdit, setGuardandoEdit] = useState(false);
+
+  // Inline: subir foto directo desde la tabla
+  const [uploadingFotoId, setUploadingFotoId] = useState<number | null>(null);
+
+  const handleUploadFotoInline = async (remito: any, file: File) => {
+    setUploadingFotoId(remito.id);
+    try {
+      const form = new FormData();
+      form.append('foto', file);
+      if (remito.entregadoNota) form.append('nota', remito.entregadoNota);
+      await api.patch(`/remitos/${remito.id}/entrega`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      buscarEntregas();
+    } catch {
+      // silencioso
+    } finally {
+      setUploadingFotoId(null);
+    }
+  };
+
+  // Inline: editar "¿Quién retiró?" directo desde la tabla
+  const [editingNotaId, setEditingNotaId] = useState<number | null>(null);
+  const [editingNotaValue, setEditingNotaValue] = useState('');
+  const [savingNotaId, setSavingNotaId] = useState<number | null>(null);
+
+  const handleSaveNota = async (remito: any) => {
+    setSavingNotaId(remito.id);
+    try {
+      const form = new FormData();
+      form.append('nota', editingNotaValue);
+      await api.patch(`/remitos/${remito.id}/entrega`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setEditingNotaId(null);
+      buscarEntregas();
+    } catch {
+      // silencioso
+    } finally {
+      setSavingNotaId(null);
+    }
+  };
+
+  const handleAbrirEdit = (remito: any) => {
+    setEditRemito(remito);
+    setEditNota(remito.entregadoNota || '');
+    setEditFecha(remito.entregadoAt ? format(new Date(remito.entregadoAt), "yyyy-MM-dd'T'HH:mm") : '');
+    setEditFoto(null);
+    setEditDialog(true);
+  };
+
+  const handleGuardarEdit = async () => {
+    if (!editRemito) return;
+    setGuardandoEdit(true);
+    try {
+      const form = new FormData();
+      form.append('nota', editNota);
+      if (editFecha) form.append('fecha', new Date(editFecha).toISOString());
+      if (editFoto) form.append('foto', editFoto);
+      await api.patch(`/remitos/${editRemito.id}/entrega`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setEditDialog(false);
+      buscarEntregas();
+    } catch {
+      // silencioso
+    } finally {
+      setGuardandoEdit(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -226,6 +305,7 @@ export default function HistorialEntregas() {
                 <TableCell align="right">Kg</TableCell>
                 <TableCell>¿Quién retiró?</TableCell>
                 <TableCell align="center">Foto</TableCell>
+                <TableCell align="center">Editar</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -261,27 +341,90 @@ export default function HistorialEntregas() {
                     </TableCell>
                     <TableCell><Chip label={remito.deposito?.nombre} size="small" variant="outlined" /></TableCell>
                     <TableCell align="right"><strong>{remito.totalKg?.toFixed(2)}</strong></TableCell>
-                    <TableCell sx={{ maxWidth: 180 }}>
-                      {remito.entregadoNota
-                        ? <Typography variant="caption" noWrap>{remito.entregadoNota}</Typography>
-                        : <Typography variant="caption" color="text.disabled">—</Typography>}
+                    <TableCell sx={{ maxWidth: 200 }} onClick={(e) => e.stopPropagation()}>
+                      {editingNotaId === remito.id ? (
+                        <TextField
+                          size="small"
+                          autoFocus
+                          value={editingNotaValue}
+                          onChange={(e) => setEditingNotaValue(e.target.value)}
+                          onBlur={() => handleSaveNota(remito)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveNota(remito);
+                            if (e.key === 'Escape') setEditingNotaId(null);
+                          }}
+                          disabled={savingNotaId === remito.id}
+                          placeholder="Nombre de quien retiró"
+                          sx={{ width: '100%' }}
+                          inputProps={{ style: { fontSize: 12, padding: '4px 6px' } }}
+                        />
+                      ) : (
+                        <Tooltip title="Clic para editar">
+                          <Box
+                            display="flex" alignItems="center" gap={0.5}
+                            sx={{ cursor: 'pointer', borderRadius: 1, px: 0.5, '&:hover': { bgcolor: 'action.hover' } }}
+                            onClick={() => {
+                              setEditingNotaId(remito.id);
+                              setEditingNotaValue(remito.entregadoNota || '');
+                            }}
+                          >
+                            {remito.entregadoNota
+                              ? <Typography variant="caption" noWrap>{remito.entregadoNota}</Typography>
+                              : <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>+ agregar</Typography>
+                            }
+                            <PersonIcon sx={{ fontSize: 12, color: 'text.disabled', ml: 'auto' }} />
+                          </Box>
+                        </Tooltip>
+                      )}
                     </TableCell>
                     <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                       {remito.entregadoFoto ? (
-                        <Tooltip title="Ver foto firmada">
-                          <IconButton size="small" color="success" onClick={() => abrirFoto(remito)}>
-                            <FotoIcon />
+                        <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                          <Tooltip title="Ver foto firmada">
+                            <IconButton size="small" color="success" onClick={() => abrirFoto(remito)}>
+                              <FotoIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Reemplazar foto">
+                            <IconButton size="small" component="label">
+                              <UploadIcon fontSize="small" />
+                              <input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf"
+                                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadFotoInline(remito, f); e.target.value = ''; }}
+                              />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      ) : (
+                        <Tooltip title="Adjuntar foto firmada">
+                          <IconButton
+                            size="small"
+                            color={uploadingFotoId === remito.id ? 'default' : 'warning'}
+                            component="label"
+                            disabled={uploadingFotoId === remito.id}
+                          >
+                            {uploadingFotoId === remito.id
+                              ? <CircularProgress size={16} />
+                              : <UploadIcon fontSize="small" />
+                            }
+                            <input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf"
+                              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadFotoInline(remito, f); e.target.value = ''; }}
+                            />
                           </IconButton>
                         </Tooltip>
-                      ) : (
-                        <Typography variant="caption" color="text.disabled">—</Typography>
                       )}
+                    </TableCell>
+                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                      <Tooltip title="Editar entrega">
+                        <IconButton size="small" onClick={() => handleAbrirEdit(remito)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
 
                   {/* Fila expandida: artículos */}
                   <TableRow key={`exp-${remito.id}`}>
-                    <TableCell colSpan={10} sx={{ p: 0, border: expandedId === remito.id ? undefined : 'none' }}>
+                    <TableCell colSpan={11} sx={{ p: 0, border: expandedId === remito.id ? undefined : 'none' }}>
                       <Collapse in={expandedId === remito.id} timeout="auto" unmountOnExit>
                         <Box sx={{ px: 7, py: 1.5, bgcolor: '#f8faff', borderBottom: '1px solid #e0e0e0' }}>
                           <Typography variant="caption" fontWeight="bold" color="text.secondary" display="block" mb={0.5}>
@@ -311,6 +454,53 @@ export default function HistorialEntregas() {
           </Table>
         </TableContainer>
       )}
+
+      {/* Diálogo editar entrega */}
+      <Dialog open={editDialog} onClose={() => setEditDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Editar entrega — {editRemito?.numero}</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <TextField
+            label="Responsable de retiro"
+            fullWidth size="small"
+            value={editNota}
+            onChange={(e) => setEditNota((e.target as HTMLInputElement).value)}
+            placeholder="Nombre y apellido de quien retiró"
+          />
+          <TextField
+            label="Fecha y hora de entrega"
+            type="datetime-local"
+            fullWidth size="small"
+            value={editFecha}
+            onChange={(e) => setEditFecha((e.target as HTMLInputElement).value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <Box>
+            <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+              Foto del remito firmado {editRemito?.entregadoFoto ? '(ya tiene una — subir reemplaza)' : '(opcional)'}
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              component="label"
+              startIcon={<FotoIcon />}
+            >
+              {editFoto ? editFoto.name : 'Seleccionar foto'}
+              <input
+                type="file"
+                hidden
+                accept=".jpg,.jpeg,.png,.webp,.pdf"
+                onChange={(e) => setEditFoto(e.target.files?.[0] ?? null)}
+              />
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialog(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleGuardarEdit} disabled={guardandoEdit}>
+            {guardandoEdit ? 'Guardando...' : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Diálogo foto */}
       <Dialog open={fotoDialog} onClose={() => setFotoDialog(false)} maxWidth="md" fullWidth>

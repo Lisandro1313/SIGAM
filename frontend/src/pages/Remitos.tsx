@@ -115,8 +115,13 @@ export default function RemitosPage() {
   const [emailDialog, setEmailDialog] = useState(false);
   const [emailRemito, setEmailRemito] = useState<any>(null);
   const [emailAsunto, setEmailAsunto] = useState('');
-  const [emailDestinatarios, setEmailDestinatarios] = useState('');
+  const [emailDestinos, setEmailDestinos] = useState<string[]>([]);
   const [emailTextoExtra, setEmailTextoExtra] = useState('');
+
+  const DEPOSITOS_EMAIL = [
+    { label: 'Depósito CITA', email: 'citadeposito@gmail.com', codigo: 'CITA' },
+    { label: 'Depósito Logística', email: 'logistica.deposito.5231@gmail.com', codigo: 'LOGISTICA' },
+  ];
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
@@ -196,7 +201,12 @@ export default function RemitosPage() {
     const nombre = (remito.beneficiario?.nombre || '').toUpperCase();
     setEmailRemito(remito);
     setEmailAsunto(`PEDIDO ${dia} ${fechaCorta} ${nombre}`);
-    setEmailDestinatarios('');
+    // Pre-seleccionar el depósito del remito; si no, ambos
+    const codigoDeposito = remito.deposito?.codigo as string | undefined;
+    const preseleccion = DEPOSITOS_EMAIL
+      .filter(d => !codigoDeposito || codigoDeposito === 'CITA' ? d.codigo === 'CITA' : d.codigo === 'LOGISTICA')
+      .map(d => d.email);
+    setEmailDestinos(preseleccion.length > 0 ? preseleccion : DEPOSITOS_EMAIL.map(d => d.email));
     setEmailTextoExtra('');
     setEmailDialog(true);
   };
@@ -207,12 +217,7 @@ export default function RemitosPage() {
     try {
       const payload: any = {};
       if (emailAsunto) payload.asunto = emailAsunto;
-      if (emailDestinatarios.trim()) {
-        payload.destinatarios = emailDestinatarios
-          .split(/[,;\n]+/)
-          .map((e) => e.trim())
-          .filter(Boolean);
-      }
+      if (emailDestinos.length > 0) payload.destinatarios = emailDestinos;
       if (emailTextoExtra.trim()) payload.textoExtra = emailTextoExtra.trim();
 
       await api.post(`/remitos/${emailRemito.id}/enviar`, payload);
@@ -645,15 +650,40 @@ export default function RemitosPage() {
             helperText="Ej: PEDIDO LUNES 23-2 AMIGAS PLATENSES UNIDAS"
           />
 
-          <TextField
-            fullWidth
-            label="Destinatarios (separados por coma)"
-            value={emailDestinatarios}
-            onChange={(e) => setEmailDestinatarios(e.target.value)}
-            margin="normal"
-            placeholder="logistica.deposito.5231@gmail.com, cita@gmail.com"
-            helperText="Dejá vacío para usar los emails configurados en el sistema"
-          />
+          <Box mt={2}>
+            <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+              Enviar a:
+            </Typography>
+            <Box display="flex" gap={1} flexWrap="wrap">
+              {DEPOSITOS_EMAIL.map((d) => {
+                const seleccionado = emailDestinos.includes(d.email);
+                return (
+                  <Chip
+                    key={d.email}
+                    label={
+                      <Box>
+                        <Typography variant="caption" fontWeight="bold" display="block">{d.label}</Typography>
+                        <Typography variant="caption" color={seleccionado ? 'inherit' : 'text.secondary'}>{d.email}</Typography>
+                      </Box>
+                    }
+                    onClick={() => setEmailDestinos(
+                      seleccionado
+                        ? emailDestinos.filter((e: string) => e !== d.email)
+                        : [...emailDestinos, d.email]
+                    )}
+                    color={seleccionado ? 'primary' : 'default'}
+                    variant={seleccionado ? 'filled' : 'outlined'}
+                    sx={{ height: 'auto', py: 0.5, cursor: 'pointer' }}
+                  />
+                );
+              })}
+            </Box>
+            {emailDestinos.length === 0 && (
+              <Typography variant="caption" color="error" display="block" mt={0.5}>
+                Seleccioná al menos un destinatario
+              </Typography>
+            )}
+          </Box>
 
           <Divider sx={{ my: 2 }} />
 
