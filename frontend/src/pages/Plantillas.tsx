@@ -388,30 +388,57 @@ export default function PlantillasPage() {
             </Button>
           </Box>
 
-          {items.length > 0 && (
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Artículo</TableCell>
-                  <TableCell align="right">Cantidad</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow key={item.articuloId}>
-                    <TableCell>{item.articuloNombre}</TableCell>
-                    <TableCell align="right">{item.cantidadBase}</TableCell>
-                    <TableCell align="right">
-                      <IconButton size="small" color="error" onClick={() => handleRemoveItem(item.articuloId)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
+          {items.length > 0 && (() => {
+            let totalKgItems = 0;
+            return (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Artículo</TableCell>
+                    <TableCell align="right">Cantidad</TableCell>
+                    <TableCell align="right">Kg</TableCell>
+                    <TableCell />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+                </TableHead>
+                <TableBody>
+                  {items.map((item) => {
+                    const art = articulos.find(a => a.id === item.articuloId);
+                    const pesoKg = art?.pesoUnitarioKg ? item.cantidadBase * art.pesoUnitarioKg : null;
+                    if (pesoKg) totalKgItems += pesoKg;
+                    return (
+                      <TableRow key={item.articuloId}>
+                        <TableCell>{item.articuloNombre}</TableCell>
+                        <TableCell align="right">{item.cantidadBase}</TableCell>
+                        <TableCell align="right">
+                          {pesoKg != null
+                            ? <Typography variant="caption" color="text.secondary">{pesoKg.toFixed(1)} kg</Typography>
+                            : <Typography variant="caption" color="text.disabled">—</Typography>
+                          }
+                        </TableCell>
+                        <TableCell align="right">
+                          <IconButton size="small" color="error" onClick={() => handleRemoveItem(item.articuloId)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {totalKgItems > 0 && (
+                    <TableRow sx={{ bgcolor: 'primary.50' }}>
+                      <TableCell colSpan={2}>
+                        <Typography variant="caption" fontWeight="bold" color="text.secondary">PESO TOTAL ESTIMADO</Typography>
+                      </TableCell>
+                      <TableCell align="right" colSpan={2}>
+                        <Typography variant="body2" fontWeight="bold" color="primary.main">
+                          {totalKgItems.toFixed(1)} kg
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            );
+          })()}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setFormOpen(false)} disabled={saving}>Cancelar</Button>
