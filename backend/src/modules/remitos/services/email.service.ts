@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Resend } from 'resend';
+import * as nodemailer from 'nodemailer';
 
 const DIAS: string[] = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
 
@@ -10,43 +10,45 @@ function formatFechaCorta(fecha: Date): string {
 }
 
 export interface OpcionesEnvio {
-  /** Asunto personalizado. Si no se pasa, se genera automáticamente. */
   asunto?: string;
-  /** Destinatarios extra (array de emails). Si no se pasa, usa las vars de entorno. */
   destinatarios?: string[];
-  /** Texto adicional para incluir en el cuerpo del email. */
   textoExtra?: string;
 }
 
 @Injectable()
 export class EmailService {
-  private resend: Resend | null = null;
+  private transporter: nodemailer.Transporter | null = null;
 
   constructor() {
-    if (process.env.RESEND_API_KEY) {
-      this.resend = new Resend(process.env.RESEND_API_KEY);
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASSWORD;
+
+    if (user && pass) {
+      this.transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user, pass },
+      });
     } else {
-      console.warn('[EmailService] RESEND_API_KEY no configurada — los emails no se enviarán');
+      console.warn('[EmailService] SMTP_USER / SMTP_PASSWORD no configurados — los emails no se enviarán');
     }
   }
 
   async enviarRemito(remito: any, pdfBuffer: Buffer, opciones: OpcionesEnvio = {}) {
-    if (!this.resend) {
-      console.warn('[EmailService] Email no enviado: RESEND_API_KEY no configurada');
+    if (!this.transporter) {
+      console.warn('[EmailService] Email no enviado: credenciales SMTP no configuradas');
       return;
     }
+
     const fecha = new Date(remito.fecha);
     const diaSemana = DIAS[fecha.getDay()];
     const fechaCorta = formatFechaCorta(fecha);
     const nombreBenef = (remito.beneficiario.nombre as string).toUpperCase();
-    const pdfNombre = `${nombreBenef.replace(/\s+/g, '_')}_${fechaCorta.replace('-', '-')}.pdf`;
+    const pdfNombre = `${nombreBenef.replace(/\s+/g, '_')}_${fechaCorta}.pdf`;
 
-    // Asunto: PEDIDO LUNES 23-2 AMIGAS PLATENSES UNIDAS
     const asunto =
       opciones.asunto ||
       `PEDIDO ${diaSemana} ${fechaCorta} ${nombreBenef}`;
 
-    // Destinatarios: variables de entorno o custom
     const destinosDefault: string[] = [
       process.env.DEPOSITO_EMAIL_LOGISTICA,
       process.env.DEPOSITO_EMAIL_CITA,
@@ -57,9 +59,8 @@ export class EmailService {
         ? opciones.destinatarios
         : destinosDefault.length > 0
           ? destinosDefault
-          : [process.env.DEPOSITO_EMAIL || 'deposito@municipalidad.gob.ar'];
+          : ['deposito@municipalidad.gob.ar'];
 
-    // Responsable
     const responsable = remito.beneficiario.responsableNombre || '';
     const dni = remito.beneficiario.responsableDNI || '';
     const responsableTexto = responsable
@@ -68,7 +69,6 @@ export class EmailService {
 
     const cuerpoExtra = opciones.textoExtra ? `\n${opciones.textoExtra.toUpperCase()}` : '';
 
-    // Cuerpo en el estilo que usan (todo mayúsculas, simple)
     const text = [
       'ESTIMADO:',
       '',
@@ -82,17 +82,14 @@ export class EmailService {
       'MUCHAS GRACIAS !!',
     ].join('\n');
 
-    await this.resend!.emails.send({
-      from: process.env.RESEND_FROM || 'Inclusión Social <noreply@resend.dev>',
+    const from = process.env.SMTP_FROM || `Inclusión Social <${process.env.SMTP_USER}>`;
+
+    await this.transporter.sendMail({
+      from,
       to,
       subject: asunto,
       text,
-      attachments: [
-        {
-          filename: pdfNombre,
-          content: pdfBuffer,
-        },
-      ],
+      attachments: [{ filename: pdfNombre, content: pdfBuffer }],
     });
   }
 }
