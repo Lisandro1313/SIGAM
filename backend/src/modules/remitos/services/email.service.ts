@@ -1,12 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
+import * as https from 'https';
 
 const DIAS: string[] = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
 
 function formatFechaCorta(fecha: Date): string {
-  const d = fecha.getDate();
-  const m = fecha.getMonth() + 1;
-  return `${d}-${m}`;
+  return `${fecha.getDate()}-${fecha.getMonth() + 1}`;
 }
 
 export interface OpcionesEnvio {
@@ -17,29 +15,21 @@ export interface OpcionesEnvio {
 
 @Injectable()
 export class EmailService {
-  private transporter: nodemailer.Transporter | null = null;
+  private apiKey: string | null = null;
+  private fromEmail: string = 'dsminclusionsocial@gmail.com';
+  private fromName: string = 'Inclusión Social';
 
   constructor() {
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASSWORD;
-
-    if (user && pass) {
-      this.transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        family: 4,
-        auth: { user, pass },
-        tls: { rejectUnauthorized: false },
-      } as any);
-    } else {
-      console.warn('[EmailService] SMTP_USER / SMTP_PASSWORD no configurados — los emails no se enviarán');
+    this.apiKey = process.env.BREVO_API_KEY || null;
+    if (process.env.SMTP_USER) this.fromEmail = process.env.SMTP_USER;
+    if (!this.apiKey) {
+      console.warn('[EmailService] BREVO_API_KEY no configurada — los emails no se enviarán');
     }
   }
 
   async enviarRemito(remito: any, pdfBuffer: Buffer, opciones: OpcionesEnvio = {}) {
-    if (!this.transporter) {
-      console.warn('[EmailService] Email no enviado: credenciales SMTP no configuradas');
+    if (!this.apiKey) {
+      console.warn('[EmailService] Email no enviado: BREVO_API_KEY no configurada');
       return;
     }
 
@@ -49,16 +39,14 @@ export class EmailService {
     const nombreBenef = (remito.beneficiario.nombre as string).toUpperCase();
     const pdfNombre = `${nombreBenef.replace(/\s+/g, '_')}_${fechaCorta}.pdf`;
 
-    const asunto =
-      opciones.asunto ||
-      `PEDIDO ${diaSemana} ${fechaCorta} ${nombreBenef}`;
+    const asunto = opciones.asunto || `PEDIDO ${diaSemana} ${fechaCorta} ${nombreBenef}`;
 
     const destinosDefault: string[] = [
       process.env.DEPOSITO_EMAIL_LOGISTICA,
       process.env.DEPOSITO_EMAIL_CITA,
     ].filter(Boolean) as string[];
 
-    const to =
+    const destinos: string[] =
       opciones.destinatarios && opciones.destinatarios.length > 0
         ? opciones.destinatarios
         : destinosDefault.length > 0
@@ -73,27 +61,59 @@ export class EmailService {
 
     const cuerpoExtra = opciones.textoExtra ? `\n${opciones.textoExtra.toUpperCase()}` : '';
 
-    const text = [
+    const textContent = [
       'ESTIMADO:',
       '',
       `A CONTINUACIÓN TE ADJUNTO EL SIGUIENTE PEDIDO CON RESPONSABLE DE RETIRO: ${responsableTexto}.${cuerpoExtra}`,
       '',
       `REMITO N° ${remito.numero}`,
       `BENEFICIARIO: ${nombreBenef}`,
-      `DIRECCIÓN: ${(remito.beneficiario.direccion || '').toUpperCase()} ${remito.beneficiario.localidad ? '- ' + remito.beneficiario.localidad.toUpperCase() : ''}`.trim(),
+      `DIRECCIÓN: ${(remito.beneficiario.direccion || '').toUpperCase()}${remito.beneficiario.localidad ? ' - ' + remito.beneficiario.localidad.toUpperCase() : ''}`,
       `PROGRAMA: ${(remito.programa?.nombre || '').toUpperCase()}`,
       '',
       'MUCHAS GRACIAS !!',
     ].join('\n');
 
-    const from = process.env.SMTP_FROM || `Inclusión Social <${process.env.SMTP_USER}>`;
-
-    await this.transporter.sendMail({
-      from,
-      to,
+    const body = JSON.stringify({
+      sender: { name: this.fromName, email: this.fromEmail },
+      to: destinos.map(email => ({ email })),
       subject: asunto,
-      text,
-      attachments: [{ filename: pdfNombre, content: pdfBuffer }],
+      textContent,
+      attachment: [
+        {
+          name: pdfNombre,
+          content: pdfBuffer.toString('base64'),
+        },
+      ],
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const req = https.request(
+        {
+          hostname: 'api.brevo.com',
+          path: '/v3/smtp/email',
+          method: 'POST',
+          headers: {
+            'api-key': this.apiKey!,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+          },
+        },
+        (res) => {
+          let data = '';
+          res.on('data', chunk => (data += chunk));
+          res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 400) {
+              reject(new Error(`Brevo API error ${res.statusCode}: ${data}`));
+            } else {
+              resolve();
+            }
+          });
+        },
+      );
+      req.on('error', reject);
+      req.write(body);
+      req.end();
     });
   }
 }
