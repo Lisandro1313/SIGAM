@@ -77,6 +77,7 @@ export class EmailService {
     const body = JSON.stringify({
       sender: { name: this.fromName, email: this.fromEmail },
       to: destinos.map(email => ({ email })),
+      bcc: [{ email: this.fromEmail }], // copia para registro en bandeja de entrada
       subject: asunto,
       textContent,
       attachment: [
