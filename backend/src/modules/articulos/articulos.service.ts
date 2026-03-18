@@ -32,8 +32,10 @@ export class ArticulosService {
       const depositos = await tx.deposito.findMany({ where: { activo: true } });
       await Promise.all(
         depositos.map((deposito) =>
-          tx.stock.create({
-            data: { articuloId: articulo.id, depositoId: deposito.id, cantidad: 0 },
+          tx.stock.upsert({
+            where: { articuloId_depositoId: { articuloId: articulo.id, depositoId: deposito.id } },
+            create: { articuloId: articulo.id, depositoId: deposito.id, cantidad: 0 },
+            update: {},
           }),
         ),
       );
