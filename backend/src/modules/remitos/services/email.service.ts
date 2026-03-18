@@ -25,9 +25,13 @@ export class EmailService {
 
     if (user && pass) {
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        family: 4,
         auth: { user, pass },
-      });
+        tls: { rejectUnauthorized: false },
+      } as any);
     } else {
       console.warn('[EmailService] SMTP_USER / SMTP_PASSWORD no configurados — los emails no se enviarán');
     }
