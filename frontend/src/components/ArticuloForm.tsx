@@ -188,12 +188,12 @@ export default function ArticuloForm({
             onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
             margin="normal" placeholder="Ej: Alimentos, Lácteos, Granos..." disabled={readOnly} />
           <Box display="flex" gap={2}>
-            <TextField fullWidth label="Peso Unitario (kg)" type="number" value={formData.pesoUnitarioKg}
-              onChange={(e) => setFormData({ ...formData, pesoUnitarioKg: parseFloat(e.target.value) })}
+            <TextField fullWidth label="Peso Unitario (kg)" type="number" value={formData.pesoUnitarioKg ?? ''}
+              onChange={(e) => setFormData({ ...formData, pesoUnitarioKg: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
               margin="normal" inputProps={{ step: 0.01, min: 0 }} required
               helperText="Peso de una unidad" disabled={readOnly} />
-            <TextField fullWidth label="Stock Mínimo" type="number" value={formData.stockMinimo}
-              onChange={(e) => setFormData({ ...formData, stockMinimo: parseInt(e.target.value) })}
+            <TextField fullWidth label="Stock Mínimo" type="number" value={formData.stockMinimo ?? ''}
+              onChange={(e) => setFormData({ ...formData, stockMinimo: e.target.value === '' ? 0 : parseInt(e.target.value) })}
               margin="normal" inputProps={{ min: 0 }} required
               helperText="Alerta de stock" disabled={readOnly} />
           </Box>
