@@ -116,6 +116,7 @@ export default function RemitosPage() {
   const [emailRemito, setEmailRemito] = useState<any>(null);
   const [emailAsunto, setEmailAsunto] = useState('');
   const [emailDestinos, setEmailDestinos] = useState<string[]>([]);
+  const [emailDestinosExtra, setEmailDestinosExtra] = useState('');
   const [emailTextoExtra, setEmailTextoExtra] = useState('');
 
   const DEPOSITOS_EMAIL = [
@@ -207,6 +208,7 @@ export default function RemitosPage() {
       .filter(d => !codigoDeposito || codigoDeposito === 'CITA' ? d.codigo === 'CITA' : d.codigo === 'LOGISTICA')
       .map(d => d.email);
     setEmailDestinos(preseleccion.length > 0 ? preseleccion : DEPOSITOS_EMAIL.map(d => d.email));
+    setEmailDestinosExtra('');
     setEmailTextoExtra('');
     setEmailDialog(true);
   };
@@ -217,7 +219,9 @@ export default function RemitosPage() {
     try {
       const payload: any = {};
       if (emailAsunto) payload.asunto = emailAsunto;
-      if (emailDestinos.length > 0) payload.destinatarios = emailDestinos;
+      const extras = emailDestinosExtra.split(/[,;\n]+/).map(e => e.trim()).filter(Boolean);
+      const todos = [...emailDestinos, ...extras];
+      if (todos.length > 0) payload.destinatarios = todos;
       if (emailTextoExtra.trim()) payload.textoExtra = emailTextoExtra.trim();
 
       await api.post(`/remitos/${emailRemito.id}/enviar`, payload);
@@ -678,11 +682,21 @@ export default function RemitosPage() {
                 );
               })}
             </Box>
-            {emailDestinos.length === 0 && (
+            {emailDestinos.length === 0 && emailDestinosExtra.trim() === '' && (
               <Typography variant="caption" color="error" display="block" mt={0.5}>
                 Seleccioná al menos un destinatario
               </Typography>
             )}
+            <TextField
+              fullWidth
+              size="small"
+              label="Otro destinatario (opcional)"
+              value={emailDestinosExtra}
+              onChange={(e) => setEmailDestinosExtra(e.target.value)}
+              placeholder="otro@email.com, otro2@email.com"
+              helperText="Podés agregar más emails separados por coma"
+              sx={{ mt: 1.5 }}
+            />
           </Box>
 
           <Divider sx={{ my: 2 }} />
