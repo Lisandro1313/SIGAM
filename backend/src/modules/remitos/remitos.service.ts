@@ -291,6 +291,11 @@ export class RemitosService {
       where.secretaria = secretaria;
     }
 
+    // ASISTENCIA_CRITICA: solo ve los remitos de su programa
+    if (usuarioProgramaId) {
+      where.programaId = usuarioProgramaId;
+    }
+
     if (filtros.estado) {
       // Soporta multi-estado: ?estado=CONFIRMADO,ENVIADO o ?estado=CONFIRMADO&estado=ENVIADO
       const estados = Array.isArray(filtros.estado)
@@ -309,6 +314,15 @@ export class RemitosService {
     if (filtros.buscar) where.beneficiario = { nombre: { contains: filtros.buscar, mode: 'insensitive' } };
     if (filtros.depositoId && !usuarioDepositoId) where.depositoId = parseInt(filtros.depositoId);
     
+    if (filtros.busqueda) {
+      const q = String(filtros.busqueda).trim();
+      where.OR = [
+        { numero: { contains: q, mode: 'insensitive' } },
+        { beneficiario: { nombre: { contains: q, mode: 'insensitive' } } },
+        { beneficiario: { responsableDNI: { contains: q } } },
+      ];
+    }
+
     if (filtros.fechaDesde || filtros.fechaHasta) {
       where.fecha = {};
       if (filtros.fechaDesde) where.fecha.gte = new Date(filtros.fechaDesde);
@@ -321,6 +335,13 @@ export class RemitosService {
       if (filtros.entregadoDesde) where.entregadoAt.gte = new Date(filtros.entregadoDesde);
       if (filtros.entregadoHasta) where.entregadoAt.lte = new Date(filtros.entregadoHasta);
     }
+
+    // Por defecto excluir ENTREGADO (historial), a menos que se filtre explícitamente
+    if (!filtros.estado && !filtros.busqueda) {
+      where.estado = { not: 'ENTREGADO' };
+    }
+
+    const limite = filtros.busqueda ? 500 : 200;
 
     return await this.prisma.remito.findMany({
       where,
@@ -337,6 +358,7 @@ export class RemitosService {
       orderBy: {
         fecha: 'desc',
       },
+      take: limite,
     });
   }
 

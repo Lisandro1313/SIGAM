@@ -34,7 +34,9 @@ import {
   Delete as DeleteIcon,
   LocalShipping as EntregarIcon,
   PhotoCamera as FotoIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
+import InputAdornment from '@mui/material/InputAdornment';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
@@ -53,6 +55,7 @@ export default function RemitosPage() {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [tabPrograma, setTabPrograma] = useState<string>('todos');
+  const [busqueda, setBusqueda] = useState('');
   const { showNotification } = useNotificationStore();
   const { user } = useAuthStore();
   const puedeEntregar = user?.rol === 'ADMIN' || user?.rol === 'LOGISTICA' || user?.rol === 'ASISTENCIA_CRITICA';
@@ -95,7 +98,7 @@ export default function RemitosPage() {
       });
       showNotification('Remito marcado como entregado', 'success');
       setEntregarDialog(false);
-      loadRemitos();
+      loadRemitos(busqueda);
     } catch (error: any) {
       showNotification(error.response?.data?.message || 'Error al registrar entrega', 'error');
     } finally {
@@ -117,12 +120,15 @@ export default function RemitosPage() {
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    loadRemitos();
-  }, []);
+    const delay = setTimeout(() => loadRemitos(busqueda), busqueda ? 400 : 0);
+    return () => clearTimeout(delay);
+  }, [busqueda]);
 
-  const loadRemitos = async () => {
+  const loadRemitos = async (q?: string) => {
     try {
-      const response = await api.get('/remitos');
+      const params: any = {};
+      if (q?.trim()) params.busqueda = q.trim();
+      const response = await api.get('/remitos', { params });
       setRemitos(response.data);
     } catch (error) {
       console.error('Error cargando remitos:', error);
@@ -135,7 +141,7 @@ export default function RemitosPage() {
     try {
       await api.post(`/remitos/${id}/confirmar`);
       showNotification('Remito confirmado. El stock fue descontado.', 'success');
-      loadRemitos();
+      loadRemitos(busqueda);
     } catch (error: any) {
       showNotification(error.response?.data?.message || 'Error al confirmar remito', 'error');
     }
@@ -160,7 +166,7 @@ export default function RemitosPage() {
     try {
       await api.delete(`/remitos/${id}`);
       showNotification('Remito eliminado', 'success');
-      loadRemitos();
+      loadRemitos(busqueda);
     } catch (error: any) {
       showNotification(error.response?.data?.message || 'Error al eliminar', 'error');
     }
@@ -212,7 +218,7 @@ export default function RemitosPage() {
       await api.post(`/remitos/${emailRemito.id}/enviar`, payload);
       showNotification('Email enviado correctamente', 'success');
       setEmailDialog(false);
-      loadRemitos();
+      loadRemitos(busqueda);
     } catch (error: any) {
       showNotification(error.response?.data?.message || 'Error al enviar email', 'error');
     } finally {
@@ -226,7 +232,7 @@ export default function RemitosPage() {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4" fontWeight="bold">
           Remitos
         </Typography>
@@ -235,6 +241,23 @@ export default function RemitosPage() {
             Nuevo Remito
           </Button>
         )}
+      </Box>
+
+      <Box mb={2}>
+        <TextField
+          size="small"
+          placeholder="Buscar por nombre, DNI o número de remito..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ width: 380 }}
+        />
       </Box>
 
       {/* Tabs por programa */}
