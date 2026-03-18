@@ -11,25 +11,35 @@ export class ArticulosService {
   ) {}
 
   async create(createArticuloDto: CreateArticuloDto) {
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const articulo = await tx.articulo.create({ data: createArticuloDto });
-
-        const depositos = await tx.deposito.findMany({ where: { activo: true } });
-        await Promise.all(
-          depositos.map((deposito) =>
-            tx.stock.create({
-              data: { articuloId: articulo.id, depositoId: deposito.id, cantidad: 0 },
-            }),
-          ),
-        );
-
-        return articulo;
+    // Si ya existe (activo o no), reactivarlo en vez de fallar
+    const existente = await this.prisma.articulo.findUnique({
+      where: { nombre: createArticuloDto.nombre },
+    });
+    if (existente) {
+      if (existente.activo) {
+        throw new ConflictException('Ya existe un artículo con ese nombre');
+      }
+      // Reactivar artículo desactivado
+      return this.prisma.articulo.update({
+        where: { id: existente.id },
+        data: { ...createArticuloDto, activo: true },
       });
-    } catch (e: any) {
-      if (e.code === 'P2002') throw new ConflictException('Ya existe un artículo con ese nombre');
-      throw e;
     }
+
+    return await this.prisma.$transaction(async (tx) => {
+      const articulo = await tx.articulo.create({ data: createArticuloDto });
+
+      const depositos = await tx.deposito.findMany({ where: { activo: true } });
+      await Promise.all(
+        depositos.map((deposito) =>
+          tx.stock.create({
+            data: { articuloId: articulo.id, depositoId: deposito.id, cantidad: 0 },
+          }),
+        ),
+      );
+
+      return articulo;
+    });
   }
 
   async findAll(secretaria?: string | null) {
