@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Box, Grid, Card, CardContent, Typography,
   Paper, Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, Chip, Divider, List, ListItem, ListItemText,
+  TableRow, Chip, Divider, List, ListItem, ListItemText, Tabs, Tab,
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [data, setData] = useState<any>(null);
   const [stockAlertas, setStockAlertas] = useState<any[]>([]);
   const [lotesProximos, setLotesProximos] = useState<any[]>([]);
+  const [tabDashPrograma, setTabDashPrograma] = useState<string>('todos');
   const user = useAuthStore(s => s.user);
 
   useEffect(() => {
@@ -76,43 +77,65 @@ export default function Dashboard() {
         {/* Remitos del día */}
         <Grid item xs={12} md={6}>
           <Paper elevation={2} sx={{ p: 2 }}>
-            <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <Box display="flex" alignItems="center" gap={1} mb={1}>
               <TodayIcon color="primary" />
               <Typography variant="h6" fontWeight="bold">Remitos de hoy y mañana</Typography>
             </Box>
-            <Divider sx={{ mb: 1 }} />
             {(!data?.remitosDelDia || data.remitosDelDia.length === 0) ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
-                No hay remitos generados hoy
-              </Typography>
-            ) : (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>N°</TableCell>
-                      <TableCell>Beneficiario</TableCell>
-                      <TableCell align="right">Kg</TableCell>
-                      <TableCell align="center">Estado</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {data.remitosDelDia.map((r: any) => (
-                      <TableRow key={r.id} hover>
-                        <TableCell><strong>{r.numero}</strong></TableCell>
-                        <TableCell sx={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {r.beneficiario}
-                        </TableCell>
-                        <TableCell align="right">{r.totalKg?.toFixed(1)}</TableCell>
-                        <TableCell align="center">
-                          <Chip label={r.estado} size="small" color={ESTADO_COLOR[r.estado] || 'default'} />
-                        </TableCell>
-                      </TableRow>
+              <>
+                <Divider sx={{ mb: 1 }} />
+                <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+                  No hay remitos generados hoy
+                </Typography>
+              </>
+            ) : (() => {
+              const programasUnicos = ['todos', ...Array.from(new Set<string>(data.remitosDelDia.map((r: any) => r.programa as string))).sort()];
+              const remFiltrados = tabDashPrograma === 'todos'
+                ? data.remitosDelDia
+                : data.remitosDelDia.filter((r: any) => r.programa === tabDashPrograma);
+              return (
+                <>
+                  <Tabs
+                    value={programasUnicos.includes(tabDashPrograma) ? tabDashPrograma : 'todos'}
+                    onChange={(_e, v) => setTabDashPrograma(v)}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    sx={{ mb: 1, minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5, fontSize: '0.75rem' } }}
+                  >
+                    {programasUnicos.map(p => (
+                      <Tab key={p} label={p === 'todos' ? 'Todos' : p} value={p} />
                     ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
+                  </Tabs>
+                  <Divider sx={{ mb: 1 }} />
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>N°</TableCell>
+                          <TableCell>Beneficiario</TableCell>
+                          <TableCell align="right">Kg</TableCell>
+                          <TableCell align="center">Estado</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {remFiltrados.map((r: any) => (
+                          <TableRow key={r.id} hover>
+                            <TableCell><strong>{r.numero}</strong></TableCell>
+                            <TableCell sx={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {r.beneficiario}
+                            </TableCell>
+                            <TableCell align="right">{r.totalKg?.toFixed(1)}</TableCell>
+                            <TableCell align="center">
+                              <Chip label={r.estado} size="small" color={ESTADO_COLOR[r.estado] || 'default'} />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </>
+              );
+            })()}
           </Paper>
         </Grid>
 

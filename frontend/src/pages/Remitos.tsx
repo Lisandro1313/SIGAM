@@ -183,7 +183,8 @@ export default function RemitosPage() {
       const params: any = {};
       if (q?.trim()) params.busqueda = q.trim();
       const response = await api.get('/remitos', { params });
-      setRemitos(response.data);
+      const sorted = [...response.data].sort((a: any, b: any) => b.numero - a.numero);
+      setRemitos(sorted);
     } catch (error) {
       console.error('Error cargando remitos:', error);
     } finally {
