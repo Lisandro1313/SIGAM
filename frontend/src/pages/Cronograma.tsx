@@ -8,10 +8,11 @@ import {
 import {
   ChevronLeft, ChevronRight, Add as AddIcon, Delete as DeleteIcon,
   Receipt as ReceiptIcon, Today as TodayIcon, PlaylistAdd as PasteIcon,
-  AutoAwesome as GenerarIcon,
+  AutoAwesome as GenerarIcon, PersonAdd as PersonAddIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
+import BeneficiarioForm from '../components/BeneficiarioForm';
 
 interface Beneficiario {
   id: number; nombre: string; tipo: string;
@@ -84,6 +85,9 @@ export default function CronogramaPage() {
 
   // Últimas entregas por beneficiario
   const [ultimasEntregas, setUltimasEntregas] = useState<Record<number, UltimaEntrega>>({});
+
+  // Nuevo beneficiario desde cronograma
+  const [openNuevoBen, setOpenNuevoBen] = useState(false);
 
   const semanaFin = addDays(semanaInicio, 6);
   const semanaLabel = `${semanaInicio.getDate()} ${MESES_ES[semanaInicio.getMonth()]} - ${semanaFin.getDate()} ${MESES_ES[semanaFin.getMonth()]} ${semanaFin.getFullYear()}`;
@@ -332,7 +336,7 @@ export default function CronogramaPage() {
                 return (
                   <Paper key={fila.tempId} elevation={0} sx={{display:'grid',gridTemplateColumns:GRID,alignItems:'center',borderBottom:'1px solid #e8e8e8',bgcolor:tieneRemito?'#f0f7ff':!fila.id&&ben?'#fffde7':'#fff','&:hover':{bgcolor:tieneRemito?'#e3f0fb':'#f5f5f5'},px:0.5,py:0.25,minHeight:44}}>
                     {/* Espacio */}
-                    <Box px={0.5}>
+                    <Box px={0.5} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <Autocomplete size="small" options={bens} getOptionLabel={o=>o.nombre} value={ben}
                         onChange={(_,v)=>handleSelectBen(dia.fecha,fila,v)} disabled={tieneRemito}
                         filterOptions={(opts,{inputValue})=>opts.filter(o=>o.nombre.toLowerCase().includes(inputValue.toLowerCase()))}
@@ -342,7 +346,15 @@ export default function CronogramaPage() {
                           return <li {...props} key={o.id}><Box><Typography variant="body2" fontWeight="bold">{o.nombre}</Typography><Typography variant="caption" color="text.secondary">{o.tipo}{o.programa?` · ${o.programa.nombre}`:''}{o.kilosHabitual?` · ${o.kilosHabitual}kg`:''}{ult?` · Últ: ${ult.fecha}`:''}</Typography></Box></li>;
                         }}
                         noOptionsText="Sin resultados"
+                        sx={{ flex: 1 }}
                       />
+                      {!tieneRemito && (
+                        <Tooltip title="Crear nuevo beneficiario">
+                          <IconButton size="small" onClick={() => setOpenNuevoBen(true)} sx={{ flexShrink: 0, p: 0.25 }}>
+                            <PersonAddIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </Box>
                     {/* Referente */}
                     <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.responsableNombre??'—'}</Typography></Box>
@@ -465,6 +477,16 @@ export default function CronogramaPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <BeneficiarioForm
+        open={openNuevoBen}
+        onClose={() => setOpenNuevoBen(false)}
+        onSuccess={async () => {
+          setOpenNuevoBen(false);
+          const r = await api.get('/beneficiarios?limit=500');
+          setTodosLosBens(r.data?.data ?? r.data);
+        }}
+      />
     </Box>
   );
 }
