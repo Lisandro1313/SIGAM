@@ -63,7 +63,9 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
   const [beneficiarioId, setBeneficiarioId] = useState('');
   const [programaId, setProgramaId] = useState('');
   const [depositoId, setDepositoId] = useState('');
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const manana = new Date(); manana.setDate(manana.getDate() + 1);
+  const [fecha, setFecha] = useState(manana.toISOString().split('T')[0]);
+  const [horaRetiro, setHoraRetiro] = useState('11:00');
 
   const [openNuevoBeneficiario, setOpenNuevoBeneficiario] = useState(false);
   const [ultimaEntrega, setUltimaEntrega] = useState<string | null | 'loading'>('loading');
@@ -207,6 +209,8 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
         beneficiarioId: parseInt(beneficiarioId),
         depositoId: parseInt(depositoId),
         programaId: programaId ? parseInt(programaId) : undefined,
+        fecha,
+        horaRetiro,
         items: items.map((item) => ({
           articuloId: item.articuloId,
           cantidad: item.cantidad,
@@ -228,7 +232,9 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
     setBeneficiarioId('');
     setProgramaId('');
     setDepositoId('');
-    setFecha(new Date().toISOString().split('T')[0]);
+    const m = new Date(); m.setDate(m.getDate() + 1);
+    setFecha(m.toISOString().split('T')[0]);
+    setHoraRetiro('11:00');
     setItems([]);
     setSelectedArticuloId('');
     setCantidad('');
@@ -356,15 +362,26 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
               </Select>
             </FormControl>
 
-            <TextField
-              fullWidth
-              required
-              label="Fecha"
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                fullWidth
+                required
+                label="Fecha"
+                type="date"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                sx={{ width: 160 }}
+                label="Hora de retiro"
+                type="time"
+                value={horaRetiro}
+                onChange={(e) => setHoraRetiro(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                helperText="Por defecto: 11:00"
+              />
+            </Box>
           </Box>
         )}
 

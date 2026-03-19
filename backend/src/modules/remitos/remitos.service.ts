@@ -82,6 +82,12 @@ export class RemitosService {
       }
     }
 
+    let fechaRemito: Date | undefined;
+    if (createRemitoDto.fecha) {
+      const hora = createRemitoDto.horaRetiro || '11:00';
+      fechaRemito = new Date(`${createRemitoDto.fecha}T${hora}:00`);
+    }
+
     const remito = await this.prisma.remito.create({
       data: {
         numero,
@@ -92,6 +98,7 @@ export class RemitosService {
         totalKg,
         observaciones: createRemitoDto.observaciones,
         secretaria,
+        ...(fechaRemito ? { fecha: fechaRemito } : {}),
         items: {
           create: createRemitoDto.items.map((item) => ({
             articuloId: item.articuloId,
@@ -464,5 +471,45 @@ export class RemitosService {
     });
 
     return { success: true, message: 'Remito eliminado' };
+  }
+
+  async reprogramar(id: number, fecha: string, horaRetiro?: string) {
+    const remito = await this.prisma.remito.findUnique({ where: { id } });
+    if (!remito) throw new NotFoundException('Remito no encontrado');
+    const hora = horaRetiro || '11:00';
+    const nuevaFecha = new Date(`${fecha}T${hora}:00`);
+    return this.prisma.remito.update({
+      where: { id },
+      data: { fecha: nuevaFecha },
+      include: { beneficiario: true, programa: true, deposito: true },
+    });
+  }
+
+  async anular(id: number) {
+    const remito = await this.prisma.remito.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!remito) throw new NotFoundException('Remito no encontrado');
+    if (remito.estado === RemitoEstado.ENTREGADO) {
+      throw new BadRequestException('No se puede anular un remito ya entregado');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Si estaba confirmado/enviado, devolver el stock
+      if (remito.estado === RemitoEstado.CONFIRMADO || remito.estado === RemitoEstado.ENVIADO) {
+        for (const item of remito.items) {
+          if (remito.depositoId) {
+            await tx.stock.update({
+              where: { articuloId_depositoId: { articuloId: item.articuloId, depositoId: remito.depositoId } },
+              data: { cantidad: { increment: item.cantidad } },
+            });
+          }
+        }
+      }
+      await tx.remito.delete({ where: { id } });
+    });
+
+    return { success: true, message: 'Remito anulado y stock restaurado' };
   }
 }

@@ -38,6 +38,16 @@ export class CreateRemitoDto {
   @IsOptional()
   observaciones?: string;
 
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  fecha?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  horaRetiro?: string;
+
   @ApiProperty({ type: [RemitoItemDto] })
   @IsArray()
   @ValidateNested({ each: true })

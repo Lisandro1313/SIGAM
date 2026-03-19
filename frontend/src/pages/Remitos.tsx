@@ -35,6 +35,8 @@ import {
   LocalShipping as EntregarIcon,
   PhotoCamera as FotoIcon,
   Search as SearchIcon,
+  EventRepeat as ReprogramarIcon,
+  Cancel as AnularIcon,
 } from '@mui/icons-material';
 import InputAdornment from '@mui/material/InputAdornment';
 import { format } from 'date-fns';
@@ -71,6 +73,52 @@ export default function RemitosPage() {
     : tabPrograma === 'sin_programa'
     ? remitos.filter(r => !r.programa)
     : remitos.filter(r => String(r.programa?.id) === tabPrograma);
+
+  // Estado diálogo reprogramar/anular
+  const [gestionDialog, setGestionDialog] = useState(false);
+  const [gestionRemito, setGestionRemito] = useState<any>(null);
+  const [gestionFecha, setGestionFecha] = useState('');
+  const [gestionHora, setGestionHora] = useState('11:00');
+  const [gestionando, setGestionando] = useState(false);
+
+  const abrirGestion = (remito: any) => {
+    const f = new Date(remito.fecha);
+    setGestionFecha(f.toISOString().split('T')[0]);
+    setGestionHora(f.toTimeString().slice(0, 5));
+    setGestionRemito(remito);
+    setGestionDialog(true);
+  };
+
+  const handleReprogramar = async () => {
+    if (!gestionRemito || !gestionFecha) return;
+    setGestionando(true);
+    try {
+      await api.patch(`/remitos/${gestionRemito.id}/reprogramar`, { fecha: gestionFecha, horaRetiro: gestionHora });
+      showNotification('Remito reprogramado', 'success');
+      setGestionDialog(false);
+      loadRemitos(busqueda);
+    } catch (error: any) {
+      showNotification(error.response?.data?.message || 'Error al reprogramar', 'error');
+    } finally {
+      setGestionando(false);
+    }
+  };
+
+  const handleAnular = async () => {
+    if (!gestionRemito) return;
+    if (!window.confirm(`¿Anular el remito ${gestionRemito.numero}? ${gestionRemito.estado !== 'BORRADOR' ? 'El stock será restaurado.' : ''}`)) return;
+    setGestionando(true);
+    try {
+      await api.delete(`/remitos/${gestionRemito.id}/anular`);
+      showNotification('Remito anulado y stock restaurado', 'success');
+      setGestionDialog(false);
+      loadRemitos(busqueda);
+    } catch (error: any) {
+      showNotification(error.response?.data?.message || 'Error al anular', 'error');
+    } finally {
+      setGestionando(false);
+    }
+  };
 
   // Estado del diálogo de entregar
   const [entregarDialog, setEntregarDialog] = useState(false);
@@ -386,6 +434,13 @@ export default function RemitosPage() {
                       </IconButton>
                     </Tooltip>
                   )}
+                  {(remito.estado === 'CONFIRMADO' || remito.estado === 'ENVIADO' || remito.estado === 'BORRADOR') && puedeCrear && (
+                    <Tooltip title="Reprogramar / Anular">
+                      <IconButton size="small" color="warning" onClick={() => abrirGestion(remito)}>
+                        <ReprogramarIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   {remito.estado === 'ENTREGADO' && (
                     <Tooltip title="Ver comprobante de entrega">
                       <IconButton size="small" color="primary" onClick={() => handleDescargarPdf(remito)}>
@@ -401,6 +456,57 @@ export default function RemitosPage() {
       </TableContainer>
 
       <RemitoForm open={formOpen} onClose={() => setFormOpen(false)} onSuccess={loadRemitos} />
+
+      {/* Diálogo: Reprogramar / Anular */}
+      <Dialog open={gestionDialog} onClose={() => setGestionDialog(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ReprogramarIcon color="warning" />
+          Gestionar remito {gestionRemito?.numero}
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            {gestionRemito?.beneficiario?.nombre} — {gestionRemito?.estado}
+          </Alert>
+          <Box display="flex" gap={2} mt={1}>
+            <TextField
+              fullWidth
+              label="Nueva fecha"
+              type="date"
+              value={gestionFecha}
+              onChange={(e) => setGestionFecha(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              sx={{ width: 140 }}
+              label="Hora"
+              type="time"
+              value={gestionHora}
+              onChange={(e) => setGestionHora(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            color="error"
+            startIcon={gestionando ? <CircularProgress size={16} /> : <AnularIcon />}
+            onClick={handleAnular}
+            disabled={gestionando}
+          >
+            Anular remito
+          </Button>
+          <Box flex={1} />
+          <Button onClick={() => setGestionDialog(false)} disabled={gestionando}>Cancelar</Button>
+          <Button
+            variant="contained"
+            startIcon={gestionando ? <CircularProgress size={16} /> : <ReprogramarIcon />}
+            onClick={handleReprogramar}
+            disabled={gestionando || !gestionFecha}
+          >
+            Reprogramar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Diálogo de detalle del remito */}
       <Dialog open={detalleDialog} onClose={() => setDetalleDialog(false)} maxWidth="md" fullWidth>

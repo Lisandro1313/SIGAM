@@ -160,6 +160,20 @@ export class RemitosController {
     return this.remitosService.findOne(+id);
   }
 
+  @Patch(':id/reprogramar')
+  @ApiOperation({ summary: 'Reprogramar fecha/hora de un remito' })
+  @Roles('ADMIN', 'LOGISTICA')
+  reprogramar(@Param('id') id: string, @Body() body: { fecha: string; horaRetiro?: string }) {
+    return this.remitosService.reprogramar(+id, body.fecha, body.horaRetiro);
+  }
+
+  @Delete(':id/anular')
+  @ApiOperation({ summary: 'Anular remito (revierte stock si estaba confirmado)' })
+  @Roles('ADMIN', 'LOGISTICA')
+  anular(@Param('id') id: string) {
+    return this.remitosService.anular(+id);
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar remito (solo borrador)' })
   @Roles('ADMIN', 'LOGISTICA')
