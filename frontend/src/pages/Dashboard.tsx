@@ -78,7 +78,7 @@ export default function Dashboard() {
           <Paper elevation={2} sx={{ p: 2 }}>
             <Box display="flex" alignItems="center" gap={1} mb={2}>
               <TodayIcon color="primary" />
-              <Typography variant="h6" fontWeight="bold">Remitos de hoy</Typography>
+              <Typography variant="h6" fontWeight="bold">Remitos de hoy y mañana</Typography>
             </Box>
             <Divider sx={{ mb: 1 }} />
             {(!data?.remitosDelDia || data.remitosDelDia.length === 0) ? (

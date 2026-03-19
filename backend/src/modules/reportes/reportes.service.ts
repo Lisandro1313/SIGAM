@@ -346,6 +346,8 @@ export class ReportesService {
     hoy.setHours(0, 0, 0, 0);
     const manana = new Date(hoy);
     manana.setDate(manana.getDate() + 1);
+    const pasadoManana = new Date(hoy);
+    pasadoManana.setDate(pasadoManana.getDate() + 2);
     const en7dias = new Date(hoy);
     en7dias.setDate(en7dias.getDate() + 7);
     const inicioMes = startOfMonth(new Date());
@@ -356,7 +358,7 @@ export class ReportesService {
     const [remitosDelDia, remitosRecientes, proximasEntregas, remitosDelMes, kgDelMes] =
       await Promise.all([
         this.prisma.remito.findMany({
-          where: { fecha: { gte: hoy, lt: manana }, ...secFilter },
+          where: { fecha: { gte: hoy, lt: pasadoManana }, ...secFilter },
           include: {
             beneficiario: { select: { nombre: true } },
             programa: { select: { nombre: true } },

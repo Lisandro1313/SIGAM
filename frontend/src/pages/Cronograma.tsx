@@ -135,7 +135,7 @@ export default function CronogramaPage() {
         });
       });
       const nuevoDias: DiaEntry[] = [];
-      for (let i=0; i<6; i++) {
+      for (let i=0; i<7; i++) {
         const fecha = toDateStr(addDays(semanaInicio,i));
         nuevoDias.push({ fecha, filas: map[fecha] ?? [] });
       }
