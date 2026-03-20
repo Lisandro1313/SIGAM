@@ -16,7 +16,7 @@ import {
   ExpandMore as ExpandIcon, ExpandLess as CollapseIcon, CheckCircle as CheckIcon,
   Edit as EditIcon, CloudUpload as UploadIcon, Person as PersonIcon,
 } from '@mui/icons-material';
-import { format, subDays } from 'date-fns';
+import { format, subDays, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
 import ExportExcelButton from '../components/ExportExcelButton';
@@ -34,8 +34,8 @@ export default function HistorialEntregas() {
   const [tabPrograma, setTabPrograma] = useState<string>('todos');
 
   // Filtros
-  const [fechaDesde, setFechaDesde]       = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
-  const [fechaHasta, setFechaHasta]       = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [fechaDesde, setFechaDesde]       = useState(format(subDays(new Date(), 365), 'yyyy-MM-dd'));
+  const [fechaHasta, setFechaHasta]       = useState(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
   const [depositoFiltro, setDepositoFiltro] = useState('');
   const [programaFiltro, setProgramaFiltro] = useState('');
   const [buscar, setBuscar]               = useState('');
