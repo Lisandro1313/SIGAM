@@ -264,7 +264,9 @@ export default function BeneficiariosPage() {
     (b) =>
       b.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (b.localidad && b.localidad.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (b.direccion && b.direccion.toLowerCase().includes(searchTerm.toLowerCase()))
+      (b.direccion && b.direccion.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (b.responsableDNI && b.responsableDNI.includes(searchTerm)) ||
+      (b.responsableNombre && b.responsableNombre.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const paginatedBeneficiarios = filteredBeneficiarios.slice(
@@ -305,7 +307,7 @@ export default function BeneficiariosPage() {
         <SearchBar
           value={searchTerm}
           onChange={setSearchTerm}
-          placeholder="Buscar por nombre, localidad o dirección..."
+          placeholder="Buscar por nombre, DNI, responsable, localidad..."
         />
       </Box>
 
@@ -341,6 +343,12 @@ export default function BeneficiariosPage() {
                     >
                       {beneficiario.nombre}
                     </Box>
+                    {beneficiario.responsableDNI && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        DNI: {beneficiario.responsableDNI}
+                        {beneficiario.responsableNombre ? ` · ${beneficiario.responsableNombre}` : ''}
+                      </Typography>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Chip label={beneficiario.tipo} size="small" />
