@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Grid, Card, CardContent,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tab, Tabs, Select, MenuItem, FormControl, InputLabel, Button,
-  Chip, LinearProgress, Tooltip,
+  Chip, LinearProgress, Tooltip, TextField, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -12,6 +12,8 @@ import {
 import {
   Refresh as RefreshIcon,
   TrendingUp, Group, Inventory, Assignment,
+  CalendarMonth as MesIcon,
+  DateRange as RangoIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import ExportExcelButton from '../components/ExportExcelButton';
@@ -32,8 +34,13 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(false);
 
   // Filtros globales
+  const [modoFiltro, setModoFiltro] = useState<'mes' | 'rango'>('mes');
   const [mes, setMes]   = useState(hoy.getMonth() + 1);
   const [anio, setAnio] = useState(hoy.getFullYear());
+  const [fechaDesde, setFechaDesde] = useState(
+    new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10)
+  );
+  const [fechaHasta, setFechaHasta] = useState(hoy.toISOString().slice(0, 10));
   const [programaId, setProgramaId] = useState<number | ''>('');
   const [programas, setProgramas] = useState<any[]>([]);
 
@@ -65,10 +72,14 @@ export default function ReportesPage() {
   const loadFiltrados = useCallback(async () => {
     setLoading(true);
     try {
-      const params = `mes=${mes}&anio=${anio}`;
+      // Construir params según modo
+      const paramsMes = `mes=${mes}&anio=${anio}`;
+      const paramsRango = `fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`;
+      const params = modoFiltro === 'rango' ? paramsRango : paramsMes;
       const pId = programaId ? `&programaId=${programaId}` : '';
+
       const [kilosRes, artRes, progRes, remRes, entRes] = await Promise.all([
-        api.get(`/reportes/kilos-por-mes?${params}`),
+        api.get(`/reportes/kilos-por-mes?${modoFiltro === 'mes' ? paramsMes : ''}`),
         api.get(`/reportes/articulos-mas-distribuidos?${params}`),
         api.get(`/reportes/entregas-por-programa?${params}`),
         api.get(`/reportes/remitos-detalle?${params}${pId}`),
@@ -81,11 +92,14 @@ export default function ReportesPage() {
       setResumenEntregas(entRes.data);
     } catch { /* silent */ }
     finally { setLoading(false); }
-  }, [mes, anio, programaId]);
+  }, [mes, anio, fechaDesde, fechaHasta, modoFiltro, programaId]);
 
   useEffect(() => { loadFiltrados(); }, [loadFiltrados]);
 
   const anios = Array.from({ length: 5 }, (_, i) => hoy.getFullYear() - i);
+  const labelPeriodo = modoFiltro === 'rango'
+    ? `${fechaDesde} al ${fechaHasta}`
+    : `${MESES_NOMBRE[mes - 1]} ${anio}`;
 
   const pieData = entregasPorPrograma
     .filter(p => p.totalKilos > 0)
@@ -103,18 +117,46 @@ export default function ReportesPage() {
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={1}>
         <Typography variant="h4" fontWeight="bold">Reportes</Typography>
         <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-          <FormControl size="small" sx={{ minWidth: 130 }}>
-            <InputLabel>Mes</InputLabel>
-            <Select value={mes} label="Mes" onChange={e => setMes(Number(e.target.value))}>
-              {MESES_NOMBRE.map((m, i) => <MenuItem key={i+1} value={i+1}>{m}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 90 }}>
-            <InputLabel>Año</InputLabel>
-            <Select value={anio} label="Año" onChange={e => setAnio(Number(e.target.value))}>
-              {anios.map(a => <MenuItem key={a} value={a}>{a}</MenuItem>)}
-            </Select>
-          </FormControl>
+          <ToggleButtonGroup
+            value={modoFiltro}
+            exclusive
+            onChange={(_, v) => { if (v) setModoFiltro(v); }}
+            size="small"
+          >
+            <ToggleButton value="mes"><MesIcon sx={{ mr: 0.5, fontSize: 18 }} />Por mes</ToggleButton>
+            <ToggleButton value="rango"><RangoIcon sx={{ mr: 0.5, fontSize: 18 }} />Rango</ToggleButton>
+          </ToggleButtonGroup>
+
+          {modoFiltro === 'mes' ? (
+            <>
+              <FormControl size="small" sx={{ minWidth: 130 }}>
+                <InputLabel>Mes</InputLabel>
+                <Select value={mes} label="Mes" onChange={e => setMes(Number(e.target.value))}>
+                  {MESES_NOMBRE.map((m, i) => <MenuItem key={i+1} value={i+1}>{m}</MenuItem>)}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 90 }}>
+                <InputLabel>Año</InputLabel>
+                <Select value={anio} label="Año" onChange={e => setAnio(Number(e.target.value))}>
+                  {anios.map(a => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </>
+          ) : (
+            <>
+              <TextField
+                size="small" type="date" label="Desde" value={fechaDesde}
+                onChange={e => setFechaDesde(e.target.value)}
+                InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }}
+              />
+              <TextField
+                size="small" type="date" label="Hasta" value={fechaHasta}
+                onChange={e => setFechaHasta(e.target.value)}
+                InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }}
+              />
+            </>
+          )}
+
           <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel>Programa</InputLabel>
             <Select value={programaId} label="Programa" onChange={e => setProgramaId(e.target.value as number | '')}>
@@ -169,7 +211,7 @@ export default function ReportesPage() {
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper elevation={2} sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>Kilos distribuidos — {MESES_NOMBRE[mes-1]} {anio}</Typography>
+              <Typography variant="h6" gutterBottom>Kilos distribuidos — {labelPeriodo}</Typography>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={kilosPorMes}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -204,7 +246,7 @@ export default function ReportesPage() {
             <Paper elevation={2} sx={{ p: 3 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                 <Typography variant="h6">Por programa</Typography>
-                <ExportExcelButton data={entregasPorPrograma} fileName={`por-programa-${mes}-${anio}`} sheetName="Programas" label="Exportar" />
+                <ExportExcelButton data={entregasPorPrograma} fileName={`por-programa-${labelPeriodo.replace(/ /g,'_')}`} sheetName="Programas" label="Exportar" />
               </Box>
               <TableContainer>
                 <Table size="small">
@@ -237,9 +279,9 @@ export default function ReportesPage() {
           <Grid item xs={12}>
             <Paper elevation={2} sx={{ p: 3 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">Entregas del cronograma — {MESES_NOMBRE[mes-1]} {anio}</Typography>
+                <Typography variant="h6">Entregas del cronograma — {labelPeriodo}</Typography>
                 {resumenEntregas && (
-                  <ExportExcelButton data={resumenEntregas.detalle} fileName={`entregas-${mes}-${anio}`} sheetName="Entregas" label="Exportar" />
+                  <ExportExcelButton data={resumenEntregas.detalle} fileName={`entregas-${labelPeriodo.replace(/ /g,'_')}`} sheetName="Entregas" label="Exportar" />
                 )}
               </Box>
               {resumenEntregas ? (
@@ -342,8 +384,8 @@ export default function ReportesPage() {
           <Grid item xs={12} md={7}>
             <Paper elevation={2} sx={{ p: 3 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                <Typography variant="h6">Artículos más distribuidos — {MESES_NOMBRE[mes-1]} {anio}</Typography>
-                <ExportExcelButton data={topArticulos} fileName={`articulos-${mes}-${anio}`} sheetName="Artículos" label="Exportar" />
+                <Typography variant="h6">Artículos más distribuidos — {labelPeriodo}</Typography>
+                <ExportExcelButton data={topArticulos} fileName={`articulos-${labelPeriodo.replace(/ /g,'_')}`} sheetName="Artículos" label="Exportar" />
               </Box>
               <ResponsiveContainer width="100%" height={320}>
                 <BarChart data={topArticulos.slice(0, 10)} layout="vertical" margin={{ left: 20 }}>
@@ -391,10 +433,10 @@ export default function ReportesPage() {
         <Paper elevation={2} sx={{ p: 3 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6">
-              Remitos — {MESES_NOMBRE[mes-1]} {anio}
+              Remitos — {labelPeriodo}
               {programaId ? ` · ${programas.find(p=>p.id===programaId)?.nombre}` : ''}
             </Typography>
-            <ExportExcelButton data={remitosDetalle} fileName={`remitos-${mes}-${anio}`} sheetName="Remitos" label={`Exportar (${remitosDetalle.length})`} />
+            <ExportExcelButton data={remitosDetalle} fileName={`remitos-${labelPeriodo.replace(/ /g,'_')}`} sheetName="Remitos" label={`Exportar (${remitosDetalle.length})`} />
           </Box>
           <TableContainer sx={{ maxHeight: 500 }}>
             <Table size="small" stickyHeader>
