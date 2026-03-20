@@ -36,6 +36,13 @@ function getSecretaria(req: any): string | null {
 export class ReportesController {
   constructor(private readonly reportesService: ReportesService) {}
 
+  @Get('notificaciones')
+  @ApiOperation({ summary: 'Notificaciones operativas para el top bar' })
+  @Roles('ADMIN', 'VISOR', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA')
+  notificaciones(@Request() req) {
+    return this.reportesService.notificaciones(getSecretaria(req));
+  }
+
   @Get('dashboard')
   @ApiOperation({ summary: 'Dashboard con resumen general' })
   dashboard(@Request() req) {

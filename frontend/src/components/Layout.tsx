@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -17,6 +17,9 @@ import {
   Menu,
   MenuItem,
   Chip,
+  Badge,
+  Popover,
+  Paper,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -37,9 +40,13 @@ import {
   CheckCircle as TareasIcon,
   ContactSupport as MisCasosIcon,
   FolderSpecial as CasosParticularesIcon,
+  Notifications as BellIcon,
+  Error as ErrorIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { puedeAcceder, ROL_LABELS, Rol } from '../utils/permisos';
+import api from '../services/api';
 
 const drawerWidth = 260;
 
@@ -75,9 +82,21 @@ const menuDeposito = [
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [bellAnchor, setBellAnchor] = useState<null | HTMLElement>(null);
+  const [notifs, setNotifs] = useState<any[]>([]);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Cargar notificaciones cada 2 minutos
+  useEffect(() => {
+    const fetchNotifs = () => {
+      api.get('/reportes/notificaciones').then(r => setNotifs(r.data.notificaciones ?? [])).catch(() => {});
+    };
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const rolLabel = user?.rol ? ROL_LABELS[user.rol as Rol] ?? user.rol : '';
   // Usuarios de depósito físico: LOGISTICA con depositoId asignado
@@ -158,6 +177,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               size="small"
               sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.7rem' }}
             />
+            <IconButton color="inherit" size="small" onClick={(e) => setBellAnchor(e.currentTarget)}>
+              <Badge badgeContent={notifs.length || null} color="error" max={9}>
+                <BellIcon />
+              </Badge>
+            </IconButton>
             <Typography variant="body2">{user?.nombre}</Typography>
             <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} size="small">
               <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>
@@ -179,6 +203,49 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           Cerrar Sesión
         </MenuItem>
       </Menu>
+
+      {/* Popover de notificaciones */}
+      <Popover
+        open={Boolean(bellAnchor)}
+        anchorEl={bellAnchor}
+        onClose={() => setBellAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Paper sx={{ width: 360, maxHeight: 480, overflow: 'auto' }}>
+          <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="subtitle1" fontWeight="bold">Notificaciones</Typography>
+          </Box>
+          {notifs.length === 0 ? (
+            <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">Sin alertas activas</Typography>
+            </Box>
+          ) : (
+            <List disablePadding>
+              {notifs.map((n: any, i: number) => (
+                <ListItem
+                  key={i}
+                  divider
+                  button
+                  onClick={() => { setBellAnchor(null); navigate(n.link); }}
+                  sx={{ alignItems: 'flex-start', py: 1.5, cursor: 'pointer' }}
+                >
+                  <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                    {n.nivel === 'error'
+                      ? <ErrorIcon color="error" fontSize="small" />
+                      : <WarningIcon color="warning" fontSize="small" />
+                    }
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={<Typography variant="body2" fontWeight="bold">{n.titulo}</Typography>}
+                    secondary={<Typography variant="caption" color="text.secondary">{n.descripcion}</Typography>}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </Paper>
+      </Popover>
 
       <Box component="nav" sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
         <Drawer

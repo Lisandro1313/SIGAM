@@ -3,6 +3,7 @@ import {
   Box, Grid, Card, CardContent, Typography,
   Paper, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, Chip, Divider, List, ListItem, ListItemText,
+  Tooltip,
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -12,7 +13,15 @@ import {
   TodayOutlined as TodayIcon,
   WarningAmber as StockAlertIcon,
   EventBusy as VencimientoIcon,
+  PriorityHigh as UrgentIcon,
+  PersonOff as SinEntregaIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  TrendingFlat as TrendingFlatIcon,
 } from '@mui/icons-material';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip, ResponsiveContainer, Cell,
+} from 'recharts';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { format } from 'date-fns';
@@ -27,8 +36,6 @@ function getSaludo(nombre: string): string {
   return `¡Buenas noches, ${primerNombre}!`;
 }
 
-
-
 const ESTADO_COLOR: Record<string, any> = {
   BORRADOR: 'default',
   CONFIRMADO: 'success',
@@ -36,8 +43,15 @@ const ESTADO_COLOR: Record<string, any> = {
   ENTREGADO: 'success',
   PENDIENTE_STOCK: 'warning',
   PENDIENTE: 'warning',
+  EN_REVISION: 'info',
   GENERADA: 'info',
   CANCELADA: 'error',
+};
+
+const PRIORIDAD_COLOR: Record<string, any> = {
+  URGENTE: 'error',
+  ALTA: 'warning',
+  NORMAL: 'default',
 };
 
 export default function Dashboard() {
@@ -63,6 +77,13 @@ export default function Dashboard() {
   const hoy = format(new Date(), "EEEE d 'de' MMMM", { locale: es });
   const saludo = getSaludo(user?.nombre ?? 'usuario');
 
+  const kgMes = data?.resumenMes?.kg ?? 0;
+  const kgAnterior = data?.resumenMes?.kgMesAnterior ?? 0;
+  const variacionKg = kgAnterior > 0 ? ((kgMes - kgAnterior) / kgAnterior) * 100 : null;
+
+  // Índice del mes actual en evolución (último elemento)
+  const evolucion: any[] = data?.evolucionMensual ?? [];
+
   return (
     <Box>
       <Typography variant="h4" fontWeight="bold" gutterBottom>
@@ -71,6 +92,195 @@ export default function Dashboard() {
       <Typography variant="body2" color="text.secondary" mb={3} sx={{ textTransform: 'capitalize' }}>
         {hoy}
       </Typography>
+
+      {/* Stat cards */}
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="caption" color="text.secondary">REMITOS HOY</Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {data?.remitosDelDia?.length ?? 0}
+                  </Typography>
+                </Box>
+                <TodayIcon sx={{ fontSize: 36, color: 'primary.main' }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="caption" color="text.secondary">REMITOS DEL MES</Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {data?.resumenMes?.remitos ?? 0}
+                  </Typography>
+                </Box>
+                <ReceiptIcon sx={{ fontSize: 36, color: 'success.main' }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="caption" color="text.secondary">KG DEL MES</Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {kgMes.toFixed(0)}
+                  </Typography>
+                  {variacionKg !== null && (
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                      {variacionKg > 2 ? (
+                        <TrendingUpIcon sx={{ fontSize: 14, color: 'success.main' }} />
+                      ) : variacionKg < -2 ? (
+                        <TrendingDownIcon sx={{ fontSize: 14, color: 'error.main' }} />
+                      ) : (
+                        <TrendingFlatIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                      )}
+                      <Typography
+                        variant="caption"
+                        color={variacionKg > 2 ? 'success.main' : variacionKg < -2 ? 'error.main' : 'text.secondary'}
+                      >
+                        {variacionKg > 0 ? '+' : ''}{variacionKg.toFixed(0)}% vs mes ant.
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+                <KgIcon sx={{ fontSize: 36, color: 'warning.main' }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={2}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="caption" color="text.secondary">PRÓXIMAS ENTREGAS</Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {data?.proximasEntregas?.length ?? 0}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">próximos 7 días</Typography>
+                </Box>
+                <CronogramaIcon sx={{ fontSize: 36, color: 'info.main' }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Evolución mensual de kg */}
+      {evolucion.length > 0 && (
+        <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <KgIcon color="warning" />
+            <Typography variant="h6" fontWeight="bold">Evolución mensual de kg entregados</Typography>
+            <Typography variant="caption" color="text.secondary">(últimos 6 meses)</Typography>
+          </Box>
+          <Divider sx={{ mb: 2 }} />
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={evolucion} margin={{ top: 0, right: 10, left: -10, bottom: 0 }}>
+              <XAxis dataKey="mesNombre" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <ReTooltip
+                formatter={(value: any) => [`${Number(value).toFixed(0)} kg`, 'Total kg']}
+                labelFormatter={(label: any) => `Mes: ${label}`}
+              />
+              <Bar dataKey="totalKilos" radius={[4, 4, 0, 0]}>
+                {evolucion.map((_: any, index: number) => (
+                  <Cell
+                    key={index}
+                    fill={index === evolucion.length - 1 ? '#1976d2' : '#90caf9'}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <Box display="flex" justifyContent="center" gap={3} mt={1}>
+            {evolucion.map((m: any, i: number) => (
+              <Tooltip key={i} title={`${m.cantidadRemitos} remitos`}>
+                <Typography variant="caption" color={i === evolucion.length - 1 ? 'primary' : 'text.secondary'} fontWeight={i === evolucion.length - 1 ? 'bold' : 'normal'}>
+                  {m.mesNombre}: {m.totalKilos.toFixed(0)} kg
+                </Typography>
+              </Tooltip>
+            ))}
+          </Box>
+        </Paper>
+      )}
+
+      {/* Alertas: casos urgentes + beneficiarios sin entrega */}
+      {((data?.casosUrgentes?.length ?? 0) > 0 || (data?.beneficiariosSinEntrega?.total ?? 0) > 0) && (
+        <Grid container spacing={3} mb={3}>
+          {(data?.casosUrgentes?.length ?? 0) > 0 && (
+            <Grid item xs={12} md={6}>
+              <Paper elevation={2} sx={{ p: 2, borderLeft: '4px solid', borderLeftColor: 'error.main' }}>
+                <Box display="flex" alignItems="center" gap={1} mb={1}>
+                  <UrgentIcon color="error" />
+                  <Typography variant="h6" fontWeight="bold">Casos urgentes sin resolver</Typography>
+                  <Chip label={data.casosUrgentes.length} size="small" color="error" />
+                </Box>
+                <Divider sx={{ mb: 1 }} />
+                <List dense disablePadding>
+                  {data.casosUrgentes.map((c: any) => (
+                    <ListItem key={c.id} disablePadding sx={{ py: 0.3 }}>
+                      <ListItemText
+                        primary={
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Typography variant="body2" fontWeight="bold">{c.nombreSolicitante}</Typography>
+                            <Chip label={c.prioridad} size="small" color={PRIORIDAD_COLOR[c.prioridad]} />
+                          </Box>
+                        }
+                        secondary={
+                          <Typography variant="caption" color="text.secondary">
+                            {c.tipo} · {c.estado} · {format(new Date(c.createdAt), 'dd/MM/yyyy', { locale: es })}
+                          </Typography>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </Paper>
+            </Grid>
+          )}
+          {(data?.beneficiariosSinEntrega?.total ?? 0) > 0 && (
+            <Grid item xs={12} md={6}>
+              <Paper elevation={2} sx={{ p: 2, borderLeft: '4px solid', borderLeftColor: 'warning.main' }}>
+                <Box display="flex" alignItems="center" gap={1} mb={1}>
+                  <SinEntregaIcon color="warning" />
+                  <Typography variant="h6" fontWeight="bold">Sin entrega en 30 días</Typography>
+                  <Chip label={data.beneficiariosSinEntrega.total} size="small" color="warning" />
+                </Box>
+                <Divider sx={{ mb: 1 }} />
+                <List dense disablePadding>
+                  {data.beneficiariosSinEntrega.muestra.slice(0, 6).map((b: any) => (
+                    <ListItem key={b.id} disablePadding sx={{ py: 0.3 }}>
+                      <ListItemText
+                        primary={<Typography variant="body2" fontWeight="bold">{b.nombre}</Typography>}
+                        secondary={
+                          <Typography variant="caption" color="text.secondary">
+                            {b.programa?.nombre ?? 'Sin programa'}{b.localidad ? ` · ${b.localidad}` : ''}
+                          </Typography>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+                {data.beneficiariosSinEntrega.total > 6 && (
+                  <Typography variant="caption" color="text.secondary">
+                    +{data.beneficiariosSinEntrega.total - 6} más
+                  </Typography>
+                )}
+              </Paper>
+            </Grid>
+          )}
+        </Grid>
+      )}
 
       <Grid container spacing={3} mb={3}>
         {/* Remitos del día */}
@@ -173,72 +383,6 @@ export default function Dashboard() {
               </TableContainer>
             )}
           </Paper>
-        </Grid>
-
-      </Grid>
-
-      {/* Resumen del mes */}
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="caption" color="text.secondary">REMITOS HOY</Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {data?.remitosDelDia?.length ?? 0}
-                  </Typography>
-                </Box>
-                <TodayIcon sx={{ fontSize: 36, color: 'primary.main' }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="caption" color="text.secondary">REMITOS DEL MES</Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {data?.resumenMes?.remitos ?? 0}
-                  </Typography>
-                </Box>
-                <ReceiptIcon sx={{ fontSize: 36, color: 'success.main' }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="caption" color="text.secondary">KG DEL MES</Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {(data?.resumenMes?.kg ?? 0).toFixed(0)}
-                  </Typography>
-                </Box>
-                <KgIcon sx={{ fontSize: 36, color: 'warning.main' }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="caption" color="text.secondary">PRÓXIMAS ENTREGAS</Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {data?.proximasEntregas?.length ?? 0}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">próximos 7 días</Typography>
-                </Box>
-                <CronogramaIcon sx={{ fontSize: 36, color: 'info.main' }} />
-              </Box>
-            </CardContent>
-          </Card>
         </Grid>
       </Grid>
 
