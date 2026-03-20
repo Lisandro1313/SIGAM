@@ -26,6 +26,10 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   Divider,
+  Tabs,
+  Tab,
+  Card,
+  CardContent,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -39,7 +43,11 @@ import {
   CloudUpload as UploadIcon,
   OpenInNew as OpenIcon,
   InfoOutlined as InfoIcon,
+  LocalShipping as EntregaIcon,
+  PhotoCamera as FotoIcon,
 } from '@mui/icons-material';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import api from '../services/api';
 import BeneficiarioForm from '../components/BeneficiarioForm';
 import SearchBar from '../components/SearchBar';
@@ -98,6 +106,11 @@ export default function BeneficiariosPage() {
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [detalleData, setDetalleData] = useState<any>(null);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
+  const [tabDetalle, setTabDetalle] = useState(0);
+
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const resolveUrl = (url: string) =>
+    url?.startsWith('http') ? url : `${API_BASE}/${(url ?? '').replace(/^\//, '')}`;
 
   const { user } = useAuthStore();
   const { showNotification } = useNotificationStore();
@@ -239,6 +252,7 @@ export default function BeneficiariosPage() {
     setDetalleOpen(true);
     setDetalleData(null);
     setLoadingDetalle(true);
+    setTabDetalle(0);
     try {
       const res = await api.get(`/beneficiarios/${beneficiario.id}`);
       setDetalleData(res.data);
@@ -478,74 +492,153 @@ export default function BeneficiariosPage() {
           <Box display="flex" alignItems="center" gap={1}>
             <InfoIcon color="primary" />
             {detalleData?.nombre || 'Cargando...'}
+            {detalleData && (
+              <Chip label={detalleData.tipo} size="small" sx={{ ml: 1 }} />
+            )}
           </Box>
         </DialogTitle>
+
+        {detalleData && (
+          <Tabs
+            value={tabDetalle}
+            onChange={(_, v) => setTabDetalle(v)}
+            sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}
+          >
+            <Tab label="Datos" />
+            <Tab
+              label={`Historial de Entregas (${detalleData.remitos?.filter((r: any) => r.estado === 'ENTREGADO').length ?? 0})`}
+              icon={<EntregaIcon fontSize="small" />}
+              iconPosition="start"
+            />
+          </Tabs>
+        )}
+
         <DialogContent>
           {loadingDetalle ? (
             <Box display="flex" justifyContent="center" py={4}><CircularProgress /></Box>
           ) : detalleData ? (
-            <Box display="flex" flexDirection="column" gap={2}>
-              {/* Datos principales */}
-              <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5}>
-                {[
-                  { label: 'Tipo', value: detalleData.tipo },
-                  { label: 'Programa', value: detalleData.programa?.nombre || '—' },
-                  { label: 'Dirección', value: detalleData.direccion || '—' },
-                  { label: 'Localidad', value: detalleData.localidad || '—' },
-                  { label: 'Teléfono', value: detalleData.telefono || '—' },
-                  { label: 'Frecuencia entrega', value: detalleData.frecuenciaEntrega || '—' },
-                  { label: 'Responsable', value: detalleData.responsableNombre || '—' },
-                  { label: 'DNI responsable', value: detalleData.responsableDNI || '—' },
-                ].map(({ label, value }) => (
-                  <Box key={label}>
-                    <Typography variant="caption" color="text.secondary">{label}</Typography>
-                    <Typography variant="body2" fontWeight="medium">{value}</Typography>
+            <>
+              {/* ── TAB 0: Datos ── */}
+              {tabDetalle === 0 && (
+                <Box display="flex" flexDirection="column" gap={2} pt={1}>
+                  <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5}>
+                    {[
+                      { label: 'Tipo', value: detalleData.tipo },
+                      { label: 'Programa', value: detalleData.programa?.nombre || '—' },
+                      { label: 'Dirección', value: detalleData.direccion || '—' },
+                      { label: 'Localidad', value: detalleData.localidad || '—' },
+                      { label: 'Teléfono', value: detalleData.telefono || '—' },
+                      { label: 'Frecuencia entrega', value: detalleData.frecuenciaEntrega || '—' },
+                      { label: 'Responsable', value: detalleData.responsableNombre || '—' },
+                      { label: 'DNI responsable', value: detalleData.responsableDNI || '—' },
+                    ].map(({ label, value }) => (
+                      <Box key={label}>
+                        <Typography variant="caption" color="text.secondary">{label}</Typography>
+                        <Typography variant="body2" fontWeight="medium">{value}</Typography>
+                      </Box>
+                    ))}
                   </Box>
-                ))}
-              </Box>
 
-              {detalleData.observaciones && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Observaciones</Typography>
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{detalleData.observaciones}</Typography>
+                  {detalleData.observaciones && (
+                    <Box>
+                      <Divider sx={{ mb: 1.5 }} />
+                      <Typography variant="caption" color="text.secondary">Observaciones</Typography>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.5 }}>{detalleData.observaciones}</Typography>
+                    </Box>
+                  )}
                 </Box>
               )}
 
-              <Divider />
-
-              {/* Últimos remitos */}
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>Últimos remitos</Typography>
-                {detalleData.remitos?.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">Sin remitos registrados</Typography>
-                ) : (
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Número</TableCell>
-                        <TableCell>Fecha</TableCell>
-                        <TableCell>Estado</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {detalleData.remitos?.map((r: any) => (
-                        <TableRow key={r.id}>
-                          <TableCell>{r.numero}</TableCell>
-                          <TableCell>{new Date(r.fecha).toLocaleDateString('es-AR')}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={r.estado}
-                              size="small"
-                              color={r.estado === 'ENTREGADO' ? 'success' : r.estado === 'CONFIRMADO' ? 'primary' : 'default'}
-                            />
-                          </TableCell>
-                        </TableRow>
+              {/* ── TAB 1: Historial de Entregas ── */}
+              {tabDetalle === 1 && (() => {
+                const entregados = detalleData.remitos?.filter((r: any) => r.estado === 'ENTREGADO') ?? [];
+                const totalKg = entregados.reduce((s: number, r: any) => s + (r.totalKg || 0), 0);
+                const ultimaEntrega = entregados[0]?.entregadoAt;
+                return (
+                  <Box pt={1}>
+                    {/* Stats */}
+                    <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={2} mb={2}>
+                      {[
+                        { label: 'ENTREGAS TOTALES', value: entregados.length, color: 'primary.main' },
+                        { label: 'KG ACUMULADOS', value: `${totalKg.toFixed(1)} kg`, color: 'success.main' },
+                        { label: 'ÚLTIMA ENTREGA', value: ultimaEntrega ? format(new Date(ultimaEntrega), 'dd/MM/yyyy', { locale: es }) : '—', color: 'text.primary' },
+                      ].map((s) => (
+                        <Card variant="outlined" key={s.label}>
+                          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Typography variant="caption" color="text.secondary">{s.label}</Typography>
+                            <Typography variant="h6" fontWeight="bold" color={s.color}>{s.value}</Typography>
+                          </CardContent>
+                        </Card>
                       ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </Box>
-            </Box>
+                    </Box>
+
+                    {/* Tabla */}
+                    {entregados.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary" textAlign="center" py={3}>
+                        Sin entregas registradas
+                      </Typography>
+                    ) : (
+                      <TableContainer component={Paper} variant="outlined">
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: 'grey.50' }}>
+                              <TableCell>N° Remito</TableCell>
+                              <TableCell>Fecha entrega</TableCell>
+                              <TableCell>Depósito</TableCell>
+                              <TableCell align="right">Kg</TableCell>
+                              <TableCell>Quién retiró</TableCell>
+                              <TableCell>Artículos</TableCell>
+                              <TableCell align="center">Foto</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {entregados.map((r: any) => (
+                              <TableRow key={r.id} hover>
+                                <TableCell><strong>{r.numero}</strong></TableCell>
+                                <TableCell>
+                                  {r.entregadoAt
+                                    ? format(new Date(r.entregadoAt), 'dd/MM/yyyy HH:mm', { locale: es })
+                                    : format(new Date(r.fecha), 'dd/MM/yyyy', { locale: es })}
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="caption">{r.deposito?.nombre || '—'}</Typography>
+                                </TableCell>
+                                <TableCell align="right"><strong>{r.totalKg?.toFixed(1)}</strong></TableCell>
+                                <TableCell>
+                                  <Typography variant="caption" color={r.entregadoNota ? 'text.primary' : 'text.disabled'}>
+                                    {r.entregadoNota || '—'}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell sx={{ maxWidth: 180 }}>
+                                  <Typography variant="caption" color="text.secondary" noWrap>
+                                    {r.items?.map((i: any) => `${i.articulo?.nombre} ×${i.cantidad}`).join(', ') || '—'}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell align="center">
+                                  {r.entregadoFoto ? (
+                                    <Tooltip title="Ver foto firmada">
+                                      <IconButton
+                                        size="small"
+                                        color="success"
+                                        onClick={() => window.open(resolveUrl(r.entregadoFoto), '_blank', 'noopener,noreferrer')}
+                                      >
+                                        <FotoIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  ) : (
+                                    <Typography variant="caption" color="text.disabled">—</Typography>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </Box>
+                );
+              })()}
+            </>
           ) : null}
         </DialogContent>
         <DialogActions>

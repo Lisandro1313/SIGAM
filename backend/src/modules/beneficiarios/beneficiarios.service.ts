@@ -68,8 +68,12 @@ export class BeneficiariosService {
       include: {
         programa: true,
         remitos: {
-          take: 10,
           orderBy: { fecha: 'desc' },
+          include: {
+            deposito: { select: { nombre: true } },
+            programa: { select: { nombre: true } },
+            items: { include: { articulo: { select: { nombre: true } } } },
+          },
         },
       },
     });
