@@ -177,9 +177,10 @@ export default function HistorialEntregas() {
     Numero:       r.numero,
     Fecha:        format(new Date(r.fecha), 'dd/MM/yyyy'),
     FechaEntrega: r.entregadoAt ? format(new Date(r.entregadoAt), 'dd/MM/yyyy HH:mm') : '',
-    Beneficiario: r.beneficiario?.nombre,
-    Tipo:         r.beneficiario?.tipo,
-    Localidad:    r.beneficiario?.localidad,
+    Beneficiario: r.caso?.nombreSolicitante ?? r.beneficiario?.nombre,
+    DNI:          r.caso?.dni ?? '',
+    Tipo:         r.caso ? 'Caso Particular' : r.beneficiario?.tipo,
+    Localidad:    r.beneficiario?.localidad ?? '',
     Programa:     r.programa?.nombre,
     Deposito:     r.deposito?.nombre,
     TotalKg:      r.totalKg?.toFixed(2),
@@ -299,7 +300,8 @@ export default function HistorialEntregas() {
                 <TableCell>N° Remito</TableCell>
                 <TableCell>Fecha Remito</TableCell>
                 <TableCell>Fecha Entrega</TableCell>
-                <TableCell>Beneficiario</TableCell>
+                <TableCell>Beneficiario / Solicitante</TableCell>
+                <TableCell>DNI</TableCell>
                 <TableCell>Programa</TableCell>
                 <TableCell>Depósito</TableCell>
                 <TableCell align="right">Kg</TableCell>
@@ -333,8 +335,19 @@ export default function HistorialEntregas() {
                         : <Typography variant="caption" color="text.disabled">—</Typography>}
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">{remito.beneficiario?.nombre}</Typography>
-                      <Typography variant="caption" color="text.secondary">{remito.beneficiario?.localidad}</Typography>
+                      <Typography variant="body2">
+                        {remito.caso?.nombreSolicitante ?? remito.beneficiario?.nombre ?? '—'}
+                      </Typography>
+                      {remito.caso
+                        ? <Chip label="Caso Particular" size="small" color="info" variant="outlined" sx={{ mt: 0.3 }} />
+                        : <Typography variant="caption" color="text.secondary">{remito.beneficiario?.localidad}</Typography>
+                      }
+                    </TableCell>
+                    <TableCell>
+                      {(remito.caso?.dni)
+                        ? <Typography variant="body2" fontWeight="bold">{remito.caso.dni}</Typography>
+                        : <Typography variant="caption" color="text.disabled">—</Typography>
+                      }
                     </TableCell>
                     <TableCell>
                       <Typography variant="caption">{remito.programa?.nombre || '—'}</Typography>
@@ -424,7 +437,7 @@ export default function HistorialEntregas() {
 
                   {/* Fila expandida: artículos */}
                   <TableRow key={`exp-${remito.id}`}>
-                    <TableCell colSpan={11} sx={{ p: 0, border: expandedId === remito.id ? undefined : 'none' }}>
+                    <TableCell colSpan={12} sx={{ p: 0, border: expandedId === remito.id ? undefined : 'none' }}>
                       <Collapse in={expandedId === remito.id} timeout="auto" unmountOnExit>
                         <Box sx={{ px: 7, py: 1.5, bgcolor: '#f8faff', borderBottom: '1px solid #e0e0e0' }}>
                           <Typography variant="caption" fontWeight="bold" color="text.secondary" display="block" mb={0.5}>

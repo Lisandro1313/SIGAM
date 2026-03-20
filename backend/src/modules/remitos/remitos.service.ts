@@ -313,7 +313,13 @@ export class RemitosService {
     }
     if (filtros.programaId) where.programaId = parseInt(filtros.programaId);
     if (filtros.beneficiarioId) where.beneficiarioId = parseInt(filtros.beneficiarioId);
-    if (filtros.buscar) where.beneficiario = { nombre: { contains: filtros.buscar, mode: 'insensitive' } };
+    if (filtros.buscar) {
+      where.OR = [
+        { beneficiario: { nombre: { contains: filtros.buscar, mode: 'insensitive' } } },
+        { caso: { nombreSolicitante: { contains: filtros.buscar, mode: 'insensitive' } } },
+        { caso: { dni: { contains: filtros.buscar, mode: 'insensitive' } } },
+      ];
+    }
     if (filtros.depositoId && !usuarioDepositoId) where.depositoId = parseInt(filtros.depositoId);
     
     if (filtros.busqueda) {
@@ -322,6 +328,8 @@ export class RemitosService {
         { numero: { contains: q, mode: 'insensitive' } },
         { beneficiario: { nombre: { contains: q, mode: 'insensitive' } } },
         { beneficiario: { responsableDNI: { contains: q } } },
+        { caso: { nombreSolicitante: { contains: q, mode: 'insensitive' } } },
+        { caso: { dni: { contains: q } } },
       ];
     }
 
@@ -351,6 +359,7 @@ export class RemitosService {
         beneficiario: true,
         programa: true,
         deposito: true,
+        caso: { select: { id: true, nombreSolicitante: true, dni: true } },
         items: {
           include: {
             articulo: true,
@@ -377,6 +386,7 @@ export class RemitosService {
         beneficiario: true,
         programa: true,
         deposito: true,
+        caso: { select: { id: true, nombreSolicitante: true, dni: true } },
         movimientos: {
           include: {
             articulo: true,

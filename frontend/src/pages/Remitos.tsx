@@ -362,7 +362,14 @@ export default function RemitosPage() {
                 <TableCell>
                   {format(new Date(remito.fecha), 'dd/MM/yyyy', { locale: es })}
                 </TableCell>
-                <TableCell>{remito.beneficiario?.nombre}</TableCell>
+                <TableCell>
+                  {remito.caso?.nombreSolicitante ?? remito.beneficiario?.nombre ?? '—'}
+                  {remito.caso?.dni && (
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      DNI: {remito.caso.dni}
+                    </Typography>
+                  )}
+                </TableCell>
                 <TableCell>{remito.deposito?.nombre}</TableCell>
                 <TableCell align="right">
                   <strong>{remito.totalKg.toFixed(2)}</strong>
@@ -549,9 +556,16 @@ export default function RemitosPage() {
               {/* Info general */}
               <Box display="grid" gridTemplateColumns="1fr 1fr" gap={2} mb={3}>
                 <Paper variant="outlined" sx={{ p: 2 }}>
-                  <Typography variant="caption" color="text.secondary">BENEFICIARIO</Typography>
-                  <Typography variant="body1" fontWeight="bold">{detalleRemito.beneficiario?.nombre}</Typography>
-                  {detalleRemito.beneficiario?.dni && (
+                  <Typography variant="caption" color="text.secondary">
+                    {detalleRemito.caso ? 'SOLICITANTE (CASO PARTICULAR)' : 'BENEFICIARIO'}
+                  </Typography>
+                  <Typography variant="body1" fontWeight="bold">
+                    {detalleRemito.caso?.nombreSolicitante ?? detalleRemito.beneficiario?.nombre}
+                  </Typography>
+                  {detalleRemito.caso?.dni && (
+                    <Typography variant="body2" fontWeight="bold" color="primary">DNI: {detalleRemito.caso.dni}</Typography>
+                  )}
+                  {!detalleRemito.caso && detalleRemito.beneficiario?.dni && (
                     <Typography variant="body2" color="text.secondary">DNI: {detalleRemito.beneficiario.dni}</Typography>
                   )}
                   {detalleRemito.beneficiario?.direccion && (
@@ -680,7 +694,11 @@ export default function RemitosPage() {
         <DialogContent>
           {entregarRemito && (
             <Alert severity="success" sx={{ mb: 2 }}>
-              <strong>{entregarRemito.numero}</strong> — {entregarRemito.beneficiario?.nombre}
+              <strong>{entregarRemito.numero}</strong> —{' '}
+              {entregarRemito.caso?.nombreSolicitante ?? entregarRemito.beneficiario?.nombre}
+              {entregarRemito.caso?.dni && (
+                <> · DNI: <strong>{entregarRemito.caso.dni}</strong></>
+              )}
             </Alert>
           )}
           <TextField
