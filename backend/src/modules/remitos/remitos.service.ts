@@ -336,14 +336,22 @@ export class RemitosService {
     if (filtros.fechaDesde || filtros.fechaHasta) {
       where.fecha = {};
       if (filtros.fechaDesde) where.fecha.gte = new Date(filtros.fechaDesde);
-      if (filtros.fechaHasta) where.fecha.lte = new Date(filtros.fechaHasta);
+      if (filtros.fechaHasta) {
+        const hasta = new Date(filtros.fechaHasta);
+        hasta.setHours(23, 59, 59, 999);
+        where.fecha.lte = hasta;
+      }
     }
 
     // Filtro por fecha de entrega (entregadoAt)
     if (filtros.entregadoDesde || filtros.entregadoHasta) {
       where.entregadoAt = {};
       if (filtros.entregadoDesde) where.entregadoAt.gte = new Date(filtros.entregadoDesde);
-      if (filtros.entregadoHasta) where.entregadoAt.lte = new Date(filtros.entregadoHasta);
+      if (filtros.entregadoHasta) {
+        const hasta = new Date(filtros.entregadoHasta);
+        hasta.setHours(23, 59, 59, 999);
+        where.entregadoAt.lte = hasta;
+      }
     }
 
     // Por defecto excluir ENTREGADO (historial), a menos que se filtre explícitamente

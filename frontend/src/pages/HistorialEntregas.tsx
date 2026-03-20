@@ -139,7 +139,7 @@ export default function HistorialEntregas() {
   const buscarEntregas = async () => {
     setLoading(true);
     try {
-      const params: any = { estado: 'ENTREGADO', fechaDesde, fechaHasta };
+      const params: any = { estado: 'ENTREGADO', entregadoDesde: fechaDesde, entregadoHasta: fechaHasta };
       if (depositoFiltro) params.depositoId = depositoFiltro;
       if (programaFiltro) params.programaId = programaFiltro;
       if (buscar.trim()) params.buscar = buscar.trim();
