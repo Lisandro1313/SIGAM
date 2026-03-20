@@ -89,6 +89,80 @@ export class CronogramaService {
     return { success: true, entregasCreadas: entregasCreadas.length, entregas: entregasCreadas };
   }
 
+  // Preview y generación masiva de remitos para un rango de fechas (ej: semana actual)
+  async previewRemitosRango(desde: string, hasta: string) {
+    const desdeDate = new Date(desde); desdeDate.setHours(0, 0, 0, 0);
+    const hastaDate = new Date(hasta); hastaDate.setHours(23, 59, 59, 999);
+
+    const [sinRemito, conRemito] = await Promise.all([
+      this.prisma.entregaProgramada.count({
+        where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, estado: { notIn: ['CANCELADA'] }, remitoId: null },
+      }),
+      this.prisma.entregaProgramada.count({
+        where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, remitoId: { not: null } },
+      }),
+    ]);
+    return { pendientes: sinRemito, yaGenerados: conRemito };
+  }
+
+  async generarRemitosRango(desde: string, hasta: string, depositoId: number, usuarioId: number, usuarioRol?: string) {
+    const desdeDate = new Date(desde); desdeDate.setHours(0, 0, 0, 0);
+    const hastaDate = new Date(hasta); hastaDate.setHours(23, 59, 59, 999);
+
+    const entregas = await this.prisma.entregaProgramada.findMany({
+      where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, estado: { notIn: ['CANCELADA'] }, remitoId: null },
+      include: {
+        beneficiario: true,
+        programa: {
+          include: {
+            plantillas: {
+              where: { activo: true },
+              include: { items: { include: { articulo: true } } },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (entregas.length === 0) {
+      return { remitosGenerados: 0, errores: 0, detalleErrores: [] };
+    }
+
+    const generados = [];
+    const errores: any[] = [];
+
+    for (const entrega of entregas) {
+      try {
+        const plantilla = entrega.programa?.plantillas?.[0];
+        const items = plantilla?.items ?? [];
+        const remito = await this.remitosService.create(
+          {
+            programaId: entrega.programaId ?? undefined,
+            beneficiarioId: entrega.beneficiarioId,
+            depositoId,
+            observaciones: entrega.observaciones,
+            items: items.map((item) => ({
+              articuloId: item.articuloId,
+              cantidad: item.cantidadBase,
+              pesoKg: item.articulo.pesoUnitarioKg ? item.cantidadBase * item.articulo.pesoUnitarioKg : undefined,
+            })),
+          },
+          { id: usuarioId, rol: usuarioRol },
+        );
+        await this.prisma.entregaProgramada.update({
+          where: { id: entrega.id },
+          data: { estado: EntregaEstado.GENERADA, remitoId: remito.id },
+        });
+        generados.push({ id: entrega.id, numero: remito.numero });
+      } catch (error) {
+        errores.push({ beneficiario: entrega.beneficiario.nombre, error: error.message });
+      }
+    }
+
+    return { remitosGenerados: generados.length, errores: errores.length, detalleErrores: errores };
+  }
+
   // Obtener entregas programadas
   async obtenerEntregas(filtros?: any, secretaria?: string | null) {
     const where: any = {};
