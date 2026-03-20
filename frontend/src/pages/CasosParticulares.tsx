@@ -31,7 +31,7 @@ const PRIORIDAD_COLOR: Record<string, 'error' | 'warning' | 'default' | 'info'> 
   URGENTE: 'error', ALTA: 'warning', NORMAL: 'default', BAJA: 'info',
 };
 const TIPO_LABEL: Record<string, string> = {
-  ALIMENTARIA: 'Alimentaria', NO_ALIMENTARIA: 'No Alimentaria',
+  ALIMENTARIO: 'Alimentario', MERCADERIA: 'Mercadería', MIXTO: 'Mixto',
 };
 const ESTADOS = ['TODOS', 'PENDIENTE', 'EN_REVISION', 'APROBADO', 'RECHAZADO', 'RESUELTO'];
 
@@ -180,8 +180,9 @@ export default function CasosParticulares() {
           <InputLabel>Tipo</InputLabel>
           <Select value={filtroTipo} label="Tipo" onChange={(e) => setFiltroTipo(e.target.value)}>
             <MenuItem value="">Todos</MenuItem>
-            <MenuItem value="ALIMENTARIA">Alimentaria</MenuItem>
-            <MenuItem value="NO_ALIMENTARIA">No Alimentaria</MenuItem>
+            <MenuItem value="ALIMENTARIO">Alimentario</MenuItem>
+            <MenuItem value="MERCADERIA">Mercadería</MenuItem>
+            <MenuItem value="MIXTO">Mixto</MenuItem>
           </Select>
         </FormControl>
         <FormControl size="small" sx={{ minWidth: 160 }}>
