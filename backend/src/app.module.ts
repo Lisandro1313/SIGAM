@@ -19,6 +19,7 @@ import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { AuditoriaInterceptor } from './modules/auditoria/auditoria.interceptor';
 import { TareasModule } from './modules/tareas/tareas.module';
 import { CasosModule } from './modules/casos/casos.module';
+import { EventsModule } from './modules/events/events.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { CasosModule } from './modules/casos/casos.module';
     AuditoriaModule,
     TareasModule,
     CasosModule,
+    EventsModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente

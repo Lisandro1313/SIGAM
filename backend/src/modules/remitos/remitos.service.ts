@@ -9,6 +9,7 @@ import { ConfirmarRemitoDto } from './dto/confirmar-remito.dto';
 import { MovimientoTipo, RemitoEstado } from '@prisma/client';
 import { PdfService } from './services/pdf.service';
 import { EmailService, OpcionesEnvio } from './services/email.service';
+import { EventsService } from '../events/events.service';
 
 @Injectable()
 export class RemitosService {
@@ -16,6 +17,7 @@ export class RemitosService {
     private prisma: PrismaService,
     private pdfService: PdfService,
     private emailService: EmailService,
+    private eventsService: EventsService,
   ) {}
 
   // Generar número correlativo único
@@ -223,6 +225,12 @@ export class RemitosService {
       await tx.entregaProgramada.updateMany({
         where: { remitoId: id },
         data: { estado: 'GENERADA' },
+      });
+
+      this.eventsService.broadcast('remito:confirmado', {
+        id: remitoConfirmado.id,
+        numero: remitoConfirmado.numero,
+        depositoId: remitoConfirmado.depositoId,
       });
 
       return remitoConfirmado;
@@ -490,6 +498,12 @@ export class RemitosService {
       await tx.entregaProgramada.updateMany({
         where: { remitoId: id },
         data: { estado: 'ENTREGADA' },
+      });
+
+      this.eventsService.broadcast('remito:entregado', {
+        id: remitoActualizado.id,
+        numero: remitoActualizado.numero,
+        depositoId: remitoActualizado.depositoId,
       });
 
       return remitoActualizado;

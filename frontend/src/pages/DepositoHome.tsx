@@ -72,7 +72,12 @@ export default function DepositoHome() {
   const [histFechaDesde, setHistFechaDesde] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [histFechaHasta, setHistFechaHasta] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  useEffect(() => { loadRemitosDeposito(); }, []);
+  useEffect(() => {
+    loadRemitosDeposito();
+    const handler = () => loadRemitosDeposito();
+    window.addEventListener('sigam:update', handler);
+    return () => window.removeEventListener('sigam:update', handler);
+  }, []);
 
   const loadRemitosDeposito = async () => {
     setLoading(true);

@@ -266,6 +266,15 @@ export default function RemitosPage() {
     return () => clearTimeout(delay);
   }, [busqueda]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { tipo } = (e as CustomEvent).detail ?? {};
+      if (tipo === 'remito:confirmado' || tipo === 'remito:entregado') loadRemitos(busqueda);
+    };
+    window.addEventListener('sigam:update', handler);
+    return () => window.removeEventListener('sigam:update', handler);
+  }, [busqueda]);
+
   const loadRemitos = async (q?: string) => {
     try {
       const params: any = {};

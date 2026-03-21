@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../shared/storage/storage.service';
+import { EventsService } from '../events/events.service';
 
 const INCLUDE_CASO = {
   documentos: { orderBy: { createdAt: 'asc' as const } },
@@ -13,6 +14,7 @@ export class CasosService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private eventsService: EventsService,
   ) {}
 
   // ── Check cruce por DNI ───────────────────────────────────────────────────
@@ -51,7 +53,7 @@ export class CasosService {
       detalleCruce = cruce.detalle;
     }
 
-    return this.prisma.caso.create({
+    const nuevo = await this.prisma.caso.create({
       data: {
         nombreSolicitante: dto.nombreSolicitante,
         dni: dto.dni ?? null,
@@ -70,6 +72,12 @@ export class CasosService {
       },
       include: INCLUDE_CASO,
     });
+    this.eventsService.broadcast('caso:nuevo', {
+      id: nuevo.id,
+      nombre: nuevo.nombreSolicitante,
+      prioridad: nuevo.prioridad,
+    });
+    return nuevo;
   }
 
   // ── Listar casos ──────────────────────────────────────────────────────────
@@ -130,7 +138,7 @@ export class CasosService {
       throw new BadRequestException(`No se puede revisar un caso en estado ${caso.estado}`);
     }
 
-    return this.prisma.caso.update({
+    const actualizado = await this.prisma.caso.update({
       where: { id },
       data: {
         estado: dto.estado,
@@ -141,6 +149,12 @@ export class CasosService {
       },
       include: INCLUDE_CASO,
     });
+    this.eventsService.broadcast('caso:actualizado', {
+      id: actualizado.id,
+      estado: actualizado.estado,
+      creadoPorId: actualizado.creadoPorId,
+    });
+    return actualizado;
   }
 
   // ── Generar remito desde caso ─────────────────────────────────────────────

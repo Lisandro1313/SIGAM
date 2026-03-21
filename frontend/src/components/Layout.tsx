@@ -90,6 +90,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [notifs, setNotifs] = useState<any[]>([]);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [updateBanner, setUpdateBanner] = useState<string | null>(null);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -114,6 +115,39 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       setShowInstallBanner(false);
     }
   };
+
+  // SSE: actualizaciones en tiempo real
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem('token') ?? sessionStorage.getItem('token') ?? '';
+    if (!token) return;
+
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const es = new EventSource(`${API_BASE}/events/stream?token=${encodeURIComponent(token)}`);
+
+    const MENSAJES: Record<string, string> = {
+      'remito:confirmado': 'Un remito fue confirmado',
+      'remito:entregado':  'Una entrega fue registrada',
+      'caso:nuevo':        'Nuevo caso particular ingresado',
+      'caso:actualizado':  'Un caso fue actualizado',
+    };
+
+    es.onmessage = (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        const msg = MENSAJES[payload.tipo];
+        if (msg) setUpdateBanner(msg);
+        // Notificar a las páginas que escuchan
+        window.dispatchEvent(new CustomEvent('sigam:update', { detail: payload }));
+      } catch { /* ignorar mensajes malformados */ }
+    };
+
+    es.onerror = () => {
+      // Si la conexión se cierra, el browser reintenta automáticamente cada ~3s
+    };
+
+    return () => es.close();
+  }, [user]);
 
   // Cargar notificaciones cada 2 minutos
   useEffect(() => {
@@ -296,6 +330,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <Box component="main" sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - ${drawerWidth}px)` }, mt: 8 }}>
         {children}
       </Box>
+
+      {/* Toast de actualizaciones en tiempo real */}
+      <Snackbar
+        open={!!updateBanner}
+        autoHideDuration={4000}
+        onClose={() => setUpdateBanner(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        message={updateBanner ?? ''}
+      />
 
       {/* Banner de instalación PWA */}
       <Snackbar
