@@ -271,6 +271,38 @@ export class ReportesService {
     }));
   }
 
+  // Reporte: Cruces masivos — beneficiarios que aparecen en más de un programa
+  async crucesMasivos() {
+    const todos = await this.prisma.beneficiario.findMany({
+      where: { responsableDNI: { not: null } },
+      select: {
+        id: true,
+        nombre: true,
+        tipo: true,
+        activo: true,
+        responsableDNI: true,
+        programa: { select: { id: true, nombre: true, secretaria: true } },
+      },
+      orderBy: { responsableDNI: 'asc' },
+    });
+
+    // Agrupar por DNI
+    const porDni = new Map<string, typeof todos>();
+    for (const b of todos) {
+      const dni = b.responsableDNI!;
+      if (!porDni.has(dni)) porDni.set(dni, []);
+      porDni.get(dni)!.push(b);
+    }
+
+    // Solo los DNIs que aparecen en más de un registro
+    const cruces: { dni: string; registros: typeof todos }[] = [];
+    for (const [dni, registros] of porDni) {
+      if (registros.length > 1) cruces.push({ dni, registros });
+    }
+
+    return cruces.sort((a, b) => b.registros.length - a.registros.length);
+  }
+
   // Reporte: Remitos con detalle para exportación personalizada
   async remitosDetalle(mes?: number, anio?: number, programaId?: number, estado?: string, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
     const where: any = {};

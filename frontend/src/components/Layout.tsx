@@ -47,6 +47,7 @@ import {
   Warning as WarningIcon,
   GetApp as InstallIcon,
   Close as CloseIcon,
+  Badge as BadgeIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { puedeAcceder, ROL_LABELS, Rol } from '../utils/permisos';
@@ -72,6 +73,7 @@ const menuItems = [
   { text: 'Usuarios',           icon: <UsersIcon />,               path: '/usuarios',           seccion: 'usuarios' },
   { text: 'Casos Particulares', icon: <CasosParticularesIcon />,   path: '/casos-particulares', seccion: 'casos-particulares' },
   { text: 'Mis Casos',          icon: <MisCasosIcon />,            path: '/mis-casos',          seccion: 'mis-casos' },
+  { text: 'Búsqueda por DNI',   icon: <BadgeIcon />,               path: '/busqueda-dni',       seccion: 'busqueda-dni' },
 ];
 
 // Menú restringido para usuarios de depósito (LOGISTICA + depositoId)

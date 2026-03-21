@@ -110,6 +110,12 @@ export class ReportesController {
     return this.reportesService.remitosDetalle(m, a, programaId ? parseInt(programaId) : undefined, estado, getSecretaria(req), fechaDesde, fechaHasta);
   }
 
+  @Get('cruces-masivos')
+  @ApiOperation({ summary: 'DNIs registrados en más de un programa' })
+  crucesMasivos() {
+    return this.reportesService.crucesMasivos();
+  }
+
   @Get('resumen-entregas-mes')
   @ApiOperation({ summary: 'Resumen de entregas de un período: pendientes, generadas, entregadas' })
   resumenEntregasMes(

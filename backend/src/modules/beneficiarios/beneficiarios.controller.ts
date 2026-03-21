@@ -35,6 +35,14 @@ export class BeneficiariosController {
     return this.beneficiariosService.checkDni(dni);
   }
 
+  @Get('buscar-dni')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR')
+  @ApiOperation({ summary: 'Búsqueda global por DNI (beneficiarios, casos, integrantes)' })
+  searchByDni(@Query('dni') dni: string) {
+    if (!dni) throw new BadRequestException('dni es requerido');
+    return this.beneficiariosService.searchByDni(dni);
+  }
+
   @Get()
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR')
   @ApiOperation({ summary: 'Listar beneficiarios' })

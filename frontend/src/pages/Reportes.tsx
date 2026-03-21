@@ -52,6 +52,8 @@ export default function ReportesPage() {
   const [benefPorProg, setBenefPorProg]               = useState<any[]>([]);
   const [remitosDetalle, setRemitosDetalle]           = useState<any[]>([]);
   const [resumenEntregas, setResumenEntregas]         = useState<any>(null);
+  const [crucesMasivos, setCrucesMasivos]             = useState<any[] | null>(null);
+  const [loadingCruces, setLoadingCruces]             = useState(false);
 
   useEffect(() => {
     api.get('/programas').then(r => setProgramas(r.data.filter((p: any) => p.activo))).catch(() => {});
@@ -196,13 +198,23 @@ export default function ReportesPage() {
 
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs value={tabIdx} onChange={(_, v) => setTabIdx(v)} variant="scrollable" scrollButtons="auto">
+        <Tabs value={tabIdx} onChange={(_, v) => {
+          setTabIdx(v);
+          if (v === 6 && crucesMasivos === null) {
+            setLoadingCruces(true);
+            api.get('/reportes/cruces-masivos')
+              .then(r => setCrucesMasivos(r.data))
+              .catch(() => setCrucesMasivos([]))
+              .finally(() => setLoadingCruces(false));
+          }
+        }} variant="scrollable" scrollButtons="auto">
           <Tab label="Distribución" />
           <Tab label="Cronograma" />
           <Tab label="Beneficiarios" />
           <Tab label="Artículos" />
           <Tab label="Remitos" />
           <Tab label="Stock" />
+          <Tab label="Cruces DNI" />
         </Tabs>
       </Box>
 
@@ -529,6 +541,87 @@ export default function ReportesPage() {
                 </TableBody>
               </Table>
             </TableContainer>
+          )}
+        </Paper>
+      )}
+      {/* ── Tab 6: Cruces DNI ── */}
+      {tabIdx === 6 && (
+        <Paper elevation={2} sx={{ p: 3 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Box>
+              <Typography variant="h6">Cruces por DNI</Typography>
+              <Typography variant="body2" color="text.secondary">
+                DNIs de responsable registrados en más de un beneficiario / programa
+              </Typography>
+            </Box>
+            {crucesMasivos && crucesMasivos.length > 0 && (
+              <ExportExcelButton
+                data={crucesMasivos.flatMap((c: any) => c.registros.map((r: any) => ({
+                  dni: c.dni,
+                  id: r.id,
+                  nombre: r.nombre,
+                  tipo: r.tipo,
+                  programa: r.programa?.nombre ?? '—',
+                  secretaria: r.programa?.secretaria ?? '—',
+                  activo: r.activo ? 'Sí' : 'No',
+                })))}
+                fileName="cruces-dni"
+                sheetName="Cruces"
+                label="Exportar"
+              />
+            )}
+          </Box>
+          {loadingCruces ? (
+            <LinearProgress />
+          ) : !crucesMasivos ? null
+          : crucesMasivos.length === 0 ? (
+            <Typography variant="body2" color="success.main">✓ No se detectaron DNIs duplicados entre programas</Typography>
+          ) : (
+            <>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                {crucesMasivos.length} DNI{crucesMasivos.length !== 1 ? 's' : ''} aparece{crucesMasivos.length === 1 ? '' : 'n'} en más de un registro
+              </Typography>
+              {crucesMasivos.map((c: any) => (
+                <Box key={c.dni} sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Chip label={`DNI ${c.dni}`} color="warning" size="small" />
+                    <Typography variant="caption" color="text.secondary">{c.registros.length} registros</Typography>
+                  </Box>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'grey.50' }}>
+                          <TableCell>#</TableCell>
+                          <TableCell>Nombre</TableCell>
+                          <TableCell>Tipo</TableCell>
+                          <TableCell>Programa</TableCell>
+                          <TableCell>Secretaría</TableCell>
+                          <TableCell>Estado</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {c.registros.map((r: any) => (
+                          <TableRow key={r.id} hover>
+                            <TableCell>{r.id}</TableCell>
+                            <TableCell><strong>{r.nombre}</strong></TableCell>
+                            <TableCell><Typography variant="caption">{r.tipo}</Typography></TableCell>
+                            <TableCell>{r.programa?.nombre ?? '—'}</TableCell>
+                            <TableCell>
+                              {r.programa?.secretaria && (
+                                <Chip label={r.programa.secretaria} size="small" color={r.programa.secretaria === 'CITA' ? 'warning' : 'primary'} variant="outlined" />
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Chip label={r.activo ? 'Activo' : 'Baja'} size="small" color={r.activo ? 'success' : 'default'} />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              ))}
+            </>
           )}
         </Paper>
       )}

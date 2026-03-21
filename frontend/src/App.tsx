@@ -22,6 +22,7 @@ import Auditoria from './pages/Auditoria';
 import Tareas from './pages/Tareas';
 import MisCasos from './pages/MisCasos';
 import CasosParticulares from './pages/CasosParticulares';
+import BusquedaDNI from './pages/BusquedaDNI';
 
 function HomeRedirect() {
   const { user } = useAuthStore();
@@ -62,6 +63,7 @@ function App() {
           <Route path="/auditoria" element={<ProtectedRoute seccion="auditoria"><Auditoria /></ProtectedRoute>} />
           <Route path="/mis-casos" element={<ProtectedRoute seccion="mis-casos"><MisCasos /></ProtectedRoute>} />
           <Route path="/casos-particulares" element={<ProtectedRoute seccion="casos-particulares"><CasosParticulares /></ProtectedRoute>} />
+          <Route path="/busqueda-dni" element={<ProtectedRoute seccion="busqueda-dni"><BusquedaDNI /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>

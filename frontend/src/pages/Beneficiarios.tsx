@@ -48,7 +48,7 @@ import {
   CompareArrows as CruceIcon,
   Group as IntegrantesIcon,
 } from '@mui/icons-material';
-import { format } from 'date-fns';
+import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
 import BeneficiarioForm from '../components/BeneficiarioForm';
@@ -893,19 +893,34 @@ export default function BeneficiariosPage() {
                 const entregados = detalleData.remitos?.filter((r: any) => r.estado === 'ENTREGADO') ?? [];
                 const totalKg = entregados.reduce((s: number, r: any) => s + (r.totalKg || 0), 0);
                 const ultimaEntrega = entregados[0]?.entregadoAt;
+                const freq = detalleData.frecuenciaEntrega;
+                const mesesFreq: Record<string, number> = { MENSUAL: 1, BIMESTRAL: 2 };
+                let proximaEntregaStr = '—';
+                let proximaVencida = false;
+                if (freq === 'EVENTUAL') {
+                  proximaEntregaStr = 'Eventual';
+                } else if (ultimaEntrega && mesesFreq[freq]) {
+                  const proxima = addMonths(new Date(ultimaEntrega), mesesFreq[freq]);
+                  proximaEntregaStr = format(proxima, 'dd/MM/yyyy', { locale: es });
+                  proximaVencida = proxima < new Date();
+                }
                 return (
                   <Box pt={1}>
                     {/* Stats */}
-                    <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={2} mb={2}>
+                    <Box display="grid" gridTemplateColumns="repeat(4, 1fr)" gap={2} mb={2}>
                       {[
                         { label: 'ENTREGAS TOTALES', value: entregados.length, color: 'primary.main' },
                         { label: 'KG ACUMULADOS', value: `${totalKg.toFixed(1)} kg`, color: 'success.main' },
                         { label: 'ÚLTIMA ENTREGA', value: ultimaEntrega ? format(new Date(ultimaEntrega), 'dd/MM/yyyy', { locale: es }) : '—', color: 'text.primary' },
+                        { label: 'PRÓXIMA ENTREGA', value: proximaEntregaStr, color: proximaVencida ? 'error.main' : 'warning.main' },
                       ].map((s) => (
-                        <Card variant="outlined" key={s.label}>
+                        <Card variant="outlined" key={s.label} sx={s.label === 'PRÓXIMA ENTREGA' && proximaVencida ? { borderColor: 'error.main' } : {}}>
                           <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                             <Typography variant="caption" color="text.secondary">{s.label}</Typography>
                             <Typography variant="h6" fontWeight="bold" color={s.color}>{s.value}</Typography>
+                            {s.label === 'PRÓXIMA ENTREGA' && proximaVencida && (
+                              <Typography variant="caption" color="error">¡Entrega atrasada!</Typography>
+                            )}
                           </CardContent>
                         </Card>
                       ))}

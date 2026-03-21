@@ -147,6 +147,35 @@ export class BeneficiariosService {
     return { dni, beneficiarios, casos };
   }
 
+  // ── Búsqueda global por DNI ──────────────────────────────────────────────
+  async searchByDni(dni: string) {
+    const [beneficiarios, casos, integrantes] = await Promise.all([
+      this.prisma.beneficiario.findMany({
+        where: { responsableDNI: dni },
+        include: { programa: { select: { nombre: true, secretaria: true } } },
+        orderBy: { nombre: 'asc' },
+      }),
+      this.prisma.caso.findMany({
+        where: { dni },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, nombreSolicitante: true, tipo: true, estado: true,
+          prioridad: true, createdAt: true, creadoPorNombre: true,
+          remito: { select: { numero: true, totalKg: true } },
+        },
+      }),
+      this.prisma.integranteEspacio.findMany({
+        where: { dni, activo: true },
+        include: {
+          beneficiario: {
+            select: { id: true, nombre: true, programa: { select: { nombre: true } } },
+          },
+        },
+      }),
+    ]);
+    return { dni, beneficiarios, casos, integrantes };
+  }
+
   async update(id: number, updateData: any) {
     return await this.prisma.beneficiario.update({
       where: { id },
