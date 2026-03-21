@@ -15,6 +15,7 @@ import {
   PhotoCamera as FotoIcon, Download as DownloadIcon, FilterAlt as FilterIcon,
   ExpandMore as ExpandIcon, ExpandLess as CollapseIcon, CheckCircle as CheckIcon,
   Edit as EditIcon, CloudUpload as UploadIcon, Person as PersonIcon,
+  PictureAsPdf as PdfIcon,
 } from '@mui/icons-material';
 import { format, subDays, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -52,6 +53,26 @@ export default function HistorialEntregas() {
   const [editFecha, setEditFecha]     = useState('');
   const [editFoto, setEditFoto]       = useState<File | null>(null);
   const [guardandoEdit, setGuardandoEdit] = useState(false);
+
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExportarPdf = async () => {
+    setExportingPdf(true);
+    try {
+      const params: any = { entregadoDesde: fechaDesde, entregadoHasta: fechaHasta };
+      if (depositoFiltro) params.depositoId = depositoFiltro;
+      if (programaFiltro) params.programaId = programaFiltro;
+      if (buscar.trim()) params.buscar = buscar.trim();
+      const res = await api.get('/remitos/historial-pdf', { params, responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `historial_${fechaDesde}_${fechaHasta}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { /* silencioso */ }
+    finally { setExportingPdf(false); }
+  };
 
   // Inline: subir foto directo desde la tabla
   const [uploadingFotoId, setUploadingFotoId] = useState<number | null>(null);
@@ -194,12 +215,24 @@ export default function HistorialEntregas() {
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" fontWeight="bold">Historial de Entregas</Typography>
-        <ExportExcelButton
-          data={exportData}
-          fileName={`historial_entregas_${fechaDesde}_${fechaHasta}`}
-          sheetName="Entregas"
-          label="Exportar Excel"
-        />
+        <Box display="flex" gap={1}>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={exportingPdf ? undefined : <PdfIcon />}
+            onClick={handleExportarPdf}
+            disabled={exportingPdf}
+            size="small"
+          >
+            {exportingPdf ? 'Generando PDF...' : 'Exportar PDF'}
+          </Button>
+          <ExportExcelButton
+            data={exportData}
+            fileName={`historial_entregas_${fechaDesde}_${fechaHasta}`}
+            sheetName="Entregas"
+            label="Exportar Excel"
+          />
+        </Box>
       </Box>
 
       {/* Filtros */}

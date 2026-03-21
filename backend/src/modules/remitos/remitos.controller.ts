@@ -79,6 +79,31 @@ export class RemitosController {
     return this.remitosService.enviarPorEmail(+id, body);
   }
 
+  @Get('historial-pdf')
+  @ApiOperation({ summary: 'Exportar historial de entregas como PDF' })
+  @Roles('ADMIN', 'VISOR', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA')
+  async historialPdf(@Query() query: any, @Request() req, @Res() res: Response) {
+    const esLogistica = req.user.rol === 'LOGISTICA' && req.user.depositoId;
+    const esCita = req.user.rol === 'ASISTENCIA_CRITICA';
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
+      : 'PA';
+    const pdf = await this.remitosService.historialPdf(
+      query,
+      esLogistica ? req.user.depositoId : undefined,
+      esCita ? 'CITA' : undefined,
+      secretaria,
+    );
+    const desde = query.entregadoDesde ?? 'historial';
+    const hasta = query.entregadoHasta ?? '';
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename=historial_${desde}_${hasta}.pdf`,
+      'Content-Length': pdf.length,
+    });
+    res.status(HttpStatus.OK).send(pdf);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Listar remitos con filtros' })
   findAll(@Query() query: any, @Request() req) {

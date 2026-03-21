@@ -252,6 +252,32 @@ export class RemitosService {
     return await this.pdfService.generarRemitoPdf(remito);
   }
 
+  async historialPdf(
+    filtros: any,
+    usuarioDepositoId?: number,
+    depositoCodigo?: string,
+    secretaria?: string | null,
+  ): Promise<Buffer> {
+    const remitos = await this.findAll(
+      { ...filtros, estado: 'ENTREGADO' },
+      usuarioDepositoId,
+      depositoCodigo,
+      secretaria,
+    );
+    const programa = filtros.programaId
+      ? (await this.prisma.programa.findUnique({ where: { id: parseInt(filtros.programaId) } }))?.nombre
+      : undefined;
+    const deposito = filtros.depositoId
+      ? (await this.prisma.deposito.findUnique({ where: { id: parseInt(filtros.depositoId) } }))?.nombre
+      : undefined;
+    return this.pdfService.generarHistorialPdf(remitos, {
+      desde: filtros.entregadoDesde,
+      hasta: filtros.entregadoHasta,
+      programa,
+      deposito,
+    });
+  }
+
   // Enviar remito por email
   async enviarPorEmail(id: number, opciones: OpcionesEnvio = {}) {
     const remito = await this.prisma.remito.findUnique({
