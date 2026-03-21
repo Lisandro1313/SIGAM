@@ -129,6 +129,25 @@ export class RemitosService {
 
       const depositoId = dto.depositoId || remito.depositoId;
 
+      // Verificar lotes vencidos (advertencia, no bloquea)
+      const hoy = new Date();
+      const alertasVencimiento: string[] = [];
+      for (const item of remito.items) {
+        const lotesVencidos = await tx.loteArticulo.findMany({
+          where: {
+            articuloId: item.articuloId,
+            depositoId,
+            fechaVencimiento: { lte: hoy },
+            cantidad: { gt: 0 },
+          },
+        });
+        if (lotesVencidos.length > 0) {
+          alertasVencimiento.push(
+            `${item.articulo.nombre}: ${lotesVencidos.length} lote(s) vencido(s) (${lotesVencidos.map(l => l.lote ?? 'sin número').join(', ')})`
+          );
+        }
+      }
+
       // Verificar y descontar stock por cada item
       for (const item of remito.items) {
         const stock = await tx.stock.findUnique({
@@ -209,7 +228,7 @@ export class RemitosService {
         depositoId: remitoConfirmado.depositoId,
       }, remitoConfirmado.secretaria as string | null);
 
-      return remitoConfirmado;
+      return { ...remitoConfirmado, alertasVencimiento };
     });
   }
 

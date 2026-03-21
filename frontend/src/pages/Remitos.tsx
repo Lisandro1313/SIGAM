@@ -304,8 +304,16 @@ export default function RemitosPage() {
 
   const handleConfirmar = async (id: number) => {
     try {
-      await api.post(`/remitos/${id}/confirmar`);
-      showNotification('Remito confirmado. El stock fue descontado.', 'success');
+      const res = await api.post(`/remitos/${id}/confirmar`);
+      const alertas: string[] = res.data?.alertasVencimiento ?? [];
+      if (alertas.length > 0) {
+        showNotification(
+          `Remito confirmado con advertencias de lotes vencidos: ${alertas.join(' | ')}`,
+          'warning',
+        );
+      } else {
+        showNotification('Remito confirmado. El stock fue descontado.', 'success');
+      }
       loadRemitos(busqueda);
     } catch (error: any) {
       showNotification(error.response?.data?.message || 'Error al confirmar remito', 'error');
