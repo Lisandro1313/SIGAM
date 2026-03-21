@@ -252,19 +252,19 @@ export class CasosService {
         });
       }
 
-      return r;
-    });
+      // Vincular remito al caso y marcar RESUELTO dentro de la misma transacción
+      await tx.caso.update({
+        where: { id: casoId },
+        data: {
+          remitoId: r.id,
+          estado: 'RESUELTO',
+          revisadoAt: new Date(),
+          revisadoPorId: usuarioId,
+          revisadoPorNombre: usuarioNombre,
+        },
+      });
 
-    // Vincular remito al caso y marcar RESUELTO
-    await this.prisma.caso.update({
-      where: { id: casoId },
-      data: {
-        remitoId: remito.id,
-        estado: 'RESUELTO',
-        revisadoAt: new Date(),
-        revisadoPorId: usuarioId,
-        revisadoPorNombre: usuarioNombre,
-      },
+      return r;
     });
 
     return { caso: await this.findOne(casoId), remito };
