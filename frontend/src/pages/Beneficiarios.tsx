@@ -45,6 +45,7 @@ import {
   InfoOutlined as InfoIcon,
   LocalShipping as EntregaIcon,
   PhotoCamera as FotoIcon,
+  CompareArrows as CruceIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -107,6 +108,10 @@ export default function BeneficiariosPage() {
   const [detalleData, setDetalleData] = useState<any>(null);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [tabDetalle, setTabDetalle] = useState(0);
+
+  // Cruce de programas
+  const [cruceData, setCruceData] = useState<any>(null);
+  const [loadingCruce, setLoadingCruce] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const resolveUrl = (url: string) =>
@@ -253,6 +258,7 @@ export default function BeneficiariosPage() {
     setDetalleData(null);
     setLoadingDetalle(true);
     setTabDetalle(0);
+    setCruceData(null);
     try {
       const res = await api.get(`/beneficiarios/${beneficiario.id}`);
       setDetalleData(res.data);
@@ -501,13 +507,27 @@ export default function BeneficiariosPage() {
         {detalleData && (
           <Tabs
             value={tabDetalle}
-            onChange={(_, v) => setTabDetalle(v)}
+            onChange={(_, v) => {
+              setTabDetalle(v);
+              if (v === 2 && !cruceData && detalleData) {
+                setLoadingCruce(true);
+                api.get(`/beneficiarios/${detalleData.id}/cruce-programas`)
+                  .then(r => setCruceData(r.data))
+                  .catch(() => setCruceData({ error: true }))
+                  .finally(() => setLoadingCruce(false));
+              }
+            }}
             sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}
           >
             <Tab label="Datos" />
             <Tab
               label={`Historial de Entregas (${detalleData.remitos?.filter((r: any) => r.estado === 'ENTREGADO').length ?? 0})`}
               icon={<EntregaIcon fontSize="small" />}
+              iconPosition="start"
+            />
+            <Tab
+              label="Otras Asistencias"
+              icon={<CruceIcon fontSize="small" />}
               iconPosition="start"
             />
           </Tabs>
@@ -550,6 +570,159 @@ export default function BeneficiariosPage() {
               )}
 
               {/* ── TAB 1: Historial de Entregas ── */}
+              {/* ── TAB 2: Otras Asistencias ── */}
+              {tabDetalle === 2 && (
+                <Box pt={1}>
+                  {loadingCruce ? (
+                    <Box display="flex" justifyContent="center" py={4}><CircularProgress /></Box>
+                  ) : cruceData?.error ? (
+                    <Typography color="error" textAlign="center" py={3}>Error al cargar el cruce</Typography>
+                  ) : !cruceData?.dni ? (
+                    <Box textAlign="center" py={4}>
+                      <CruceIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Este beneficiario no tiene DNI responsable registrado.<br />Agregá el DNI para habilitar el cruce de programas.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <>
+                      <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+                        Cruce por DNI: <strong>{cruceData.dni}</strong>
+                      </Typography>
+
+                      {/* ── Otros programas ── */}
+                      <Typography variant="subtitle2" fontWeight="bold" mb={1}>
+                        Otros programas ({cruceData.beneficiarios?.length ?? 0})
+                      </Typography>
+                      {cruceData.beneficiarios?.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary" mb={2}>
+                          No aparece en otros programas.
+                        </Typography>
+                      ) : (
+                        <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                <TableCell>Nombre</TableCell>
+                                <TableCell>Programa</TableCell>
+                                <TableCell>Secretaría</TableCell>
+                                <TableCell>Tipo</TableCell>
+                                <TableCell align="right">Entregas</TableCell>
+                                <TableCell align="right">Kg total</TableCell>
+                                <TableCell>Última entrega</TableCell>
+                                <TableCell>Estado</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {cruceData.beneficiarios.map((b: any) => (
+                                <TableRow key={b.id} hover>
+                                  <TableCell><strong>{b.nombre}</strong></TableCell>
+                                  <TableCell>{b.programa?.nombre ?? '—'}</TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      label={b.programa?.secretaria ?? '—'}
+                                      size="small"
+                                      color={b.programa?.secretaria === 'CITA' ? 'warning' : 'primary'}
+                                      variant="outlined"
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption">{b.tipo}</Typography>
+                                  </TableCell>
+                                  <TableCell align="right">{b.cantidadEntregas}</TableCell>
+                                  <TableCell align="right">{b.totalKg > 0 ? `${b.totalKg.toFixed(1)} kg` : '—'}</TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption">
+                                      {b.ultimaEntrega ? format(new Date(b.ultimaEntrega), 'dd/MM/yyyy', { locale: es }) : '—'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      label={b.activo ? 'Activo' : 'Baja'}
+                                      size="small"
+                                      color={b.activo ? 'success' : 'default'}
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      )}
+
+                      {/* ── Casos particulares ── */}
+                      <Typography variant="subtitle2" fontWeight="bold" mb={1}>
+                        Casos particulares ({cruceData.casos?.length ?? 0})
+                      </Typography>
+                      {cruceData.casos?.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">
+                          No tiene casos particulares registrados.
+                        </Typography>
+                      ) : (
+                        <TableContainer component={Paper} variant="outlined">
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                <TableCell>Solicitante</TableCell>
+                                <TableCell>Tipo</TableCell>
+                                <TableCell>Estado</TableCell>
+                                <TableCell>Prioridad</TableCell>
+                                <TableCell>Creado por</TableCell>
+                                <TableCell>Fecha</TableCell>
+                                <TableCell>Remito generado</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {cruceData.casos.map((c: any) => (
+                                <TableRow key={c.id} hover>
+                                  <TableCell><strong>{c.nombreSolicitante}</strong></TableCell>
+                                  <TableCell><Typography variant="caption">{c.tipo}</Typography></TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      label={c.estado}
+                                      size="small"
+                                      color={
+                                        c.estado === 'APROBADO' || c.estado === 'RESUELTO' ? 'success'
+                                        : c.estado === 'RECHAZADO' ? 'error'
+                                        : c.estado === 'EN_REVISION' ? 'info'
+                                        : 'warning'
+                                      }
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      label={c.prioridad}
+                                      size="small"
+                                      color={c.prioridad === 'URGENTE' ? 'error' : c.prioridad === 'ALTA' ? 'warning' : 'default'}
+                                      variant="outlined"
+                                    />
+                                  </TableCell>
+                                  <TableCell><Typography variant="caption">{c.creadoPorNombre}</Typography></TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption">
+                                      {format(new Date(c.createdAt), 'dd/MM/yyyy', { locale: es })}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    {c.remito ? (
+                                      <Typography variant="caption" color="success.main">
+                                        {c.remito.numero} ({c.remito.totalKg?.toFixed(1)} kg)
+                                      </Typography>
+                                    ) : (
+                                      <Typography variant="caption" color="text.disabled">—</Typography>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      )}
+                    </>
+                  )}
+                </Box>
+              )}
+
               {tabDetalle === 1 && (() => {
                 const entregados = detalleData.remitos?.filter((r: any) => r.estado === 'ENTREGADO') ?? [];
                 const totalKg = entregados.reduce((s: number, r: any) => s + (r.totalKg || 0), 0);

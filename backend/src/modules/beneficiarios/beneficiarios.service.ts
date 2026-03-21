@@ -87,6 +87,66 @@ export class BeneficiariosService {
     return beneficiario;
   }
 
+  async getCruceProgramas(id: number) {
+    // 1. Obtener el beneficiario y su DNI responsable
+    const bene = await this.prisma.beneficiario.findUnique({
+      where: { id },
+      select: { responsableDNI: true, programaId: true },
+    });
+    if (!bene?.responsableDNI) return { dni: null, beneficiarios: [], casos: [] };
+
+    const dni = bene.responsableDNI;
+
+    // 2. Otros beneficiarios con el mismo DNI (excluyendo este mismo registro)
+    const otrosBeneficiarios = await this.prisma.beneficiario.findMany({
+      where: { responsableDNI: dni, id: { not: id } },
+      include: {
+        programa: { select: { nombre: true, secretaria: true } },
+        remitos: {
+          where: { estado: 'ENTREGADO' },
+          select: { totalKg: true, entregadoAt: true, fecha: true },
+          orderBy: { fecha: 'desc' },
+        },
+      },
+    });
+
+    const beneficiarios = otrosBeneficiarios.map((b) => {
+      const entregas = b.remitos;
+      const totalKg = entregas.reduce((s, r) => s + (r.totalKg || 0), 0);
+      const ultimaEntrega = entregas[0]?.entregadoAt ?? entregas[0]?.fecha ?? null;
+      return {
+        id: b.id,
+        nombre: b.nombre,
+        tipo: b.tipo,
+        activo: b.activo,
+        programa: b.programa,
+        cantidadEntregas: entregas.length,
+        totalKg,
+        ultimaEntrega,
+      };
+    });
+
+    // 3. Casos particulares con el mismo DNI
+    const casos = await this.prisma.caso.findMany({
+      where: { dni },
+      select: {
+        id: true,
+        nombreSolicitante: true,
+        tipo: true,
+        estado: true,
+        prioridad: true,
+        descripcion: true,
+        creadoPorNombre: true,
+        createdAt: true,
+        revisadoAt: true,
+        remito: { select: { numero: true, totalKg: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return { dni, beneficiarios, casos };
+  }
+
   async update(id: number, updateData: any) {
     return await this.prisma.beneficiario.update({
       where: { id },

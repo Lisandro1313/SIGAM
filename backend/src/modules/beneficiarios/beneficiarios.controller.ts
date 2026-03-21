@@ -53,6 +53,13 @@ export class BeneficiariosController {
     return this.beneficiariosService.findOne(+id);
   }
 
+  @Get(':id/cruce-programas')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR')
+  @ApiOperation({ summary: 'Cruce de programas y casos por DNI del responsable' })
+  getCruceProgramas(@Param('id') id: string) {
+    return this.beneficiariosService.getCruceProgramas(+id);
+  }
+
   @Patch(':id')
   @Roles('ADMIN', 'OPERADOR_PROGRAMA')
   @ApiOperation({ summary: 'Actualizar beneficiario' })
