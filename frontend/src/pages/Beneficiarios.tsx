@@ -1101,9 +1101,20 @@ export default function BeneficiariosPage() {
       {/* Dialog documentos */}
       <Dialog open={docsOpen} onClose={() => setDocsOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <DocsIcon color="info" />
-            Documentos — {docsTarget?.nombre}
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={1}>
+              <DocsIcon color="info" />
+              Documentos — {docsTarget?.nombre}
+            </Box>
+            {documentos.length > 0 && (
+              <Box display="flex" gap={0.5}>
+                {(['PENDIENTE','APROBADO','RECHAZADO'] as const).map(est => {
+                  const count = documentos.filter(d => d.estado === est).length;
+                  if (!count) return null;
+                  return <Chip key={est} label={`${count} ${est.toLowerCase()}`} size="small" color={ESTADO_COLOR[est]} />;
+                })}
+              </Box>
+            )}
           </Box>
         </DialogTitle>
         <DialogContent>
@@ -1150,6 +1161,15 @@ export default function BeneficiariosPage() {
           )}
 
           <Divider sx={{ mb: 1 }} />
+
+          {/* Alerta documentos pendientes */}
+          {puedeEditar && documentos.filter(d => d.estado === 'PENDIENTE').length > 0 && (
+            <Box sx={{ mb: 1.5, p: 1, bgcolor: 'warning.50', border: '1px solid', borderColor: 'warning.main', borderRadius: 1 }}>
+              <Typography variant="caption" color="warning.dark" fontWeight="bold">
+                ⚠ {documentos.filter(d => d.estado === 'PENDIENTE').length} documento(s) pendiente(s) de revisión
+              </Typography>
+            </Box>
+          )}
 
           {/* Lista de documentos */}
           {loadingDocs ? (
@@ -1205,9 +1225,23 @@ export default function BeneficiariosPage() {
                         </IconButton>
                       </Tooltip>
                     )}
+                    {puedeEditar && doc.estado !== 'RECHAZADO' && (
+                      <Tooltip title="Rechazar">
+                        <IconButton size="small" color="error" onClick={() => handleEstadoDoc(doc.id, 'RECHAZADO')}>
+                          <RechazadoIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    {puedeEditar && doc.estado !== 'PENDIENTE' && (
+                      <Tooltip title="Volver a Pendiente">
+                        <IconButton size="small" color="warning" onClick={() => handleEstadoDoc(doc.id, 'PENDIENTE')}>
+                          <PendienteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                     {puedeEditar && (
                       <Tooltip title="Eliminar">
-                        <IconButton size="small" color="error" onClick={() => handleDeleteDoc(doc.id)}>
+                        <IconButton size="small" onClick={() => handleDeleteDoc(doc.id)}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
