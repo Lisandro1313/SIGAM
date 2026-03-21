@@ -50,6 +50,14 @@ export class AuditoriaService {
     });
   }
 
+  async findByRuta(rutaContiene: string, limit = 100) {
+    return this.prisma.auditoriaLog.findMany({
+      where: { ruta: { contains: rutaContiene } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
   async getUsuarios() {
     const logs = await this.prisma.auditoriaLog.findMany({
       select: { usuarioId: true, usuarioNombre: true },

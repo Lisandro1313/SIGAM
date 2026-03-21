@@ -114,6 +114,10 @@ export default function BeneficiariosPage() {
   const [cruceData, setCruceData] = useState<any>(null);
   const [loadingCruce, setLoadingCruce] = useState(false);
 
+  // Historial de cambios (auditoria)
+  const [historial, setHistorial] = useState<any[] | null>(null);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+
   // Integrantes de espacio/comedor
   const [integrantes, setIntegrantes] = useState<any[]>([]);
   const [loadingIntegrantes, setLoadingIntegrantes] = useState(false);
@@ -135,6 +139,7 @@ export default function BeneficiariosPage() {
   const puedeRelevamiento = user ? puedeHacer(user.rol, 'beneficiarios.relevamiento') : false;
   const puedeSubirDocs  = user ? ['ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL'].includes(user.rol) : false;
   const puedeEliminar   = user ? puedeHacer(user.rol, 'beneficiarios.eliminar') : false;
+  const esAdmin         = user?.rol === 'ADMIN';
 
   useEffect(() => { loadBeneficiarios(); }, []);
 
@@ -271,6 +276,7 @@ export default function BeneficiariosPage() {
     setTabDetalle(0);
     setCruceData(null);
     setIntegrantes([]);
+    setHistorial(null);
     setIntegranteForm({ nombre: '', dni: '', direccion: '' });
     try {
       const res = await api.get(`/beneficiarios/${beneficiario.id}`);
@@ -368,18 +374,24 @@ export default function BeneficiariosPage() {
         <Box display="flex" gap={2}>
           {puedeEditar && (
             <ExportExcelButton
-              data={beneficiarios.map((b) => ({
+              data={filteredBeneficiarios.map((b) => ({
+                id: b.id,
                 nombre: b.nombre,
                 tipo: b.tipo,
-                localidad: b.localidad,
-                direccion: b.direccion,
-                telefono: b.telefono,
-                programa: b.programa?.nombre || '-',
-                frecuencia: b.frecuenciaEntrega,
+                localidad: b.localidad ?? '',
+                direccion: b.direccion ?? '',
+                telefono: b.telefono ?? '',
+                responsable: b.responsableNombre ?? '',
+                dni_responsable: b.responsableDNI ?? '',
+                programa: b.programa?.nombre ?? '',
+                frecuencia_entrega: b.frecuenciaEntrega ?? '',
+                kilos_habitual: b.kilosHabitual ?? '',
+                activo: b.activo ? 'Sí' : 'No',
+                observaciones: b.observaciones ?? '',
               }))}
-              fileName="beneficiarios"
+              fileName={`beneficiarios${searchTerm ? '-filtrado' : ''}`}
               sheetName="Beneficiarios"
-              label="Exportar"
+              label={`Exportar${filteredBeneficiarios.length !== beneficiarios.length ? ` (${filteredBeneficiarios.length})` : ''}`}
             />
           )}
           {puedeCrear && (
@@ -571,48 +583,61 @@ export default function BeneficiariosPage() {
           </Box>
         </DialogTitle>
 
-        {detalleData && (
-          <Tabs
-            value={tabDetalle}
-            onChange={(_, v) => {
-              setTabDetalle(v);
-              if (v === 2 && !cruceData && detalleData) {
-                setLoadingCruce(true);
-                api.get(`/beneficiarios/${detalleData.id}/cruce-programas`)
-                  .then(r => setCruceData(r.data))
-                  .catch(() => setCruceData({ error: true }))
-                  .finally(() => setLoadingCruce(false));
-              }
-              if (v === 3 && integrantes.length === 0 && detalleData && TIPOS_ESPACIO.includes(detalleData.tipo)) {
-                setLoadingIntegrantes(true);
-                api.get(`/beneficiarios/${detalleData.id}/integrantes`)
-                  .then(r => setIntegrantes(r.data))
-                  .catch(() => {})
-                  .finally(() => setLoadingIntegrantes(false));
-              }
-            }}
-            sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}
-          >
-            <Tab label="Datos" />
-            <Tab
-              label={`Historial de Entregas (${detalleData.remitos?.filter((r: any) => r.estado === 'ENTREGADO').length ?? 0})`}
-              icon={<EntregaIcon fontSize="small" />}
-              iconPosition="start"
-            />
-            <Tab
-              label="Otras Asistencias"
-              icon={<CruceIcon fontSize="small" />}
-              iconPosition="start"
-            />
-            {TIPOS_ESPACIO.includes(detalleData?.tipo) && (
+        {detalleData && (() => {
+          const tieneIntegrantes = TIPOS_ESPACIO.includes(detalleData?.tipo);
+          const tabIntegrantes = tieneIntegrantes ? 3 : -1;
+          const tabHistorial   = tieneIntegrantes ? 4 : 3;
+          return (
+            <Tabs
+              value={tabDetalle}
+              onChange={(_, v) => {
+                setTabDetalle(v);
+                if (v === 2 && !cruceData && detalleData) {
+                  setLoadingCruce(true);
+                  api.get(`/beneficiarios/${detalleData.id}/cruce-programas`)
+                    .then(r => setCruceData(r.data))
+                    .catch(() => setCruceData({ error: true }))
+                    .finally(() => setLoadingCruce(false));
+                }
+                if (v === tabIntegrantes && integrantes.length === 0 && detalleData) {
+                  setLoadingIntegrantes(true);
+                  api.get(`/beneficiarios/${detalleData.id}/integrantes`)
+                    .then(r => setIntegrantes(r.data))
+                    .catch(() => {})
+                    .finally(() => setLoadingIntegrantes(false));
+                }
+                if (v === tabHistorial && historial === null && esAdmin) {
+                  setLoadingHistorial(true);
+                  api.get('/auditoria', { params: { buscar: `/beneficiarios/${detalleData.id}` } })
+                    .then(r => setHistorial(r.data))
+                    .catch(() => setHistorial([]))
+                    .finally(() => setLoadingHistorial(false));
+                }
+              }}
+              sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}
+            >
+              <Tab label="Datos" />
               <Tab
-                label={`Integrantes${integrantes.length > 0 ? ` (${integrantes.length})` : ''}`}
-                icon={<IntegrantesIcon fontSize="small" />}
+                label={`Historial de Entregas (${detalleData.remitos?.filter((r: any) => r.estado === 'ENTREGADO').length ?? 0})`}
+                icon={<EntregaIcon fontSize="small" />}
                 iconPosition="start"
               />
-            )}
-          </Tabs>
-        )}
+              <Tab
+                label="Otras Asistencias"
+                icon={<CruceIcon fontSize="small" />}
+                iconPosition="start"
+              />
+              {tieneIntegrantes && (
+                <Tab
+                  label={`Integrantes${integrantes.length > 0 ? ` (${integrantes.length})` : ''}`}
+                  icon={<IntegrantesIcon fontSize="small" />}
+                  iconPosition="start"
+                />
+              )}
+              {esAdmin && <Tab label="Cambios" />}
+            </Tabs>
+          );
+        })()}
 
         <DialogContent>
           {loadingDetalle ? (
@@ -888,6 +913,68 @@ export default function BeneficiariosPage() {
                   )}
                 </Box>
               )}
+
+              {/* ── TAB Historial de Cambios (ADMIN only) ── */}
+              {esAdmin && (() => {
+                const tieneInt = TIPOS_ESPACIO.includes(detalleData?.tipo);
+                const tabH = tieneInt ? 4 : 3;
+                if (tabDetalle !== tabH) return null;
+                return (
+                  <Box pt={1}>
+                    <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+                      Últimas 100 acciones sobre este beneficiario
+                    </Typography>
+                    {loadingHistorial ? (
+                      <Box display="flex" justifyContent="center" py={4}><CircularProgress size={28} /></Box>
+                    ) : !historial || historial.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary" textAlign="center" py={3}>
+                        Sin registros de cambios
+                      </Typography>
+                    ) : (
+                      <TableContainer component={Paper} variant="outlined">
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: 'grey.50' }}>
+                              <TableCell>Fecha</TableCell>
+                              <TableCell>Usuario</TableCell>
+                              <TableCell>Acción</TableCell>
+                              <TableCell>Descripción</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {historial.map((log: any) => (
+                              <TableRow key={log.id} hover>
+                                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                                  <Typography variant="caption">
+                                    {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm', { locale: es })}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="caption">{log.usuarioNombre ?? '—'}</Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={log.metodo}
+                                    size="small"
+                                    color={log.metodo === 'DELETE' ? 'error' : log.metodo === 'POST' ? 'success' : 'primary'}
+                                    variant="outlined"
+                                    sx={{ fontSize: '0.65rem', height: 18 }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {log.descripcion ?? log.ruta}
+                                  </Typography>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </Box>
+                );
+              })()}
 
               {tabDetalle === 1 && (() => {
                 const entregados = detalleData.remitos?.filter((r: any) => r.estado === 'ENTREGADO') ?? [];
