@@ -20,6 +20,8 @@ import {
   Badge,
   Popover,
   Paper,
+  Snackbar,
+  Button,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -43,6 +45,8 @@ import {
   Notifications as BellIcon,
   Error as ErrorIcon,
   Warning as WarningIcon,
+  GetApp as InstallIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { puedeAcceder, ROL_LABELS, Rol } from '../utils/permisos';
@@ -84,9 +88,32 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [bellAnchor, setBellAnchor] = useState<null | HTMLElement>(null);
   const [notifs, setNotifs] = useState<any[]>([]);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Capturar el evento de instalación PWA
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+      setShowInstallBanner(false);
+    }
+  };
 
   // Cargar notificaciones cada 2 minutos
   useEffect(() => {
@@ -269,6 +296,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <Box component="main" sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - ${drawerWidth}px)` }, mt: 8 }}>
         {children}
       </Box>
+
+      {/* Banner de instalación PWA */}
+      <Snackbar
+        open={showInstallBanner}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{ bottom: { xs: 16, sm: 24 } }}
+      >
+        <Paper elevation={6} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.5, borderLeft: '4px solid', borderColor: 'primary.main', maxWidth: 380 }}>
+          <InstallIcon color="primary" />
+          <Box flex={1}>
+            <Typography variant="body2" fontWeight="bold">Instalar SIGAM</Typography>
+            <Typography variant="caption" color="text.secondary">Agregá la app a tu pantalla de inicio para usarla sin internet.</Typography>
+          </Box>
+          <Button size="small" variant="contained" onClick={handleInstall} sx={{ whiteSpace: 'nowrap' }}>
+            Instalar
+          </Button>
+          <IconButton size="small" onClick={() => setShowInstallBanner(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Paper>
+      </Snackbar>
     </Box>
   );
 }
