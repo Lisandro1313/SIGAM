@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Box, Typography, CircularProgress, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, TextField, Button, Dialog,
@@ -194,6 +195,20 @@ export default function HistorialEntregas() {
   const conFoto  = entregasFiltradas.filter((r) => r.entregadoFoto).length;
   const sinFoto  = entregasFiltradas.length - conFoto;
 
+  // Virtual scrolling
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: entregasFiltradas.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 52,
+    overscan: 10,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const paddingTop    = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom = virtualItems.length > 0
+    ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+    : 0;
+
   const exportData = entregasFiltradas.map((r) => ({
     Numero:       r.numero,
     Fecha:        format(new Date(r.fecha), 'dd/MM/yyyy'),
@@ -325,9 +340,14 @@ export default function HistorialEntregas() {
       ) : entregasFiltradas.length === 0 ? (
         <Alert severity="info">No hay entregas en el período seleccionado con los filtros aplicados.</Alert>
       ) : (
-        <TableContainer component={Paper} elevation={2}>
-          <Table size="small">
-            <TableHead>
+        <TableContainer
+          component={Paper}
+          elevation={2}
+          ref={tableContainerRef}
+          sx={{ overflow: 'auto', height: 'calc(100vh - 390px)', minHeight: 360 }}
+        >
+          <Table size="small" sx={{ tableLayout: 'fixed' }}>
+            <TableHead sx={{ position: 'sticky', top: 0, zIndex: 1, bgcolor: 'grey.100' }}>
               <TableRow sx={{ bgcolor: 'grey.100' }}>
                 <TableCell width={32} />
                 <TableCell>N° Remito</TableCell>
@@ -344,8 +364,12 @@ export default function HistorialEntregas() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {entregasFiltradas.map((remito) => (
-                <>
+              {paddingTop > 0 && (
+                <TableRow><TableCell colSpan={12} sx={{ height: paddingTop, p: 0, border: 0 }} /></TableRow>
+              )}
+              {virtualItems.map((virtualRow) => {
+                const remito = entregasFiltradas[virtualRow.index];
+                return (<>
                   <TableRow
                     key={remito.id}
                     hover
@@ -495,7 +519,11 @@ export default function HistorialEntregas() {
                     </TableCell>
                   </TableRow>
                 </>
-              ))}
+                );
+              })}
+              {paddingBottom > 0 && (
+                <TableRow><TableCell colSpan={12} sx={{ height: paddingBottom, p: 0, border: 0 }} /></TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>
