@@ -31,8 +31,8 @@ export class BeneficiariosController {
   @Get('check-dni/:dni')
   @Roles('ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA')
   @ApiOperation({ summary: 'Verificar si un DNI ya está registrado como responsable de otro beneficiario' })
-  checkDni(@Param('dni') dni: string) {
-    return this.beneficiariosService.checkDni(dni);
+  checkDni(@Param('dni') dni: string, @Query('excludeId') excludeId?: string) {
+    return this.beneficiariosService.checkDni(dni, excludeId ? +excludeId : undefined);
   }
 
   @Get('buscar-dni')

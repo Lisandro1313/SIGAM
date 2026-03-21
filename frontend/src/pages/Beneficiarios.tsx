@@ -74,12 +74,13 @@ const EstadoIcon = ({ estado }: { estado: string }) => {
 
 export default function BeneficiariosPage() {
   const [beneficiarios, setBeneficiarios] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [selectedBeneficiario, setSelectedBeneficiario] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   // Relevamiento
   const [relevamientoOpen, setRelevamientoOpen] = useState(false);
@@ -141,12 +142,22 @@ export default function BeneficiariosPage() {
   const puedeEliminar   = user ? puedeHacer(user.rol, 'beneficiarios.eliminar') : false;
   const esAdmin         = user?.rol === 'ADMIN';
 
-  useEffect(() => { loadBeneficiarios(); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => { loadBeneficiarios(0, rowsPerPage, searchTerm); setPage(0); }, 350);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
-  const loadBeneficiarios = async () => {
+  useEffect(() => { loadBeneficiarios(page, rowsPerPage, searchTerm); }, [page, rowsPerPage]);
+
+  const loadBeneficiarios = async (pg = page, lim = rowsPerPage, buscar = searchTerm) => {
+    setLoading(true);
     try {
-      const response = await api.get('/beneficiarios');
-      setBeneficiarios(response.data);
+      const params: any = { page: pg + 1, limit: lim };
+      if (buscar) params.buscar = buscar;
+      const response = await api.get('/beneficiarios', { params });
+      setBeneficiarios(response.data.data);
+      setTotal(response.data.total);
     } catch (error) {
       console.error('Error cargando beneficiarios:', error);
     } finally {
@@ -345,28 +356,6 @@ export default function BeneficiariosPage() {
 
   // ────────────────────────────────────────────────────────────────────────────
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" mt={4}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  const filteredBeneficiarios = beneficiarios.filter(
-    (b) =>
-      b.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (b.localidad && b.localidad.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (b.direccion && b.direccion.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (b.responsableDNI && b.responsableDNI.includes(searchTerm)) ||
-      (b.responsableNombre && b.responsableNombre.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
-  const paginatedBeneficiarios = filteredBeneficiarios.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
-
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
@@ -374,7 +363,7 @@ export default function BeneficiariosPage() {
         <Box display="flex" gap={2}>
           {puedeEditar && (
             <ExportExcelButton
-              data={filteredBeneficiarios.map((b) => ({
+              data={beneficiarios.map((b) => ({
                 id: b.id,
                 nombre: b.nombre,
                 tipo: b.tipo,
@@ -391,7 +380,7 @@ export default function BeneficiariosPage() {
               }))}
               fileName={`beneficiarios${searchTerm ? '-filtrado' : ''}`}
               sheetName="Beneficiarios"
-              label={`Exportar${filteredBeneficiarios.length !== beneficiarios.length ? ` (${filteredBeneficiarios.length})` : ''}`}
+              label={`Exportar${searchTerm ? ` (${total})` : ''}`}
             />
           )}
           {puedeCrear && (
@@ -423,16 +412,18 @@ export default function BeneficiariosPage() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginatedBeneficiarios.length === 0 ? (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} align="center"><CircularProgress size={28} /></TableCell>
+              </TableRow>
+            ) : beneficiarios.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} align="center">
-                  <Typography variant="body2" color="text.secondary">
-                    {filteredBeneficiarios.length === 0 ? 'No se encontraron beneficiarios' : 'No hay beneficiarios en esta página'}
-                  </Typography>
+                  <Typography variant="body2" color="text.secondary">No se encontraron beneficiarios</Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              paginatedBeneficiarios.map((beneficiario) => (
+              beneficiarios.map((beneficiario) => (
                 <TableRow key={beneficiario.id} hover>
                   <TableCell>
                     <Box
@@ -499,9 +490,9 @@ export default function BeneficiariosPage() {
           </TableBody>
         </Table>
         <TablePagination
-          rowsPerPageOptions={[5, 10, 25, 50]}
+          rowsPerPageOptions={[10, 25, 50, 100]}
           component="div"
-          count={filteredBeneficiarios.length}
+          count={total}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={(_e, p) => setPage(p)}

@@ -89,8 +89,8 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
 
   const loadBeneficiarios = async (autoSelectLatest = false) => {
     try {
-      const response = await api.get('/beneficiarios');
-      const activos = response.data.filter((b: any) => b.activo);
+      const response = await api.get('/beneficiarios', { params: { limit: 500 } });
+      const activos = (response.data.data ?? response.data).filter((b: any) => b.activo);
       setBeneficiarios(activos);
       if (autoSelectLatest && activos.length > 0) {
         const ultimo = activos.reduce((a: any, b: any) => (b.id > a.id ? b : a));

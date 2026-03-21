@@ -29,16 +29,18 @@ export class BeneficiariosService {
     return [...new Set([...BeneficiariosService.LOCALIDADES_LA_PLATA, ...dbLocalidades])].sort();
   }
 
-  async checkDni(dni: string) {
+  async checkDni(dni: string, excludeId?: number) {
+    const where: any = { responsableDNI: dni, activo: true };
+    if (excludeId) where.id = { not: excludeId };
     const encontrados = await this.prisma.beneficiario.findMany({
-      where: { responsableDNI: dni, activo: true },
+      where,
       include: { programa: { select: { nombre: true } } },
     });
     if (encontrados.length === 0) return { encontrado: false, detalle: null };
     const detalle = encontrados
       .map(b => `"${b.nombre}" en ${b.programa?.nombre ?? 'sin programa'}`)
       .join(', ');
-    return { encontrado: true, detalle };
+    return { encontrado: true, detalle, ids: encontrados.map(b => b.id) };
   }
 
   async create(createBeneficiarioDto: CreateBeneficiarioDto) {
@@ -54,14 +56,32 @@ export class BeneficiariosService {
     if (filtros?.programaId) where.programaId = parseInt(filtros.programaId);
     if (filtros?.localidad) where.localidad = { contains: filtros.localidad, mode: 'insensitive' };
     if (filtros?.tipo) where.tipo = filtros.tipo;
+    if (filtros?.buscar) {
+      where.OR = [
+        { nombre: { contains: filtros.buscar, mode: 'insensitive' } },
+        { responsableNombre: { contains: filtros.buscar, mode: 'insensitive' } },
+        { responsableDNI: { contains: filtros.buscar, mode: 'insensitive' } },
+      ];
+    }
     // Filtrar por secretaría del programa (null = LOGISTICA/VISOR, ve todo)
     if (secretaria) where.programa = { secretaria };
 
-    return await this.prisma.beneficiario.findMany({
-      where,
-      include: { programa: true },
-      orderBy: { nombre: 'asc' },
-    });
+    const page = filtros?.page ? parseInt(filtros.page) : 1;
+    const limit = filtros?.limit ? parseInt(filtros.limit) : 50;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.beneficiario.findMany({
+        where,
+        include: { programa: true },
+        orderBy: { nombre: 'asc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.beneficiario.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async findOne(id: number) {

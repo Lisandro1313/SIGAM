@@ -59,10 +59,10 @@ export default function MapaPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/beneficiarios'),
+      api.get('/beneficiarios', { params: { limit: 1000 } }),
       api.get('/zonas'),
     ]).then(([benR, zonR]) => {
-      setBeneficiarios(benR.data);
+      setBeneficiarios(benR.data.data ?? benR.data);
       setZonas(zonR.data);
     }).finally(() => setLoading(false));
   }, []);
