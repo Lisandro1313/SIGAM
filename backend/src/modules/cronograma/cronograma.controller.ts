@@ -43,8 +43,10 @@ export class CronogramaController {
   @Get('preview-remitos-rango')
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
   @ApiOperation({ summary: 'Preview de remitos a generar para un rango de fechas' })
-  previewRemitosRango(@Query('desde') desde: string, @Query('hasta') hasta: string) {
-    return this.cronogramaService.previewRemitosRango(desde, hasta);
+  previewRemitosRango(@Query('desde') desde: string, @Query('hasta') hasta: string, @Request() req) {
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : (req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR') ? null : 'PA';
+    return this.cronogramaService.previewRemitosRango(desde, hasta, secretaria);
   }
 
   @Post('generar-remitos-rango')

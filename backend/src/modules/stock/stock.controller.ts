@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Request, Param, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, Request, Param, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -47,10 +47,16 @@ export class StockController {
     @Request() req,
     @UploadedFile() documento?: Express.Multer.File,
   ) {
+    const articuloId = parseInt(body.articuloId, 10);
+    const depositoId = parseInt(body.depositoId, 10);
+    const cantidad = parseFloat(body.cantidad);
+    if (isNaN(articuloId) || isNaN(depositoId) || isNaN(cantidad) || cantidad <= 0) {
+      throw new BadRequestException('articuloId, depositoId y cantidad son requeridos y deben ser números válidos');
+    }
     return this.stockService.registrarIngreso(
-      parseInt(body.articuloId),
-      parseInt(body.depositoId),
-      parseFloat(body.cantidad),
+      articuloId,
+      depositoId,
+      cantidad,
       req.user.id,
       body.observaciones,
       documento,

@@ -140,6 +140,7 @@ model Beneficiario {
   @@index([activo])
   @@index([programaId])
   @@index([localidad])
+  @@index([responsableDNI])
 }
 
 model DocumentoBeneficiario {
@@ -301,6 +302,8 @@ model Movimiento {
   @@index([programaId])
   @@index([usuarioId])
   @@index([beneficiarioId])
+  @@index([depositoDesdeId])
+  @@index([depositoHaciaId])
 }
 
 // ============================================================================
