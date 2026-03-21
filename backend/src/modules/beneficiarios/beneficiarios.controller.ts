@@ -46,6 +46,36 @@ export class BeneficiariosController {
     return this.beneficiariosService.findAll(filtros, secretaria);
   }
 
+  // ── Integrantes de espacio/comedor ──────────────────────────────────────────
+
+  @Get(':id/integrantes')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR')
+  @ApiOperation({ summary: 'Listar integrantes del espacio/comedor' })
+  getIntegrantes(@Param('id') id: string) {
+    return this.beneficiariosService.getIntegrantes(+id);
+  }
+
+  @Post(':id/integrantes')
+  @Roles('ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
+  @ApiOperation({ summary: 'Agregar integrante al espacio/comedor' })
+  addIntegrante(@Param('id') id: string, @Body() body: { nombre: string; dni?: string; direccion?: string }) {
+    return this.beneficiariosService.addIntegrante(+id, body);
+  }
+
+  @Post(':id/integrantes/bulk')
+  @Roles('ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
+  @ApiOperation({ summary: 'Importar lista de integrantes (bulk)' })
+  bulkIntegrantes(@Param('id') id: string, @Body() body: { integrantes: { nombre: string; dni?: string; direccion?: string }[] }) {
+    return this.beneficiariosService.bulkIntegrantes(+id, body.integrantes);
+  }
+
+  @Delete(':id/integrantes/:integranteId')
+  @Roles('ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
+  @ApiOperation({ summary: 'Eliminar integrante del espacio/comedor' })
+  removeIntegrante(@Param('id') id: string, @Param('integranteId') integranteId: string) {
+    return this.beneficiariosService.removeIntegrante(+id, +integranteId);
+  }
+
   @Get(':id')
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR')
   @ApiOperation({ summary: 'Obtener beneficiario por ID' })

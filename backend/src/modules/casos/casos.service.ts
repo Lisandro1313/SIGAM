@@ -19,17 +19,24 @@ export class CasosService {
 
   // ── Check cruce por DNI ───────────────────────────────────────────────────
   async checkDni(dni: string) {
-    const beneficiarios = await this.prisma.beneficiario.findMany({
-      where: { responsableDNI: dni, activo: true },
-      include: { programa: { select: { nombre: true } } },
-    });
-    const casosActivos = await this.prisma.caso.findMany({
-      where: {
-        dni,
-        estado: { notIn: ['RECHAZADO', 'RESUELTO'] },
-      },
-      select: { id: true, estado: true, tipo: true, createdAt: true },
-    });
+    const [beneficiarios, casosActivos, integrantes] = await Promise.all([
+      this.prisma.beneficiario.findMany({
+        where: { responsableDNI: dni, activo: true },
+        include: { programa: { select: { nombre: true } } },
+      }),
+      this.prisma.caso.findMany({
+        where: { dni, estado: { notIn: ['RECHAZADO', 'RESUELTO'] } },
+        select: { id: true, estado: true, tipo: true, createdAt: true },
+      }),
+      this.prisma.integranteEspacio.findMany({
+        where: { dni, activo: true },
+        include: {
+          beneficiario: {
+            select: { nombre: true, programa: { select: { nombre: true } } },
+          },
+        },
+      }),
+    ]);
 
     const alertas: string[] = [];
     for (const b of beneficiarios) {
@@ -37,6 +44,9 @@ export class CasosService {
     }
     for (const c of casosActivos) {
       alertas.push(`Ya tiene un caso ${c.estado} (ID #${c.id})`);
+    }
+    for (const i of integrantes) {
+      alertas.push(`Figura como integrante del espacio "${i.beneficiario.nombre}" (${i.beneficiario.programa?.nombre ?? 'sin programa'})`);
     }
 
     return { alerta: alertas.length > 0, detalle: alertas.join(' · ') || null };

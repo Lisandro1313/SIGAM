@@ -46,6 +46,7 @@ import {
   LocalShipping as EntregaIcon,
   PhotoCamera as FotoIcon,
   CompareArrows as CruceIcon,
+  Group as IntegrantesIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -112,6 +113,16 @@ export default function BeneficiariosPage() {
   // Cruce de programas
   const [cruceData, setCruceData] = useState<any>(null);
   const [loadingCruce, setLoadingCruce] = useState(false);
+
+  // Integrantes de espacio/comedor
+  const [integrantes, setIntegrantes] = useState<any[]>([]);
+  const [loadingIntegrantes, setLoadingIntegrantes] = useState(false);
+  const [integranteForm, setIntegranteForm] = useState({ nombre: '', dni: '', direccion: '' });
+  const [addingIntegrante, setAddingIntegrante] = useState(false);
+  const [importingCsv, setImportingCsv] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+
+  const TIPOS_ESPACIO = ['ESPACIO', 'COMEDOR', 'ORGANIZACION'];
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const resolveUrl = (url: string) =>
@@ -259,6 +270,8 @@ export default function BeneficiariosPage() {
     setLoadingDetalle(true);
     setTabDetalle(0);
     setCruceData(null);
+    setIntegrantes([]);
+    setIntegranteForm({ nombre: '', dni: '', direccion: '' });
     try {
       const res = await api.get(`/beneficiarios/${beneficiario.id}`);
       setDetalleData(res.data);
@@ -267,6 +280,60 @@ export default function BeneficiariosPage() {
       setDetalleOpen(false);
     } finally {
       setLoadingDetalle(false);
+    }
+  };
+
+  // ── Integrantes handlers ─────────────────────────────────────────────────────
+
+  const handleAddIntegrante = async () => {
+    if (!detalleData || !integranteForm.nombre.trim()) return;
+    setAddingIntegrante(true);
+    try {
+      const res = await api.post(`/beneficiarios/${detalleData.id}/integrantes`, integranteForm);
+      setIntegrantes(prev => [...prev, res.data]);
+      setIntegranteForm({ nombre: '', dni: '', direccion: '' });
+    } catch {
+      showNotification('Error al agregar integrante', 'error');
+    } finally {
+      setAddingIntegrante(false);
+    }
+  };
+
+  const handleRemoveIntegrante = async (integranteId: number) => {
+    if (!detalleData) return;
+    try {
+      await api.delete(`/beneficiarios/${detalleData.id}/integrantes/${integranteId}`);
+      setIntegrantes(prev => prev.filter((i: any) => i.id !== integranteId));
+    } catch {
+      showNotification('Error al eliminar integrante', 'error');
+    }
+  };
+
+  const handleImportCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !detalleData) return;
+    e.target.value = '';
+    setImportingCsv(true);
+    try {
+      const text = await file.text();
+      const lineas = text.split(/\r?\n/).filter(l => l.trim());
+      // Detectar si la primera línea es encabezado
+      const primeraCelda = lineas[0]?.split(',')[0]?.toLowerCase().trim();
+      const inicio = ['nombre', 'name', 'apellido'].includes(primeraCelda) ? 1 : 0;
+      const filas = lineas.slice(inicio).map(l => {
+        const cols = l.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+        return { nombre: cols[0] || '', dni: cols[1] || '', direccion: cols[2] || '' };
+      }).filter(f => f.nombre);
+
+      if (filas.length === 0) { showNotification('No se encontraron filas válidas en el archivo', 'warning'); return; }
+
+      const res = await api.post(`/beneficiarios/${detalleData.id}/integrantes/bulk`, { integrantes: filas });
+      setIntegrantes(prev => [...prev, ...res.data.integrantes]);
+      showNotification(`${res.data.count} integrantes importados`, 'success');
+    } catch {
+      showNotification('Error al importar el archivo', 'error');
+    } finally {
+      setImportingCsv(false);
     }
   };
 
@@ -516,6 +583,13 @@ export default function BeneficiariosPage() {
                   .catch(() => setCruceData({ error: true }))
                   .finally(() => setLoadingCruce(false));
               }
+              if (v === 3 && integrantes.length === 0 && detalleData && TIPOS_ESPACIO.includes(detalleData.tipo)) {
+                setLoadingIntegrantes(true);
+                api.get(`/beneficiarios/${detalleData.id}/integrantes`)
+                  .then(r => setIntegrantes(r.data))
+                  .catch(() => {})
+                  .finally(() => setLoadingIntegrantes(false));
+              }
             }}
             sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}
           >
@@ -530,6 +604,13 @@ export default function BeneficiariosPage() {
               icon={<CruceIcon fontSize="small" />}
               iconPosition="start"
             />
+            {TIPOS_ESPACIO.includes(detalleData?.tipo) && (
+              <Tab
+                label={`Integrantes${integrantes.length > 0 ? ` (${integrantes.length})` : ''}`}
+                icon={<IntegrantesIcon fontSize="small" />}
+                iconPosition="start"
+              />
+            )}
           </Tabs>
         )}
 
@@ -719,6 +800,91 @@ export default function BeneficiariosPage() {
                         </TableContainer>
                       )}
                     </>
+                  )}
+                </Box>
+              )}
+
+              {/* ── TAB 3: Integrantes ── */}
+              {tabDetalle === 3 && TIPOS_ESPACIO.includes(detalleData?.tipo) && (
+                <Box pt={1}>
+                  {/* Formulario agregar uno */}
+                  <Box display="flex" gap={1} mb={2} flexWrap="wrap" alignItems="flex-start">
+                    <TextField
+                      size="small" label="Nombre *" value={integranteForm.nombre}
+                      onChange={e => setIntegranteForm(f => ({ ...f, nombre: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && handleAddIntegrante()}
+                      sx={{ flex: 2, minWidth: 180 }}
+                    />
+                    <TextField
+                      size="small" label="DNI (opcional)" value={integranteForm.dni}
+                      onChange={e => setIntegranteForm(f => ({ ...f, dni: e.target.value }))}
+                      sx={{ flex: 1, minWidth: 120 }}
+                    />
+                    <TextField
+                      size="small" label="Dirección (opcional)" value={integranteForm.direccion}
+                      onChange={e => setIntegranteForm(f => ({ ...f, direccion: e.target.value }))}
+                      sx={{ flex: 2, minWidth: 160 }}
+                    />
+                    <Button
+                      variant="contained" size="small"
+                      disabled={!integranteForm.nombre.trim() || addingIntegrante}
+                      onClick={handleAddIntegrante}
+                      startIcon={<AddIcon />}
+                    >
+                      Agregar
+                    </Button>
+                    <Tooltip title="Importar CSV — formato: nombre,dni,direccion (una persona por fila, encabezado opcional)">
+                      <Button
+                        variant="outlined" size="small"
+                        onClick={() => csvInputRef.current?.click()}
+                        disabled={importingCsv}
+                        startIcon={<UploadIcon />}
+                      >
+                        {importingCsv ? 'Importando…' : 'Importar CSV'}
+                      </Button>
+                    </Tooltip>
+                    <input ref={csvInputRef} type="file" accept=".csv,.txt" hidden onChange={handleImportCsv} />
+                  </Box>
+
+                  {loadingIntegrantes ? (
+                    <Box display="flex" justifyContent="center" py={3}><CircularProgress size={28} /></Box>
+                  ) : integrantes.length === 0 ? (
+                    <Box textAlign="center" py={4}>
+                      <IntegrantesIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Sin integrantes registrados.<br />
+                        Podés agregar uno por uno o importar un CSV con el formato: nombre, DNI, dirección.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: 'grey.50' }}>
+                            <TableCell>Nombre</TableCell>
+                            <TableCell>DNI</TableCell>
+                            <TableCell>Dirección</TableCell>
+                            <TableCell align="right" />
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {integrantes.map((i: any) => (
+                            <TableRow key={i.id} hover>
+                              <TableCell><strong>{i.nombre}</strong></TableCell>
+                              <TableCell>{i.dni || <Typography variant="caption" color="text.disabled">—</Typography>}</TableCell>
+                              <TableCell>{i.direccion || <Typography variant="caption" color="text.disabled">—</Typography>}</TableCell>
+                              <TableCell align="right">
+                                <Tooltip title="Eliminar integrante">
+                                  <IconButton size="small" color="error" onClick={() => handleRemoveIntegrante(i.id)}>
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   )}
                 </Box>
               )}

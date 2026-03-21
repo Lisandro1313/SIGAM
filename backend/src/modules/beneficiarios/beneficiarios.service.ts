@@ -164,6 +164,44 @@ export class BeneficiariosService {
     return { success: true, message: 'Beneficiario desactivado' };
   }
 
+  // ── Integrantes de espacio/comedor ──────────────────────────────────────────
+
+  async getIntegrantes(beneficiarioId: number) {
+    return this.prisma.integranteEspacio.findMany({
+      where: { beneficiarioId, activo: true },
+      orderBy: { nombre: 'asc' },
+    });
+  }
+
+  async addIntegrante(beneficiarioId: number, data: { nombre: string; dni?: string; direccion?: string }) {
+    return this.prisma.integranteEspacio.create({
+      data: { beneficiarioId, nombre: data.nombre, dni: data.dni || null, direccion: data.direccion || null },
+    });
+  }
+
+  async bulkIntegrantes(beneficiarioId: number, integrantes: { nombre: string; dni?: string; direccion?: string }[]) {
+    const created = await this.prisma.$transaction(
+      integrantes.map((i) =>
+        this.prisma.integranteEspacio.create({
+          data: { beneficiarioId, nombre: i.nombre, dni: i.dni || null, direccion: i.direccion || null },
+        }),
+      ),
+    );
+    return { count: created.length, integrantes: created };
+  }
+
+  async removeIntegrante(beneficiarioId: number, integranteId: number) {
+    const found = await this.prisma.integranteEspacio.findFirst({
+      where: { id: integranteId, beneficiarioId },
+    });
+    if (!found) throw new NotFoundException('Integrante no encontrado');
+    await this.prisma.integranteEspacio.update({
+      where: { id: integranteId },
+      data: { activo: false },
+    });
+    return { success: true };
+  }
+
   // ── Documentos ──────────────────────────────────────────────────────────────
 
   async getDocumentos(beneficiarioId: number) {

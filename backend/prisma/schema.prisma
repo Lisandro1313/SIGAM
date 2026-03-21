@@ -133,6 +133,7 @@ model Beneficiario {
   movimientos        Movimiento[]
   documentos         DocumentoBeneficiario[]
   casos              Caso[]
+  integrantes        IntegranteEspacio[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -155,6 +156,20 @@ model DocumentoBeneficiario {
   createdAt      DateTime     @default(now())
 
   @@index([beneficiarioId])
+}
+
+model IntegranteEspacio {
+  id             Int          @id @default(autoincrement())
+  beneficiario   Beneficiario @relation(fields: [beneficiarioId], references: [id], onDelete: Cascade)
+  beneficiarioId Int
+  nombre         String
+  dni            String?
+  direccion      String?
+  activo         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+
+  @@index([beneficiarioId])
+  @@index([dni])
 }
 
 // ============================================================================
