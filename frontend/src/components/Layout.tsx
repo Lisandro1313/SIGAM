@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -22,6 +22,12 @@ import {
   Paper,
   Snackbar,
   Button,
+  Dialog,
+  DialogContent,
+  TextField,
+  InputAdornment,
+  CircularProgress,
+  Tooltip,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -48,6 +54,7 @@ import {
   GetApp as InstallIcon,
   Close as CloseIcon,
   Badge as BadgeIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { puedeAcceder, ROL_LABELS, Rol } from '../utils/permisos';
@@ -85,6 +92,11 @@ const menuDeposito = [
   { text: 'Mis Casos',          icon: <MisCasosIcon />,  path: '/mis-casos',          seccion: 'mis-casos' },
 ];
 
+const ESTADO_CHIP: Record<string, string> = {
+  PENDIENTE: '#fb8c00', EN_REVISION: '#1e88e5', APROBADO: '#43a047', RECHAZADO: '#e53935', RESUELTO: '#546e7a',
+  BORRADOR: '#9e9e9e', CONFIRMADO: '#1e88e5', ENVIADO: '#00acc1', ENTREGADO: '#43a047',
+};
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -96,6 +108,44 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Búsqueda global
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState<any>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const doSearch = useCallback(async (q: string) => {
+    if (q.trim().length < 2) { setSearchResults(null); return; }
+    setSearchLoading(true);
+    try {
+      const res = await api.get('/reportes/busqueda', { params: { q: q.trim() } });
+      setSearchResults(res.data);
+    } catch { setSearchResults(null); }
+    finally { setSearchLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => doSearch(searchQ), 400);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchQ, doSearch]);
+
+  // Ctrl+K / Cmd+K abre búsqueda
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  const handleSearchClose = () => { setSearchOpen(false); setSearchQ(''); setSearchResults(null); };
+  const handleNavigate = (path: string) => { handleSearchClose(); navigate(path); };
 
   // Capturar el evento de instalación PWA
   useEffect(() => {
@@ -258,6 +308,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               size="small"
               sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.7rem' }}
             />
+            <Tooltip title="Buscar (Ctrl+K)">
+              <IconButton color="inherit" size="small" onClick={() => setSearchOpen(true)}>
+                <SearchIcon />
+              </IconButton>
+            </Tooltip>
             <IconButton color="inherit" size="small" onClick={(e) => setBellAnchor(e.currentTarget)}>
               <Badge badgeContent={notifs.length || null} color="error" max={9}>
                 <BellIcon />
@@ -350,6 +405,115 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <Box component="main" sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - ${drawerWidth}px)` }, mt: 8 }}>
         {children}
       </Box>
+
+      {/* ── Diálogo de búsqueda global ── */}
+      <Dialog open={searchOpen} onClose={handleSearchClose} maxWidth="sm" fullWidth PaperProps={{ sx: { mt: '80px', verticalAlign: 'top' } }}>
+        <DialogContent sx={{ p: 0 }}>
+          <TextField
+            fullWidth autoFocus
+            placeholder="Buscar beneficiario, caso, remito... (mín. 2 caracteres)"
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            InputProps={{
+              startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>,
+              endAdornment: searchLoading ? <InputAdornment position="end"><CircularProgress size={18} /></InputAdornment> : null,
+              sx: { px: 2, py: 1.5, fontSize: '1rem' },
+            }}
+            variant="standard"
+            sx={{ '& .MuiInput-underline:before': { borderBottom: '1px solid', borderColor: 'divider' }, px: 0 }}
+          />
+          {searchResults && (
+            <Box sx={{ maxHeight: 460, overflow: 'auto' }}>
+              {/* Beneficiarios */}
+              {searchResults.beneficiarios?.length > 0 && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.5, display: 'block', bgcolor: 'grey.50', fontWeight: 600 }}>
+                    BENEFICIARIOS ({searchResults.beneficiarios.length})
+                  </Typography>
+                  <List dense disablePadding>
+                    {searchResults.beneficiarios.map((b: any) => (
+                      <ListItemButton key={b.id} onClick={() => handleNavigate(`/beneficiarios`)} sx={{ px: 2, py: 0.8 }}>
+                        <ListItemIcon sx={{ minWidth: 36 }}><PeopleIcon fontSize="small" color="primary" /></ListItemIcon>
+                        <ListItemText
+                          primary={<Typography variant="body2" fontWeight="bold">{b.nombre}</Typography>}
+                          secondary={`${b.tipo} · ${b.localidad ?? ''} · DNI: ${b.responsableDNI ?? '—'} · ${b.programa?.nombre ?? ''}`}
+                        />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                  <Divider />
+                </Box>
+              )}
+              {/* Casos */}
+              {searchResults.casos?.length > 0 && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.5, display: 'block', bgcolor: 'grey.50', fontWeight: 600 }}>
+                    CASOS PARTICULARES ({searchResults.casos.length})
+                  </Typography>
+                  <List dense disablePadding>
+                    {searchResults.casos.map((c: any) => (
+                      <ListItemButton key={c.id} onClick={() => handleNavigate('/casos-particulares')} sx={{ px: 2, py: 0.8 }}>
+                        <ListItemIcon sx={{ minWidth: 36 }}><CasosParticularesIcon fontSize="small" color="warning" /></ListItemIcon>
+                        <ListItemText
+                          primary={<Typography variant="body2" fontWeight="bold">{c.nombreSolicitante}</Typography>}
+                          secondary={
+                            <Box component="span" sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                              <span>{c.tipo}</span>
+                              <Chip label={c.estado} size="small" sx={{ height: 16, fontSize: '0.65rem', bgcolor: ESTADO_CHIP[c.estado] ?? '#9e9e9e', color: 'white' }} />
+                              {c.dni && <span>· DNI: {c.dni}</span>}
+                            </Box>
+                          }
+                        />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                  <Divider />
+                </Box>
+              )}
+              {/* Remitos */}
+              {searchResults.remitos?.length > 0 && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.5, display: 'block', bgcolor: 'grey.50', fontWeight: 600 }}>
+                    REMITOS ({searchResults.remitos.length})
+                  </Typography>
+                  <List dense disablePadding>
+                    {searchResults.remitos.map((r: any) => (
+                      <ListItemButton key={r.id} onClick={() => handleNavigate('/remitos')} sx={{ px: 2, py: 0.8 }}>
+                        <ListItemIcon sx={{ minWidth: 36 }}><ReceiptIcon fontSize="small" color="success" /></ListItemIcon>
+                        <ListItemText
+                          primary={<Typography variant="body2" fontWeight="bold">{r.numero} — {r.beneficiario?.nombre ?? '—'}</Typography>}
+                          secondary={
+                            <Box component="span" sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                              <Chip label={r.estado} size="small" sx={{ height: 16, fontSize: '0.65rem', bgcolor: ESTADO_CHIP[r.estado] ?? '#9e9e9e', color: 'white' }} />
+                              <span>{r.totalKg ? `${r.totalKg} kg` : ''}</span>
+                            </Box>
+                          }
+                        />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                </Box>
+              )}
+              {/* Sin resultados */}
+              {searchResults.beneficiarios?.length === 0 && searchResults.casos?.length === 0 && searchResults.remitos?.length === 0 && (
+                <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">Sin resultados para "{searchQ}"</Typography>
+                </Box>
+              )}
+            </Box>
+          )}
+          {!searchResults && searchQ.trim().length >= 2 && !searchLoading && (
+            <Box sx={{ px: 2, py: 2, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">Escribí para buscar...</Typography>
+            </Box>
+          )}
+          <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderTop: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="caption" color="text.secondary">
+              Busca en beneficiarios, casos particulares y remitos · Esc para cerrar
+            </Typography>
+          </Box>
+        </DialogContent>
+      </Dialog>
 
       {/* Toast de actualizaciones en tiempo real */}
       <Snackbar

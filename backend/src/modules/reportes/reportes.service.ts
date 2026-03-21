@@ -441,6 +441,57 @@ export class ReportesService {
     return resumen;
   }
 
+  // Búsqueda global: beneficiarios, casos y remitos
+  async busquedaGlobal(q: string, secretaria?: string | null) {
+    if (!q || q.trim().length < 2) return { beneficiarios: [], casos: [], remitos: [] };
+    const term = q.trim();
+
+    const benWhere: any = {
+      activo: true,
+      OR: [
+        { nombre: { contains: term, mode: 'insensitive' } },
+        { responsableDNI: { contains: term } },
+        { responsableNombre: { contains: term, mode: 'insensitive' } },
+      ],
+    };
+    if (secretaria) benWhere.programa = { secretaria };
+
+    const casosWhere: any = {
+      OR: [
+        { nombreSolicitante: { contains: term, mode: 'insensitive' } },
+        { dni: { contains: term } },
+      ],
+    };
+
+    const remitosWhere: any = {
+      OR: [
+        { numero: { contains: term, mode: 'insensitive' } },
+        { beneficiario: { nombre: { contains: term, mode: 'insensitive' } } },
+      ],
+    };
+    if (secretaria) remitosWhere.secretaria = secretaria;
+
+    const [beneficiarios, casos, remitos] = await Promise.all([
+      this.prisma.beneficiario.findMany({
+        where: benWhere,
+        select: { id: true, nombre: true, tipo: true, localidad: true, responsableDNI: true, programa: { select: { nombre: true } } },
+        take: 8, orderBy: { nombre: 'asc' },
+      }),
+      this.prisma.caso.findMany({
+        where: casosWhere,
+        select: { id: true, nombreSolicitante: true, tipo: true, estado: true, prioridad: true, dni: true, createdAt: true },
+        take: 8, orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.remito.findMany({
+        where: remitosWhere,
+        select: { id: true, numero: true, estado: true, fecha: true, totalKg: true, beneficiario: { select: { nombre: true } } },
+        take: 8, orderBy: { fecha: 'desc' },
+      }),
+    ]);
+
+    return { beneficiarios, casos, remitos };
+  }
+
   // Notificaciones: alertas operativas para el top bar
   async notificaciones(secretaria?: string | null) {
     const hoy = new Date();

@@ -122,6 +122,13 @@ export class ReportesController {
     return this.reportesService.beneficiariosSinEntregaDetalle(getSecretaria(req));
   }
 
+  @Get('busqueda')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR')
+  @ApiOperation({ summary: 'Búsqueda global (beneficiarios, casos, remitos)' })
+  busquedaGlobal(@Query('q') q: string, @Request() req) {
+    return this.reportesService.busquedaGlobal(q, getSecretaria(req));
+  }
+
   @Get('resumen-entregas-mes')
   @ApiOperation({ summary: 'Resumen de entregas de un período: pendientes, generadas, entregadas' })
   resumenEntregasMes(
