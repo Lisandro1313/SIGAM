@@ -28,7 +28,7 @@ import {
   Tooltip,
   Alert,
 } from '@mui/material';
-import { Delete as DeleteIcon, Add as AddIcon, PlaylistAdd as PlantillaIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Add as AddIcon, PlaylistAdd as PlantillaIcon, PersonAdd as PersonAddIcon, Warning as WarningIcon } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
 import { useAuthStore } from '../stores/authStore';
@@ -529,18 +529,46 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
                       </TableCell>
                     </TableRow>
                   ) : (
-                    items.map((item, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{item.articuloNombre}</TableCell>
-                        <TableCell align="right">{item.cantidad}</TableCell>
-                        <TableCell align="right">{item.pesoKg.toFixed(2)}</TableCell>
-                        <TableCell align="center">
-                          <IconButton size="small" color="error" onClick={() => handleRemoveItem(index)}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    items.map((item, index) => {
+                      const art = articulos.find(a => a.id === item.articuloId);
+                      const stockDisp = art && depositoId
+                        ? (art.stockItems?.find((s: any) => s.depositoId === parseInt(depositoId))?.cantidad ?? null)
+                        : null;
+                      const sinStock = stockDisp !== null && stockDisp <= 0;
+                      const stockBajo = !sinStock && stockDisp !== null && art?.stockMinimo != null && stockDisp < art.stockMinimo;
+                      const cantidadExcede = stockDisp !== null && item.cantidad > stockDisp;
+                      const alertaColor = sinStock || cantidadExcede ? 'error.light' : stockBajo ? 'warning.light' : undefined;
+                      return (
+                        <TableRow key={index} sx={alertaColor ? { bgcolor: alertaColor } : undefined}>
+                          <TableCell>
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              {(sinStock || cantidadExcede || stockBajo) && (
+                                <Tooltip title={
+                                  sinStock ? 'Sin stock en este depósito'
+                                  : cantidadExcede ? `Stock insuficiente: solo hay ${stockDisp} unidades`
+                                  : `Stock bajo mínimo: quedan ${stockDisp} unidades`
+                                }>
+                                  <WarningIcon fontSize="small" color={sinStock || cantidadExcede ? 'error' : 'warning'} />
+                                </Tooltip>
+                              )}
+                              {item.articuloNombre}
+                              {stockDisp !== null && (
+                                <Typography variant="caption" color={sinStock || cantidadExcede ? 'error' : stockBajo ? 'warning.dark' : 'text.secondary'} sx={{ ml: 0.5 }}>
+                                  (stock: {stockDisp})
+                                </Typography>
+                              )}
+                            </Box>
+                          </TableCell>
+                          <TableCell align="right">{item.cantidad}</TableCell>
+                          <TableCell align="right">{item.pesoKg.toFixed(2)}</TableCell>
+                          <TableCell align="center">
+                            <IconButton size="small" color="error" onClick={() => handleRemoveItem(index)}>
+                              <DeleteIcon />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>

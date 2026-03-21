@@ -144,6 +144,20 @@ export default function RemitosPage() {
     loadRemitos(busqueda);
   };
 
+  const handleBulkEmail = async () => {
+    const enviables = selectedRemitos.filter(r => r.estado === 'CONFIRMADO' || r.estado === 'ENVIADO' || r.estado === 'ENTREGADO');
+    setBulkProgress({ total: enviables.length, done: 0, errors: 0 });
+    for (const remito of enviables) {
+      try {
+        await api.post(`/remitos/${remito.id}/enviar-email`);
+      } catch { /* skip */ }
+      setBulkProgress(p => p ? { ...p, done: p.done + 1 } : null);
+    }
+    setBulkProgress(null);
+    showNotification(`Emails enviados (${enviables.length})`, 'success');
+    loadRemitos(busqueda);
+  };
+
   const handleBulkExportPdf = async () => {
     const ids = selectedRemitos.map(r => r.id);
     setBulkProgress({ total: ids.length, done: 0, errors: 0 });
@@ -463,6 +477,17 @@ export default function RemitosPage() {
               sx={{ bgcolor: 'secondary.main' }}
             >
               Entregar {selectedEntregables.length}
+            </Button>
+          )}
+          {selectedRemitos.some(r => ['CONFIRMADO','ENVIADO','ENTREGADO'].includes(r.estado)) && (
+            <Button
+              size="small" variant="outlined"
+              startIcon={bulkProgress ? <CircularProgress size={14} sx={{ color: 'white' }} /> : <EmailIcon />}
+              onClick={handleBulkEmail}
+              disabled={!!bulkProgress}
+              sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.6)', '&:hover': { borderColor: 'white' } }}
+            >
+              Enviar {selectedRemitos.filter(r => ['CONFIRMADO','ENVIADO','ENTREGADO'].includes(r.estado)).length} emails
             </Button>
           )}
           <Button
