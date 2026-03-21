@@ -79,11 +79,6 @@ export default function MapaPage() {
     return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
   }, [benFiltrados, localidadColors]);
 
-  const totalPorTipo = useMemo(() => {
-    const acc: Record<string, number> = {};
-    benFiltrados.forEach((b) => { acc[b.tipo] = (acc[b.tipo] || 0) + 1; });
-    return acc;
-  }, [benFiltrados]);
 
   function handleMapClick(lat: number, lng: number) {
     if (!drawingMode) return;
