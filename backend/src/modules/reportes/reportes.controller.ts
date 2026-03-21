@@ -116,6 +116,12 @@ export class ReportesController {
     return this.reportesService.crucesMasivos();
   }
 
+  @Get('sin-entrega')
+  @ApiOperation({ summary: 'Beneficiarios activos con entrega vencida según su frecuencia' })
+  beneficiariosSinEntrega(@Request() req) {
+    return this.reportesService.beneficiariosSinEntregaDetalle(getSecretaria(req));
+  }
+
   @Get('resumen-entregas-mes')
   @ApiOperation({ summary: 'Resumen de entregas de un período: pendientes, generadas, entregadas' })
   resumenEntregasMes(

@@ -303,6 +303,69 @@ export class ReportesService {
     return cruces.sort((a, b) => b.registros.length - a.registros.length);
   }
 
+  // Reporte: Beneficiarios sin entrega reciente (vencidos según frecuencia)
+  async beneficiariosSinEntregaDetalle(secretaria?: string | null) {
+    const hoy = new Date();
+    const MESES_FREQ: Record<string, number> = { MENSUAL: 1, BIMESTRAL: 2 };
+
+    const whereB: any = { activo: true, frecuenciaEntrega: { in: ['MENSUAL', 'BIMESTRAL'] } };
+    if (secretaria) whereB.programa = { secretaria };
+
+    const beneficiarios = await this.prisma.beneficiario.findMany({
+      where: whereB,
+      include: {
+        programa: { select: { nombre: true, secretaria: true } },
+        remitos: {
+          where: { estado: 'ENTREGADO' },
+          orderBy: { entregadoAt: 'desc' },
+          take: 1,
+          select: { entregadoAt: true, fecha: true, totalKg: true },
+        },
+      },
+      orderBy: { nombre: 'asc' },
+    });
+
+    const resultado: any[] = [];
+    for (const b of beneficiarios) {
+      const meses = MESES_FREQ[b.frecuenciaEntrega!] ?? 1;
+      const ultimaEntrega = b.remitos[0]?.entregadoAt ?? b.remitos[0]?.fecha ?? null;
+      const proximaEntrega = ultimaEntrega
+        ? new Date(new Date(ultimaEntrega).setMonth(new Date(ultimaEntrega).getMonth() + meses))
+        : null;
+      const vencida = proximaEntrega ? proximaEntrega < hoy : true;
+      const diasAtraso = vencida && proximaEntrega
+        ? Math.floor((hoy.getTime() - proximaEntrega.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+
+      if (vencida) {
+        resultado.push({
+          id: b.id,
+          nombre: b.nombre,
+          localidad: b.localidad,
+          programa: b.programa?.nombre ?? '',
+          frecuencia: b.frecuenciaEntrega,
+          ultimaEntrega: ultimaEntrega ? new Date(ultimaEntrega).toISOString().slice(0, 10) : null,
+          proximaEntrega: proximaEntrega ? proximaEntrega.toISOString().slice(0, 10) : null,
+          diasAtraso,
+          sinEntregaNunca: !ultimaEntrega,
+        });
+      }
+    }
+
+    // Ordenar: primero los que nunca recibieron, luego por días de atraso desc
+    resultado.sort((a, b) => {
+      if (a.sinEntregaNunca && !b.sinEntregaNunca) return -1;
+      if (!a.sinEntregaNunca && b.sinEntregaNunca) return 1;
+      return b.diasAtraso - a.diasAtraso;
+    });
+
+    return {
+      total: resultado.length,
+      sinEntregaNunca: resultado.filter(r => r.sinEntregaNunca).length,
+      detalle: resultado,
+    };
+  }
+
   // Reporte: Remitos con detalle para exportación personalizada
   async remitosDetalle(mes?: number, anio?: number, programaId?: number, estado?: string, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
     const where: any = {};

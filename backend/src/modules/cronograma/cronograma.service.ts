@@ -113,7 +113,7 @@ export class CronogramaService {
     const filtroSec = { programa: { secretaria } };
 
     const entregas = await this.prisma.entregaProgramada.findMany({
-      where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, estado: { notIn: ['CANCELADA'] }, remitoId: null, ...filtroSec },
+      where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, estado: { notIn: ['CANCELADA'] }, remitoId: null, beneficiario: { activo: true }, ...filtroSec },
       include: {
         beneficiario: true,
         programa: {
@@ -380,6 +380,7 @@ export class CronogramaService {
     const where: any = {
       fechaProgramada: { gte: desdeDate, lte: hastaDate },
       estado: { not: EntregaEstado.CANCELADA },
+      beneficiario: { activo: true },
     };
     if (programaId) where.programaId = programaId;
     if (secretaria) where.secretaria = secretaria;

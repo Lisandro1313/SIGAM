@@ -54,6 +54,8 @@ export default function ReportesPage() {
   const [resumenEntregas, setResumenEntregas]         = useState<any>(null);
   const [crucesMasivos, setCrucesMasivos]             = useState<any[] | null>(null);
   const [loadingCruces, setLoadingCruces]             = useState(false);
+  const [sinEntrega, setSinEntrega]                   = useState<any | null>(null);
+  const [loadingSinEntrega, setLoadingSinEntrega]     = useState(false);
 
   useEffect(() => {
     api.get('/programas').then(r => setProgramas(r.data.filter((p: any) => p.activo))).catch(() => {});
@@ -207,6 +209,13 @@ export default function ReportesPage() {
               .catch(() => setCrucesMasivos([]))
               .finally(() => setLoadingCruces(false));
           }
+          if (v === 7 && sinEntrega === null) {
+            setLoadingSinEntrega(true);
+            api.get('/reportes/sin-entrega')
+              .then(r => setSinEntrega(r.data))
+              .catch(() => setSinEntrega({ total: 0, sinEntregaNunca: 0, detalle: [] }))
+              .finally(() => setLoadingSinEntrega(false));
+          }
         }} variant="scrollable" scrollButtons="auto">
           <Tab label="Distribución" />
           <Tab label="Cronograma" />
@@ -215,6 +224,7 @@ export default function ReportesPage() {
           <Tab label="Remitos" />
           <Tab label="Stock" />
           <Tab label="Cruces DNI" />
+          <Tab label="Sin Entrega" />
         </Tabs>
       </Box>
 
@@ -621,6 +631,120 @@ export default function ReportesPage() {
                   </TableContainer>
                 </Box>
               ))}
+            </>
+          )}
+        </Paper>
+      )}
+      {/* ── Tab 7: Sin Entrega ── */}
+      {tabIdx === 7 && (
+        <Paper elevation={2} sx={{ p: 3 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={1}>
+            <Box>
+              <Typography variant="h6">Beneficiarios con entrega vencida</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Activos con frecuencia MENSUAL o BIMESTRAL cuya próxima entrega ya pasó
+              </Typography>
+            </Box>
+            <Box display="flex" gap={1} alignItems="center">
+              <Button
+                size="small" variant="outlined" startIcon={<RefreshIcon />}
+                onClick={() => {
+                  setLoadingSinEntrega(true);
+                  api.get('/reportes/sin-entrega')
+                    .then(r => setSinEntrega(r.data))
+                    .catch(() => {})
+                    .finally(() => setLoadingSinEntrega(false));
+                }}
+              >
+                Actualizar
+              </Button>
+              {sinEntrega && sinEntrega.detalle.length > 0 && (
+                <ExportExcelButton
+                  data={sinEntrega.detalle.map((r: any) => ({
+                    id: r.id, nombre: r.nombre, localidad: r.localidad ?? '',
+                    programa: r.programa, frecuencia: r.frecuencia,
+                    ultima_entrega: r.ultimaEntrega ?? 'Nunca',
+                    proxima_entrega: r.proximaEntrega ?? '—',
+                    dias_atraso: r.diasAtraso,
+                  }))}
+                  fileName="sin-entrega"
+                  sheetName="Sin Entrega"
+                  label="Exportar"
+                />
+              )}
+            </Box>
+          </Box>
+
+          {loadingSinEntrega ? (
+            <LinearProgress />
+          ) : !sinEntrega ? null : (
+            <>
+              <Grid container spacing={2} mb={3}>
+                {[
+                  { label: 'Total con entrega vencida', value: sinEntrega.total, color: '#E65100' },
+                  { label: 'Nunca recibieron', value: sinEntrega.sinEntregaNunca, color: '#c62828' },
+                  { label: 'Con atraso', value: sinEntrega.total - sinEntrega.sinEntregaNunca, color: '#f57c00' },
+                ].map((stat, i) => (
+                  <Grid item xs={12} sm={4} key={i}>
+                    <Card elevation={1} sx={{ borderLeft: `4px solid ${stat.color}` }}>
+                      <CardContent sx={{ p: '12px !important' }}>
+                        <Typography variant="caption" color="text.secondary">{stat.label}</Typography>
+                        <Typography variant="h5" fontWeight="bold" sx={{ color: stat.color }}>{stat.value}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+
+              {sinEntrega.detalle.length === 0 ? (
+                <Typography variant="body2" color="success.main">✓ Todos los beneficiarios tienen su entrega al día</Typography>
+              ) : (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'grey.50' }}>
+                        <TableCell>Beneficiario</TableCell>
+                        <TableCell>Programa</TableCell>
+                        <TableCell>Frecuencia</TableCell>
+                        <TableCell>Última entrega</TableCell>
+                        <TableCell>Próxima (venció)</TableCell>
+                        <TableCell align="right">Días de atraso</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {sinEntrega.detalle.map((r: any) => (
+                        <TableRow key={r.id} hover sx={r.sinEntregaNunca ? { bgcolor: 'error.50' } : {}}>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="bold">{r.nombre}</Typography>
+                            {r.localidad && <Typography variant="caption" color="text.secondary">{r.localidad}</Typography>}
+                          </TableCell>
+                          <TableCell>{r.programa || '—'}</TableCell>
+                          <TableCell>
+                            <Chip label={r.frecuencia} size="small" variant="outlined" />
+                          </TableCell>
+                          <TableCell>
+                            {r.sinEntregaNunca
+                              ? <Chip label="Nunca" size="small" color="error" />
+                              : r.ultimaEntrega}
+                          </TableCell>
+                          <TableCell sx={{ color: 'error.main', fontWeight: 'bold' }}>
+                            {r.proximaEntrega ?? '—'}
+                          </TableCell>
+                          <TableCell align="right">
+                            {r.sinEntregaNunca ? '—' : (
+                              <Chip
+                                label={`${r.diasAtraso}d`}
+                                size="small"
+                                color={r.diasAtraso > 30 ? 'error' : 'warning'}
+                              />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </>
           )}
         </Paper>
