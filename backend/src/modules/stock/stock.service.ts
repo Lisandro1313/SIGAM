@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MovimientoTipo } from '@prisma/client';
 import { StorageService } from '../../shared/storage/storage.service';
@@ -185,6 +185,68 @@ export class StockService {
         deficit: s.articulo.stockMinimo! - s.cantidad,
       }))
       .sort((a, b) => b.deficit - a.deficit);
+  }
+
+  // ── CRUD de Lotes ──────────────────────────────────────────────────────────
+
+  async getLotes(depositoId?: number, articuloId?: number) {
+    const where: any = {};
+    if (depositoId) where.depositoId = depositoId;
+    if (articuloId) where.articuloId = articuloId;
+    return this.prisma.loteArticulo.findMany({
+      where,
+      include: {
+        articulo: { select: { id: true, nombre: true, categoria: true } },
+        deposito: { select: { id: true, nombre: true } },
+      },
+      orderBy: [{ fechaVencimiento: 'asc' }, { articuloId: 'asc' }],
+    });
+  }
+
+  async createLote(data: {
+    articuloId: number;
+    depositoId: number;
+    cantidad: number;
+    fechaVencimiento: string;
+    lote?: string;
+  }) {
+    return this.prisma.loteArticulo.create({
+      data: {
+        articuloId: data.articuloId,
+        depositoId: data.depositoId,
+        cantidad: data.cantidad,
+        fechaVencimiento: new Date(data.fechaVencimiento),
+        lote: data.lote || null,
+      },
+      include: {
+        articulo: { select: { id: true, nombre: true, categoria: true } },
+        deposito: { select: { id: true, nombre: true } },
+      },
+    });
+  }
+
+  async updateLote(id: number, data: { cantidad?: number; fechaVencimiento?: string; lote?: string }) {
+    const found = await this.prisma.loteArticulo.findUnique({ where: { id } });
+    if (!found) throw new NotFoundException('Lote no encontrado');
+    return this.prisma.loteArticulo.update({
+      where: { id },
+      data: {
+        ...(data.cantidad !== undefined && { cantidad: data.cantidad }),
+        ...(data.fechaVencimiento && { fechaVencimiento: new Date(data.fechaVencimiento) }),
+        ...(data.lote !== undefined && { lote: data.lote || null }),
+      },
+      include: {
+        articulo: { select: { id: true, nombre: true, categoria: true } },
+        deposito: { select: { id: true, nombre: true } },
+      },
+    });
+  }
+
+  async deleteLote(id: number) {
+    const found = await this.prisma.loteArticulo.findUnique({ where: { id } });
+    if (!found) throw new NotFoundException('Lote no encontrado');
+    await this.prisma.loteArticulo.delete({ where: { id } });
+    return { success: true };
   }
 
   // Obtener movimientos
