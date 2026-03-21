@@ -107,6 +107,16 @@ export default function CasosParticulares() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  // Recargar en tiempo real cuando hay eventos de casos
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { tipo } = (e as CustomEvent).detail ?? {};
+      if (tipo === 'caso:nuevo' || tipo === 'caso:actualizado') cargar();
+    };
+    window.addEventListener('sigam:update', handler);
+    return () => window.removeEventListener('sigam:update', handler);
+  }, [cargar]);
+
   const abrirDetalle = (caso: any) => {
     setCasoSel(caso);
     setNotaRevision('');

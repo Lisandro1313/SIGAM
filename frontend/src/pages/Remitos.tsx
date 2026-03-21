@@ -283,7 +283,7 @@ export default function RemitosPage() {
   useEffect(() => {
     const handler = (e: Event) => {
       const { tipo } = (e as CustomEvent).detail ?? {};
-      if (tipo === 'remito:confirmado' || tipo === 'remito:entregado') loadRemitos(busqueda);
+      if (tipo === 'remito:nuevo' || tipo === 'remito:confirmado' || tipo === 'remito:entregado') loadRemitos(busqueda);
     };
     window.addEventListener('sigam:update', handler);
     return () => window.removeEventListener('sigam:update', handler);

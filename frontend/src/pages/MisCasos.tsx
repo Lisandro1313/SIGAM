@@ -99,6 +99,15 @@ export default function MisCasos() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { tipo } = (e as CustomEvent).detail ?? {};
+      if (tipo === 'caso:nuevo' || tipo === 'caso:actualizado') cargar();
+    };
+    window.addEventListener('sigam:update', handler);
+    return () => window.removeEventListener('sigam:update', handler);
+  }, [cargar]);
+
   // ── Check DNI ─────────────────────────────────────────────────────────────
   const checkDni = async (dni: string) => {
     if (!dni || dni.length < 7) { setAlertaCruce(null); return; }

@@ -97,6 +97,13 @@ export class RemitosService {
       },
     });
 
+    this.eventsService.broadcast('remito:nuevo', {
+      id: remito.id,
+      numero: remito.numero,
+      beneficiario: remito.beneficiario?.nombre,
+      programa: remito.programa?.nombre,
+    }, secretaria);
+
     return remito;
   }
 

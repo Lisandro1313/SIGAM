@@ -61,13 +61,26 @@ export default function Dashboard() {
   const [lotesProximos, setLotesProximos] = useState<any[]>([]);
   const user = useAuthStore(s => s.user);
 
-  useEffect(() => {
-    api.get('/reportes/dashboard')
-      .then(r => setData(r.data))
-      .catch(e => console.error(e))
-      .finally(() => setLoading(false));
+  const cargarDashboard = () => {
+    api.get('/reportes/dashboard').then(r => setData(r.data)).catch(e => console.error(e)).finally(() => setLoading(false));
     api.get('/stock/alertas').then(r => setStockAlertas(r.data)).catch(() => {});
     api.get('/articulos/vencimientos?dias=30').then(r => setLotesProximos(r.data)).catch(() => {});
+  };
+
+  useEffect(() => {
+    cargarDashboard();
+  }, []);
+
+  // Recargar en tiempo real cuando hay eventos relevantes
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { tipo } = (e as CustomEvent).detail ?? {};
+      if (['remito:confirmado', 'remito:entregado', 'remito:nuevo'].includes(tipo)) {
+        cargarDashboard();
+      }
+    };
+    window.addEventListener('sigam:update', handler);
+    return () => window.removeEventListener('sigam:update', handler);
   }, []);
 
   if (loading) {

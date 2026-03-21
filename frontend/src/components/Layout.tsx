@@ -92,7 +92,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [notifs, setNotifs] = useState<any[]>([]);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [updateBanner, setUpdateBanner] = useState<string | null>(null);
+  const [updateBanner, setUpdateBanner] = useState<{ msg: string; tipo: string } | null>(null);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -126,11 +126,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
     const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-    const MENSAJES: Record<string, string> = {
-      'remito:confirmado': 'Un remito fue confirmado',
-      'remito:entregado':  'Una entrega fue registrada',
-      'caso:nuevo':        'Nuevo caso particular ingresado',
-      'caso:actualizado':  'Un caso fue actualizado',
+    const buildMsg = (payload: any): string => {
+      const { tipo, numero, nombre, beneficiario, programa, estado } = payload;
+      switch (tipo) {
+        case 'remito:nuevo':      return `Nuevo remito ${numero ?? ''}${beneficiario ? ` — ${beneficiario}` : ''}`;
+        case 'remito:confirmado': return `Remito confirmado${numero ? ` ${numero}` : ''}`;
+        case 'remito:entregado':  return `Entrega registrada${beneficiario ? ` — ${beneficiario}` : ''}`;
+        case 'caso:nuevo':        return `Nuevo caso: ${nombre ?? ''}${programa ? ` (${programa})` : ''}`;
+        case 'caso:actualizado':  return `Caso actualizado${estado ? ` → ${estado}` : ''}`;
+        default: return tipo;
+      }
     };
 
     const conectar = async () => {
@@ -145,8 +150,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         es.onmessage = (e) => {
           try {
             const payload = JSON.parse(e.data);
-            const msg = MENSAJES[payload.tipo];
-            if (msg) setUpdateBanner(msg);
+            if (payload.tipo && payload.tipo !== 'ping') {
+              setUpdateBanner({ msg: buildMsg(payload), tipo: payload.tipo });
+            }
             window.dispatchEvent(new CustomEvent('sigam:update', { detail: payload }));
           } catch { /* ignorar mensajes malformados */ }
         };
@@ -348,11 +354,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Toast de actualizaciones en tiempo real */}
       <Snackbar
         open={!!updateBanner}
-        autoHideDuration={4000}
+        autoHideDuration={5000}
         onClose={() => setUpdateBanner(null)}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        message={updateBanner ?? ''}
-      />
+      >
+        <Paper elevation={4} sx={{
+          display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.2,
+          borderLeft: '4px solid',
+          borderColor: updateBanner?.tipo?.startsWith('caso') ? 'warning.main' : 'success.main',
+          minWidth: 240, maxWidth: 380,
+        }}>
+          <Box sx={{
+            width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+            bgcolor: updateBanner?.tipo?.startsWith('caso') ? 'warning.main' : 'success.main',
+            animation: 'pulse 1s ease-in-out',
+          }} />
+          <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>
+            {updateBanner?.msg}
+          </Typography>
+          <IconButton size="small" onClick={() => setUpdateBanner(null)} sx={{ p: 0.25 }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Paper>
+      </Snackbar>
 
       {/* Banner de instalación PWA */}
       <Snackbar
