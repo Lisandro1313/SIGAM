@@ -43,7 +43,7 @@ export class CasosService {
   }
 
   // ── Crear caso ────────────────────────────────────────────────────────────
-  async create(dto: any, usuarioId: number, usuarioNombre: string) {
+  async create(dto: any, usuarioId: number, usuarioNombre: string, usuarioRol?: string) {
     // Cruce automático si hay DNI
     let alertaCruce = false;
     let detalleCruce: string | null = null;
@@ -72,11 +72,12 @@ export class CasosService {
       },
       include: INCLUDE_CASO,
     });
+    const secretaria = usuarioRol === 'ASISTENCIA_CRITICA' ? 'CITA' : 'PA';
     this.eventsService.broadcast('caso:nuevo', {
       id: nuevo.id,
       nombre: nuevo.nombreSolicitante,
       prioridad: nuevo.prioridad,
-    });
+    }, secretaria);
     return nuevo;
   }
 
@@ -192,6 +193,21 @@ export class CasosService {
 
     // Crear remito + descontar stock en una transacción
     const remito = await this.prisma.$transaction(async (tx) => {
+      // Validar stock ANTES de crear el remito
+      for (const item of itemsConPeso) {
+        const stock = await tx.stock.findUnique({
+          where: { articuloId_depositoId: { articuloId: item.articuloId, depositoId: remitoData.depositoId } },
+          include: { articulo: true },
+        });
+        if (!stock || stock.cantidad < item.cantidad) {
+          const art = articulos.find((a) => a.id === item.articuloId);
+          throw new BadRequestException(
+            `Stock insuficiente para ${art?.nombre ?? item.articuloId}. ` +
+            `Disponible: ${stock?.cantidad ?? 0}, requerido: ${item.cantidad}`,
+          );
+        }
+      }
+
       const r = await tx.remito.create({
         data: {
           numero,

@@ -38,8 +38,12 @@ export class BeneficiariosController {
   @Get()
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR')
   @ApiOperation({ summary: 'Listar beneficiarios' })
-  findAll(@Query() filtros: any) {
-    return this.beneficiariosService.findAll(filtros);
+  findAll(@Query() filtros: any, @Request() req) {
+    const rol = req.user?.rol;
+    const secretaria = rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : (rol === 'LOGISTICA' || rol === 'VISOR') ? null
+      : 'PA';
+    return this.beneficiariosService.findAll(filtros, secretaria);
   }
 
   @Get(':id')

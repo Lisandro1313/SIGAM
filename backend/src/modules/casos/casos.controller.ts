@@ -34,7 +34,7 @@ export class CasosController {
   @Roles(...ROLES_CREAR)
   @ApiOperation({ summary: 'Crear caso particular' })
   create(@Body() dto: any, @Request() req) {
-    return this.casosService.create(dto, req.user.id, req.user.nombre);
+    return this.casosService.create(dto, req.user.id, req.user.nombre, req.user.rol);
   }
 
   // ── Listar casos ──────────────────────────────────────────────────────────

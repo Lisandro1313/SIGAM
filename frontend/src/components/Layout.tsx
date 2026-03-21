@@ -116,14 +116,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // SSE: actualizaciones en tiempo real
+  // SSE: actualizaciones en tiempo real (ticket efímero para no exponer JWT en URL)
   useEffect(() => {
     if (!user) return;
-    const token = localStorage.getItem('token') ?? sessionStorage.getItem('token') ?? '';
-    if (!token) return;
+    let es: EventSource | null = null;
+    let cancelled = false;
 
     const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    const es = new EventSource(`${API_BASE}/events/stream?token=${encodeURIComponent(token)}`);
 
     const MENSAJES: Record<string, string> = {
       'remito:confirmado': 'Un remito fue confirmado',
@@ -132,21 +131,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       'caso:actualizado':  'Un caso fue actualizado',
     };
 
-    es.onmessage = (e) => {
+    const conectar = async () => {
       try {
-        const payload = JSON.parse(e.data);
-        const msg = MENSAJES[payload.tipo];
-        if (msg) setUpdateBanner(msg);
-        // Notificar a las páginas que escuchan
-        window.dispatchEvent(new CustomEvent('sigam:update', { detail: payload }));
-      } catch { /* ignorar mensajes malformados */ }
+        // 1. Obtener ticket efímero vía POST autenticado (Bearer en header, no en URL)
+        const { data } = await api.post('/events/ticket');
+        if (cancelled) return;
+
+        // 2. Abrir SSE con el ticket de un solo uso
+        es = new EventSource(`${API_BASE}/events/stream?ticket=${encodeURIComponent(data.ticket)}`);
+
+        es.onmessage = (e) => {
+          try {
+            const payload = JSON.parse(e.data);
+            const msg = MENSAJES[payload.tipo];
+            if (msg) setUpdateBanner(msg);
+            window.dispatchEvent(new CustomEvent('sigam:update', { detail: payload }));
+          } catch { /* ignorar mensajes malformados */ }
+        };
+
+        es.onerror = () => {
+          // EventSource reconecta automáticamente; al reconectar necesita nuevo ticket
+          es?.close();
+          if (!cancelled) setTimeout(conectar, 5000);
+        };
+      } catch { /* silencioso si el backend no está disponible */ }
     };
 
-    es.onerror = () => {
-      // Si la conexión se cierra, el browser reintenta automáticamente cada ~3s
-    };
-
-    return () => es.close();
+    conectar();
+    return () => { cancelled = true; es?.close(); };
   }, [user]);
 
   // Cargar notificaciones cada 2 minutos

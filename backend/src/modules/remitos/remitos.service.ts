@@ -20,51 +20,27 @@ export class RemitosService {
     private eventsService: EventsService,
   ) {}
 
-  // Generar número correlativo único
+  // Generar número correlativo único — upsert atómico evita race condition en primer remito
   async generarNumeroRemito(secretaria: string = 'PA'): Promise<string> {
-    if (secretaria === 'CITA') {
-      return await this.prisma.$transaction(async (tx) => {
-        let correlativo = await tx.correlativo.findUnique({
-          where: { clave: 'remito_cita' },
-        });
-
-        if (!correlativo) {
-          correlativo = await tx.correlativo.create({
-            data: { clave: 'remito_cita', ultimo: 0 },
-          });
-        }
-
-        const siguiente = correlativo.ultimo + 1;
-
-        await tx.correlativo.update({
-          where: { clave: 'remito_cita' },
-          data: { ultimo: siguiente },
-        });
-
-        return `CITA ${siguiente}`;
-      });
-    }
+    const esCita = secretaria === 'CITA';
+    const clave   = esCita ? 'remito_cita' : 'remito_pa';
+    const inicial = esCita ? 0 : 1001648;
+    const prefijo = esCita ? 'CITA' : 'PA';
 
     return await this.prisma.$transaction(async (tx) => {
-      // Obtener correlativo con lock
-      let correlativo = await tx.correlativo.findUnique({
-        where: { clave: 'remito_pa' },
+      // upsert garantiza que el registro exista; luego increment atómico
+      await tx.correlativo.upsert({
+        where:  { clave },
+        update: {},
+        create: { clave, ultimo: inicial },
       });
 
-      if (!correlativo) {
-        correlativo = await tx.correlativo.create({
-          data: { clave: 'remito_pa', ultimo: 1001648 },
-        });
-      }
-
-      const siguiente = correlativo.ultimo + 1;
-
-      await tx.correlativo.update({
-        where: { clave: 'remito_pa' },
-        data: { ultimo: siguiente },
+      const updated = await tx.correlativo.update({
+        where: { clave },
+        data:  { ultimo: { increment: 1 } },
       });
 
-      return `PA ${siguiente}`;
+      return `${prefijo} ${updated.ultimo}`;
     });
   }
 
@@ -231,7 +207,7 @@ export class RemitosService {
         id: remitoConfirmado.id,
         numero: remitoConfirmado.numero,
         depositoId: remitoConfirmado.depositoId,
-      });
+      }, remitoConfirmado.secretaria as string | null);
 
       return remitoConfirmado;
     });
@@ -504,7 +480,7 @@ export class RemitosService {
         id: remitoActualizado.id,
         numero: remitoActualizado.numero,
         depositoId: remitoActualizado.depositoId,
-      });
+      }, remitoActualizado.secretaria as string | null);
 
       return remitoActualizado;
     });

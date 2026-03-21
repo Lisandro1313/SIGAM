@@ -48,12 +48,14 @@ export class BeneficiariosService {
     });
   }
 
-  async findAll(filtros?: any) {
+  async findAll(filtros?: any, secretaria?: string | null) {
     const where: any = { activo: true };
 
     if (filtros?.programaId) where.programaId = parseInt(filtros.programaId);
     if (filtros?.localidad) where.localidad = { contains: filtros.localidad, mode: 'insensitive' };
     if (filtros?.tipo) where.tipo = filtros.tipo;
+    // Filtrar por secretaría del programa (null = LOGISTICA/VISOR, ve todo)
+    if (secretaria) where.programa = { secretaria };
 
     return await this.prisma.beneficiario.findMany({
       where,

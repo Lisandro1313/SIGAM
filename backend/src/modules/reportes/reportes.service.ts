@@ -6,6 +6,23 @@ import { startOfMonth, endOfMonth } from 'date-fns';
 export class ReportesService {
   constructor(private prisma: PrismaService) {}
 
+  /** Resuelve un rango {inicio, fin} desde mes+anio OR fechaDesde+fechaHasta */
+  private resolverRango(
+    mes?: number, anio?: number,
+    fechaDesde?: string, fechaHasta?: string,
+  ): { inicio: Date; fin: Date } | null {
+    if (fechaDesde && fechaHasta) {
+      const inicio = new Date(fechaDesde); inicio.setHours(0, 0, 0, 0);
+      const fin = new Date(fechaHasta);    fin.setHours(23, 59, 59, 999);
+      return { inicio, fin };
+    }
+    if (mes && anio) {
+      const fecha = new Date(anio, mes - 1, 1);
+      return { inicio: startOfMonth(fecha), fin: endOfMonth(fecha) };
+    }
+    return null;
+  }
+
   // Reporte: Kilos entregados por mes (retorna los últimos N meses si no se especifica)
   async kilosPorMes(mes?: number, anio?: number, secretaria?: string | null) {
     // Si se pasan parámetros válidos, retorna un solo mes
@@ -23,27 +40,35 @@ export class ReportesService {
       return [{ mes, anio, totalKilos, cantidadRemitos: remitos.length }];
     }
 
-    // Sin parámetros: últimos 6 meses
-    const resultados = [];
+    // Sin parámetros: últimos 6 meses — una sola query, agrupación en JS
+    const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
     const hoy = new Date();
+    const inicio6 = startOfMonth(new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1));
+    const fin6    = endOfMonth(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+    const where6: any = { fecha: { gte: inicio6, lte: fin6 }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
+    if (secretaria) where6.secretaria = secretaria;
+    const todosRemitos = await this.prisma.remito.findMany({ where: where6, select: { fecha: true, totalKg: true } });
+
+    // Construir mapa mes->año -> acumulado
+    const mapaKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
+    const mapa: Record<string, { totalKilos: number; cantidadRemitos: number }> = {};
+    for (const r of todosRemitos) {
+      const k = mapaKey(new Date(r.fecha));
+      if (!mapa[k]) mapa[k] = { totalKilos: 0, cantidadRemitos: 0 };
+      mapa[k].totalKilos += r.totalKg || 0;
+      mapa[k].cantidadRemitos++;
+    }
+
+    const resultados = [];
     for (let i = 5; i >= 0; i--) {
       const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-      const inicio = startOfMonth(fecha);
-      const fin = endOfMonth(fecha);
-      const mesWhere: any = { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
-      if (secretaria) mesWhere.secretaria = secretaria;
-      const remitos = await this.prisma.remito.findMany({
-        where: mesWhere,
-        select: { totalKg: true },
-      });
-      const totalKilos = remitos.reduce((sum, r) => sum + (r.totalKg || 0), 0);
-      const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      const k = mapaKey(fecha);
       resultados.push({
         mes: fecha.getMonth() + 1,
         mesNombre: MESES[fecha.getMonth()],
         anio: fecha.getFullYear(),
-        totalKilos,
-        cantidadRemitos: remitos.length,
+        totalKilos: mapa[k]?.totalKilos ?? 0,
+        cantidadRemitos: mapa[k]?.cantidadRemitos ?? 0,
       });
     }
     return resultados;
@@ -106,16 +131,10 @@ export class ReportesService {
   }
 
   // Reporte: Artículos más distribuidos
-  async articulosMasDistribuidos(mes?: number, anio?: number, secretaria?: string | null) {
+  async articulosMasDistribuidos(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
     const where: any = {};
-
-    if (mes && anio) {
-      const fecha = new Date(anio, mes - 1, 1);
-      where.fecha = {
-        gte: startOfMonth(fecha),
-        lte: endOfMonth(fecha),
-      };
-    }
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
+    if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
     if (secretaria) where.secretaria = secretaria;
 
     const items = await this.prisma.remitoItem.findMany({
@@ -152,20 +171,10 @@ export class ReportesService {
   }
 
   // Reporte: Entregas por programa
-  async entregasPorPrograma(mes?: number, anio?: number, secretaria?: string | null) {
-    const where: any = {
-      estado: {
-        in: ['CONFIRMADO', 'ENVIADO'],
-      },
-    };
-
-    if (mes && anio) {
-      const fecha = new Date(anio, mes - 1, 1);
-      where.fecha = {
-        gte: startOfMonth(fecha),
-        lte: endOfMonth(fecha),
-      };
-    }
+  async entregasPorPrograma(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
+    const where: any = { estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
+    if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
     if (secretaria) where.secretaria = secretaria;
 
     const remitos = await this.prisma.remito.findMany({
@@ -263,12 +272,10 @@ export class ReportesService {
   }
 
   // Reporte: Remitos con detalle para exportación personalizada
-  async remitosDetalle(mes?: number, anio?: number, programaId?: number, estado?: string, secretaria?: string | null) {
+  async remitosDetalle(mes?: number, anio?: number, programaId?: number, estado?: string, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
     const where: any = {};
-    if (mes && anio) {
-      const fecha = new Date(anio, mes - 1, 1);
-      where.fecha = { gte: startOfMonth(fecha), lte: endOfMonth(fecha) };
-    }
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
+    if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
     if (programaId) where.programaId = programaId;
     if (estado) where.estado = estado;
     if (secretaria) where.secretaria = secretaria;
@@ -302,10 +309,9 @@ export class ReportesService {
   }
 
   // Reporte: Resumen de entregas del mes (entregadas vs no entregadas)
-  async resumenEntregasMes(mes: number, anio: number, secretaria?: string | null) {
-    const fecha = new Date(anio, mes - 1, 1);
-    const inicio = startOfMonth(fecha);
-    const fin = endOfMonth(fecha);
+  async resumenEntregasMes(mes: number, anio: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta)!;
+    const { inicio, fin } = rango;
 
     const where: any = { fechaProgramada: { gte: inicio, lte: fin } };
     if (secretaria) where.secretaria = secretaria;

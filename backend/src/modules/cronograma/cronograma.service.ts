@@ -90,16 +90,17 @@ export class CronogramaService {
   }
 
   // Preview y generación masiva de remitos para un rango de fechas (ej: semana actual)
-  async previewRemitosRango(desde: string, hasta: string) {
+  async previewRemitosRango(desde: string, hasta: string, secretaria?: string | null) {
     const desdeDate = new Date(desde); desdeDate.setHours(0, 0, 0, 0);
     const hastaDate = new Date(hasta); hastaDate.setHours(23, 59, 59, 999);
+    const filtroSec = secretaria ? { programa: { secretaria } } : {};
 
     const [sinRemito, conRemito] = await Promise.all([
       this.prisma.entregaProgramada.count({
-        where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, estado: { notIn: ['CANCELADA'] }, remitoId: null },
+        where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, estado: { notIn: ['CANCELADA'] }, remitoId: null, ...filtroSec },
       }),
       this.prisma.entregaProgramada.count({
-        where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, remitoId: { not: null } },
+        where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, remitoId: { not: null }, ...filtroSec },
       }),
     ]);
     return { pendientes: sinRemito, yaGenerados: conRemito };
@@ -108,9 +109,11 @@ export class CronogramaService {
   async generarRemitosRango(desde: string, hasta: string, depositoId: number, usuarioId: number, usuarioRol?: string) {
     const desdeDate = new Date(desde); desdeDate.setHours(0, 0, 0, 0);
     const hastaDate = new Date(hasta); hastaDate.setHours(23, 59, 59, 999);
+    const secretaria = usuarioRol === 'ASISTENCIA_CRITICA' ? 'CITA' : 'PA';
+    const filtroSec = { programa: { secretaria } };
 
     const entregas = await this.prisma.entregaProgramada.findMany({
-      where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, estado: { notIn: ['CANCELADA'] }, remitoId: null },
+      where: { fechaProgramada: { gte: desdeDate, lte: hastaDate }, estado: { notIn: ['CANCELADA'] }, remitoId: null, ...filtroSec },
       include: {
         beneficiario: true,
         programa: {
