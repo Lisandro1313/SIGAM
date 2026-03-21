@@ -289,6 +289,25 @@ export class BeneficiariosService {
     });
   }
 
+  async getProximaEntrega(beneficiarioId: number) {
+    const ahora = new Date();
+    const proxima = await this.prisma.entregaProgramada.findFirst({
+      where: {
+        beneficiarioId,
+        fechaProgramada: { gte: ahora },
+        estado: { in: ['PENDIENTE', 'GENERADA'] },
+      },
+      orderBy: { fechaProgramada: 'asc' },
+      include: { remito: { select: { id: true, numero: true, estado: true } } },
+    });
+    const ultimaEntrega = await this.prisma.remito.findFirst({
+      where: { beneficiarioId, estado: 'ENTREGADO' },
+      orderBy: { entregadoAt: 'desc' },
+      select: { id: true, numero: true, entregadoAt: true, totalKg: true },
+    });
+    return { proxima, ultimaEntrega };
+  }
+
   async deleteDocumento(id: number) {
     const doc = await this.prisma.documentoBeneficiario.findUnique({ where: { id } });
     if (!doc) throw new NotFoundException('Documento no encontrado');

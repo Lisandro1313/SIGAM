@@ -25,6 +25,10 @@ import {
   Tab,
   Checkbox,
   LinearProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -45,6 +49,7 @@ import {
 import InputAdornment from '@mui/material/InputAdornment';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import RemitoForm from '../components/RemitoForm';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -60,23 +65,34 @@ export default function RemitosPage() {
   const [remitos, setRemitos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
-  const [tabPrograma, setTabPrograma] = useState<string>('todos');
-  const [busqueda, setBusqueda] = useState('');
   const { showNotification } = useNotificationStore();
   const { user } = useAuthStore();
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const busqueda = searchParams.get('q') ?? '';
+  const tabPrograma = searchParams.get('tab') ?? 'todos';
+  const estadoFiltro = searchParams.get('estado') ?? '';
+
+  const setBusqueda = (v: string) => setSearchParams(p => { const n = new URLSearchParams(p); v ? n.set('q', v) : n.delete('q'); n.delete('tab'); return n; }, { replace: true });
+  const setTabPrograma = (v: string) => setSearchParams(p => { const n = new URLSearchParams(p); v && v !== 'todos' ? n.set('tab', v) : n.delete('tab'); return n; }, { replace: true });
+  const setEstadoFiltro = (v: string) => setSearchParams(p => { const n = new URLSearchParams(p); v ? n.set('estado', v) : n.delete('estado'); return n; }, { replace: true });
   const puedeEntregar = user?.rol === 'ADMIN' || user?.rol === 'LOGISTICA' || user?.rol === 'ASISTENCIA_CRITICA';
   const puedeCrear = user?.rol !== 'VISOR';
 
-  // Programas únicos derivados de los remitos cargados
+  // Programas únicos derivados de los remitos (todos, no filtrados por estado)
   const programas = Array.from(
     new Map(remitos.filter(r => r.programa).map(r => [r.programa.id, r.programa])).values()
   ).sort((a, b) => a.nombre.localeCompare(b.nombre));
 
+  const remitosBase = estadoFiltro
+    ? remitos.filter(r => r.estado === estadoFiltro)
+    : remitos;
+
   const remitosVisibles = tabPrograma === 'todos'
-    ? remitos
+    ? remitosBase
     : tabPrograma === 'sin_programa'
-    ? remitos.filter(r => !r.programa)
-    : remitos.filter(r => String(r.programa?.id) === tabPrograma);
+    ? remitosBase.filter(r => !r.programa)
+    : remitosBase.filter(r => String(r.programa?.id) === tabPrograma);
 
   // Selección masiva
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -419,7 +435,7 @@ export default function RemitosPage() {
         )}
       </Box>
 
-      <Box mb={2}>
+      <Box mb={2} display="flex" gap={2} alignItems="center" flexWrap="wrap">
         <TextField
           size="small"
           placeholder="Buscar por nombre, DNI o número de remito..."
@@ -434,6 +450,21 @@ export default function RemitosPage() {
           }}
           sx={{ width: 380 }}
         />
+        <FormControl size="small" sx={{ minWidth: 170 }}>
+          <InputLabel>Estado</InputLabel>
+          <Select
+            value={estadoFiltro}
+            label="Estado"
+            onChange={(e) => setEstadoFiltro(e.target.value)}
+          >
+            <MenuItem value="">Todos</MenuItem>
+            <MenuItem value="BORRADOR">Borrador</MenuItem>
+            <MenuItem value="CONFIRMADO">Confirmado</MenuItem>
+            <MenuItem value="ENVIADO">Enviado</MenuItem>
+            <MenuItem value="ENTREGADO">Entregado</MenuItem>
+            <MenuItem value="ANULADO">Anulado</MenuItem>
+          </Select>
+        </FormControl>
       </Box>
 
       {/* Tabs por programa */}
@@ -445,16 +476,16 @@ export default function RemitosPage() {
           scrollButtons="auto"
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
-          <Tab label={`Todos (${remitos.length})`} value="todos" />
+          <Tab label={`Todos (${remitosBase.length})`} value="todos" />
           {programas.map(p => (
             <Tab
               key={p.id}
-              label={`${p.nombre} (${remitos.filter(r => r.programa?.id === p.id).length})`}
+              label={`${p.nombre} (${remitosBase.filter(r => r.programa?.id === p.id).length})`}
               value={String(p.id)}
             />
           ))}
-          {remitos.some(r => !r.programa) && (
-            <Tab label={`Sin programa (${remitos.filter(r => !r.programa).length})`} value="sin_programa" />
+          {remitosBase.some(r => !r.programa) && (
+            <Tab label={`Sin programa (${remitosBase.filter(r => !r.programa).length})`} value="sin_programa" />
           )}
         </Tabs>
       </Paper>

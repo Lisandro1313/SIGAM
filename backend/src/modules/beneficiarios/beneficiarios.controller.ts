@@ -98,6 +98,13 @@ export class BeneficiariosController {
     return this.beneficiariosService.getCruceProgramas(+id);
   }
 
+  @Get(':id/proxima-entrega')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR')
+  @ApiOperation({ summary: 'Próxima entrega programada y última entrega efectiva' })
+  getProximaEntrega(@Param('id') id: string) {
+    return this.beneficiariosService.getProximaEntrega(+id);
+  }
+
   @Patch(':id')
   @Roles('ADMIN', 'OPERADOR_PROGRAMA')
   @ApiOperation({ summary: 'Actualizar beneficiario' })

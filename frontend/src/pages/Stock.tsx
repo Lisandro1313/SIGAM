@@ -52,6 +52,42 @@ export default function StockPage() {
   const [ingresoFormOpen, setIngresoFormOpen] = useState(false);
   const [transferFormOpen, setTransferFormOpen] = useState(false);
 
+  // Ajuste de stock
+  const [ajusteOpen, setAjusteOpen] = useState(false);
+  const [ajusteForm, setAjusteForm] = useState({ articuloId: '', depositoId: '', cantidadReal: '', observaciones: '' });
+  const [savingAjuste, setSavingAjuste] = useState(false);
+
+  const abrirAjuste = (item?: any) => {
+    if (item) {
+      setAjusteForm({ articuloId: String(item.articuloId), depositoId: String(item.depositoId), cantidadReal: String(item.cantidad), observaciones: '' });
+    } else {
+      const dep = depositos[selectedDeposito];
+      setAjusteForm({ articuloId: '', depositoId: dep ? String(dep.id) : '', cantidadReal: '', observaciones: '' });
+    }
+    setAjusteOpen(true);
+  };
+
+  const handleGuardarAjuste = async () => {
+    if (!ajusteForm.articuloId || !ajusteForm.depositoId || ajusteForm.cantidadReal === '') return;
+    setSavingAjuste(true);
+    try {
+      await api.post('/stock/ajuste', {
+        articuloId: Number(ajusteForm.articuloId),
+        depositoId: Number(ajusteForm.depositoId),
+        cantidadReal: Number(ajusteForm.cantidadReal),
+        observaciones: ajusteForm.observaciones || undefined,
+      });
+      showNotification('Ajuste registrado correctamente', 'success');
+      setAjusteOpen(false);
+      loadData();
+      if (depositos.length > 0) loadStock(depositos[selectedDeposito].id);
+    } catch (error: any) {
+      showNotification(error.response?.data?.message || 'Error al registrar ajuste', 'error');
+    } finally {
+      setSavingAjuste(false);
+    }
+  };
+
   // Lotes
   const [lotes, setLotes] = useState<any[]>([]);
   const [loadingLotes, setLoadingLotes] = useState(false);
@@ -210,6 +246,11 @@ export default function StockPage() {
             </Button>
           )}
           {!soloLectura && (
+            <Button variant="outlined" color="warning" startIcon={<EditIcon />} onClick={() => abrirAjuste()}>
+              Ajuste
+            </Button>
+          )}
+          {!soloLectura && (
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setIngresoFormOpen(true)}>
               Registrar Ingreso
             </Button>
@@ -254,6 +295,7 @@ export default function StockPage() {
                     <TableCell>Peso Unit.</TableCell>
                     <TableCell align="right">Stock Mínimo</TableCell>
                     <TableCell align="center">Estado</TableCell>
+                    {!soloLectura && <TableCell />}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -271,6 +313,15 @@ export default function StockPage() {
                             ? <Chip label="BAJO" size="small" color="warning" />
                             : <Chip label="OK" size="small" color="success" />}
                         </TableCell>
+                        {!soloLectura && (
+                          <TableCell align="center" sx={{ p: 0.5 }}>
+                            <Tooltip title="Ajustar cantidad">
+                              <IconButton size="small" onClick={() => abrirAjuste(item)}>
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
@@ -502,6 +553,52 @@ export default function StockPage() {
         onClose={() => setTransferFormOpen(false)}
         onSuccess={() => { loadData(); setTransferFormOpen(false); }}
       />
+
+      {/* Diálogo ajuste de stock */}
+      <Dialog open={ajusteOpen} onClose={() => setAjusteOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Ajuste de stock</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <Alert severity="info" sx={{ mb: 1 }}>
+            El stock se actualizará a la cantidad real ingresada. Se registrará un movimiento de ajuste.
+          </Alert>
+          <TextField
+            select label="Artículo" size="small"
+            value={ajusteForm.articuloId}
+            onChange={(e) => setAjusteForm(f => ({ ...f, articuloId: e.target.value }))}
+          >
+            {articulos.map(a => <MenuItem key={a.id} value={String(a.id)}>{a.nombre}</MenuItem>)}
+          </TextField>
+          <TextField
+            select label="Depósito" size="small"
+            value={ajusteForm.depositoId}
+            onChange={(e) => setAjusteForm(f => ({ ...f, depositoId: e.target.value }))}
+          >
+            {depositos.map(d => <MenuItem key={d.id} value={String(d.id)}>{d.nombre}</MenuItem>)}
+          </TextField>
+          <TextField
+            label="Cantidad real (nueva)" type="number" size="small"
+            inputProps={{ min: 0, step: 0.01 }}
+            value={ajusteForm.cantidadReal}
+            onChange={(e) => setAjusteForm(f => ({ ...f, cantidadReal: e.target.value }))}
+          />
+          <TextField
+            label="Observaciones" size="small" multiline rows={2}
+            value={ajusteForm.observaciones}
+            onChange={(e) => setAjusteForm(f => ({ ...f, observaciones: e.target.value }))}
+            placeholder="Motivo del ajuste (recuento físico, merma, error de carga...)"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAjusteOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained" color="warning"
+            disabled={savingAjuste || !ajusteForm.articuloId || !ajusteForm.depositoId || ajusteForm.cantidadReal === ''}
+            onClick={handleGuardarAjuste}
+          >
+            {savingAjuste ? <CircularProgress size={20} /> : 'Confirmar ajuste'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

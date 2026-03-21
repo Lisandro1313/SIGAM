@@ -16,10 +16,16 @@ const DESCRIPCIONES: Array<{ pattern: RegExp; metodo: string; desc: string }> = 
   { pattern: /^\/remitos\/\d+\/confirmar$/, metodo: 'POST', desc: 'Confirmó remito' },
   { pattern: /^\/remitos\/\d+\/entregar$/, metodo: 'POST', desc: 'Marcó remito como entregado' },
   { pattern: /^\/remitos\/\d+\/enviar$/, metodo: 'POST', desc: 'Envió remito por email' },
+  { pattern: /^\/remitos\/\d+\/reprogramar$/, metodo: 'PATCH', desc: 'Reprogramó remito' },
+  { pattern: /^\/remitos\/\d+\/anular$/, metodo: 'DELETE', desc: 'Anuló remito' },
   { pattern: /^\/remitos\/\d+$/, metodo: 'DELETE', desc: 'Eliminó remito' },
   // Stock
   { pattern: /^\/stock\/ingreso$/, metodo: 'POST', desc: 'Registró ingreso de stock' },
   { pattern: /^\/stock\/transferir$/, metodo: 'POST', desc: 'Realizó transferencia de stock' },
+  { pattern: /^\/stock\/ajuste$/, metodo: 'POST', desc: 'Realizó ajuste de stock' },
+  { pattern: /^\/stock\/lotes$/, metodo: 'POST', desc: 'Creó lote de artículo' },
+  { pattern: /^\/stock\/lotes\/\d+$/, metodo: 'PATCH', desc: 'Editó lote de artículo' },
+  { pattern: /^\/stock\/lotes\/\d+$/, metodo: 'DELETE', desc: 'Eliminó lote de artículo' },
   // Cronograma
   { pattern: /^\/cronograma\/generar$/, metodo: 'POST', desc: 'Generó cronograma mensual' },
   { pattern: /^\/cronograma\/fila$/, metodo: 'POST', desc: 'Agregó fila al cronograma' },

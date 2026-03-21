@@ -17,6 +17,7 @@ import {
   Edit as EditIcon,
   Search as SearchIcon,
 } from '@mui/icons-material';
+import * as XLSX from 'xlsx';
 import api from '../services/api';
 import BeneficiarioMap, { buildLocalidadColors, TIPO_COLORS, TIPO_LABELS, ZonaData, countBenInZona } from '../components/BeneficiarioMap';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -66,6 +67,25 @@ export default function MapaPage() {
       setZonas(zonR.data);
     }).finally(() => setLoading(false));
   }, []);
+
+  // Beneficiarios sin coordenadas
+  const sinCoords = useMemo(() => beneficiarios.filter(b => !b.latitud || !b.longitud), [beneficiarios]);
+
+  // Exportar localidad seleccionada a Excel
+  const exportarLocalidad = () => {
+    const lista = selLocalidad
+      ? benFiltrados.filter(b => (b.localidad || 'Sin localidad') === selLocalidad)
+      : benFiltrados;
+    const rows = lista.map(b => ({
+      nombre: b.nombre, tipo: b.tipo, localidad: b.localidad ?? '', direccion: b.direccion ?? '',
+      telefono: b.telefono ?? '', responsable: b.responsableNombre ?? '', dni: b.responsableDNI ?? '',
+      programa: b.programa?.nombre ?? '', frecuencia: b.frecuenciaEntrega ?? '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Mapa');
+    XLSX.writeFile(wb, `mapa_${selLocalidad ?? 'todos'}.xlsx`);
+  };
 
   // Estadísticas agrupadas por localidad
   const stats = useMemo(() => {
@@ -215,12 +235,22 @@ export default function MapaPage() {
                   InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
                   sx={{ mb: 0.5 }}
                 />
-                <Typography variant="caption" color="text.secondary">
-                  {benFiltrados.length} beneficiarios · {stats.length} localidades
-                  {selLocalidad && (
-                    <Chip label="Limpiar" size="small" icon={<FilterIcon />} onDelete={() => setSelLocalidad(null)} sx={{ ml: 1, fontSize: 10 }} />
-                  )}
-                </Typography>
+                <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={0.5}>
+                  <Typography variant="caption" color="text.secondary">
+                    {benFiltrados.length} ben. · {stats.length} localidades
+                    {sinCoords.length > 0 && (
+                      <Chip label={`${sinCoords.length} sin GPS`} size="small" color="warning" sx={{ ml: 0.5, fontSize: '0.6rem', height: 16 }} />
+                    )}
+                    {selLocalidad && (
+                      <Chip label="Limpiar" size="small" icon={<FilterIcon />} onDelete={() => setSelLocalidad(null)} sx={{ ml: 0.5, fontSize: 10 }} />
+                    )}
+                  </Typography>
+                  <Tooltip title={selLocalidad ? `Exportar ${selLocalidad}` : 'Exportar todos los visibles'}>
+                    <IconButton size="small" onClick={exportarLocalidad} sx={{ p: 0.3 }}>
+                      <FilterIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </Box>
               <Box sx={{ overflowY: 'auto', flex: 1 }}>
                 {stats.map(([loc, info]) => {

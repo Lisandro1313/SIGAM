@@ -115,6 +115,9 @@ export default function BeneficiariosPage() {
   const [cruceData, setCruceData] = useState<any>(null);
   const [loadingCruce, setLoadingCruce] = useState(false);
 
+  // Próxima entrega
+  const [proximaEntrega, setProximaEntrega] = useState<any>(null);
+
   // Historial de cambios (auditoria)
   const [historial, setHistorial] = useState<any[] | null>(null);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
@@ -140,7 +143,7 @@ export default function BeneficiariosPage() {
   const puedeRelevamiento = user ? puedeHacer(user.rol, 'beneficiarios.relevamiento') : false;
   const puedeSubirDocs  = user ? ['ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL'].includes(user.rol) : false;
   const puedeEliminar   = user ? puedeHacer(user.rol, 'beneficiarios.eliminar') : false;
-  const esAdmin         = user?.rol === 'ADMIN';
+  const puedeVerHistorial = ['ADMIN', 'OPERADOR_PROGRAMA'].includes(user?.rol ?? '');
 
   useEffect(() => {
     const t = setTimeout(() => { loadBeneficiarios(0, rowsPerPage, searchTerm); setPage(0); }, 350);
@@ -288,10 +291,15 @@ export default function BeneficiariosPage() {
     setCruceData(null);
     setIntegrantes([]);
     setHistorial(null);
+    setProximaEntrega(null);
     setIntegranteForm({ nombre: '', dni: '', direccion: '' });
     try {
-      const res = await api.get(`/beneficiarios/${beneficiario.id}`);
+      const [res, proxRes] = await Promise.all([
+        api.get(`/beneficiarios/${beneficiario.id}`),
+        api.get(`/beneficiarios/${beneficiario.id}/proxima-entrega`).catch(() => null),
+      ]);
       setDetalleData(res.data);
+      if (proxRes) setProximaEntrega(proxRes.data);
     } catch {
       showNotification('Error cargando datos del beneficiario', 'error');
       setDetalleOpen(false);
@@ -363,24 +371,27 @@ export default function BeneficiariosPage() {
         <Box display="flex" gap={2}>
           {puedeEditar && (
             <ExportExcelButton
-              data={beneficiarios.map((b) => ({
-                id: b.id,
-                nombre: b.nombre,
-                tipo: b.tipo,
-                localidad: b.localidad ?? '',
-                direccion: b.direccion ?? '',
-                telefono: b.telefono ?? '',
-                responsable: b.responsableNombre ?? '',
-                dni_responsable: b.responsableDNI ?? '',
-                programa: b.programa?.nombre ?? '',
-                frecuencia_entrega: b.frecuenciaEntrega ?? '',
-                kilos_habitual: b.kilosHabitual ?? '',
-                activo: b.activo ? 'Sí' : 'No',
-                observaciones: b.observaciones ?? '',
-              }))}
+              onExport={async () => {
+                const res = await api.get('/beneficiarios', { params: { limit: 10000, ...(searchTerm ? { buscar: searchTerm } : {}) } });
+                return (res.data.data ?? res.data).map((b: any) => ({
+                  id: b.id,
+                  nombre: b.nombre,
+                  tipo: b.tipo,
+                  localidad: b.localidad ?? '',
+                  direccion: b.direccion ?? '',
+                  telefono: b.telefono ?? '',
+                  responsable: b.responsableNombre ?? '',
+                  dni_responsable: b.responsableDNI ?? '',
+                  programa: b.programa?.nombre ?? '',
+                  frecuencia_entrega: b.frecuenciaEntrega ?? '',
+                  kilos_habitual: b.kilosHabitual ?? '',
+                  activo: b.activo ? 'Sí' : 'No',
+                  observaciones: b.observaciones ?? '',
+                }));
+              }}
               fileName={`beneficiarios${searchTerm ? '-filtrado' : ''}`}
               sheetName="Beneficiarios"
-              label={`Exportar${searchTerm ? ` (${total})` : ''}`}
+              label={`Exportar todos (${total})`}
             />
           )}
           {puedeCrear && (
@@ -597,7 +608,7 @@ export default function BeneficiariosPage() {
                     .catch(() => {})
                     .finally(() => setLoadingIntegrantes(false));
                 }
-                if (v === tabHistorial && historial === null && esAdmin) {
+                if (v === tabHistorial && historial === null && puedeVerHistorial) {
                   setLoadingHistorial(true);
                   api.get('/auditoria', { params: { buscar: `/beneficiarios/${detalleData.id}` } })
                     .then(r => setHistorial(r.data))
@@ -625,7 +636,7 @@ export default function BeneficiariosPage() {
                   iconPosition="start"
                 />
               )}
-              {esAdmin && <Tab label="Cambios" />}
+              {puedeVerHistorial && <Tab label="Cambios" />}
             </Tabs>
           );
         })()}
@@ -655,6 +666,44 @@ export default function BeneficiariosPage() {
                       </Box>
                     ))}
                   </Box>
+
+                  {/* Próxima entrega / última entrega */}
+                  {proximaEntrega && (
+                    <Box>
+                      <Divider sx={{ mb: 1.5 }} />
+                      <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5}>
+                        <Box sx={{ p: 1.5, bgcolor: proximaEntrega.proxima ? 'primary.50' : 'grey.100', borderRadius: 1, border: '1px solid', borderColor: proximaEntrega.proxima ? 'primary.200' : 'grey.300' }}>
+                          <Typography variant="caption" color="text.secondary">Próxima entrega programada</Typography>
+                          {proximaEntrega.proxima ? (
+                            <>
+                              <Typography variant="body2" fontWeight="bold" color="primary.main">
+                                {format(new Date(proximaEntrega.proxima.fechaProgramada), "dd/MM/yyyy", { locale: es })}
+                                {proximaEntrega.proxima.hora ? ` — ${proximaEntrega.proxima.hora}` : ''}
+                              </Typography>
+                              <Chip label={proximaEntrega.proxima.estado} size="small" sx={{ mt: 0.5, height: 18, fontSize: '0.65rem' }} color={proximaEntrega.proxima.estado === 'GENERADA' ? 'info' : 'default'} />
+                            </>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">Sin entrega programada</Typography>
+                          )}
+                        </Box>
+                        <Box sx={{ p: 1.5, bgcolor: proximaEntrega.ultimaEntrega ? 'success.50' : 'grey.100', borderRadius: 1, border: '1px solid', borderColor: proximaEntrega.ultimaEntrega ? 'success.200' : 'grey.300' }}>
+                          <Typography variant="caption" color="text.secondary">Última entrega efectiva</Typography>
+                          {proximaEntrega.ultimaEntrega ? (
+                            <>
+                              <Typography variant="body2" fontWeight="bold" color="success.dark">
+                                {format(new Date(proximaEntrega.ultimaEntrega.entregadoAt), "dd/MM/yyyy", { locale: es })}
+                              </Typography>
+                              {proximaEntrega.ultimaEntrega.totalKg && (
+                                <Typography variant="caption" color="text.secondary">{proximaEntrega.ultimaEntrega.totalKg} kg</Typography>
+                              )}
+                            </>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">Sin entregas registradas</Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    </Box>
+                  )}
 
                   {detalleData.observaciones && (
                     <Box>
@@ -905,8 +954,8 @@ export default function BeneficiariosPage() {
                 </Box>
               )}
 
-              {/* ── TAB Historial de Cambios (ADMIN only) ── */}
-              {esAdmin && (() => {
+              {/* ── TAB Historial de Cambios ── */}
+              {puedeVerHistorial && (() => {
                 const tieneInt = TIPOS_ESPACIO.includes(detalleData?.tipo);
                 const tabH = tieneInt ? 4 : 3;
                 if (tabDetalle !== tabH) return null;

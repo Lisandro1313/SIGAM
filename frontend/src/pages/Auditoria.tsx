@@ -11,8 +11,9 @@ import {
   People as BenefIcon, Receipt as RemitoIcon, Inventory as StockIcon,
   Category as ProgramaIcon, Assignment as ArticuloIcon,
 } from '@mui/icons-material';
-import { format, subDays } from 'date-fns';
+import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
 import api from '../services/api';
 
 // Mapeo método HTTP → tipo legible
@@ -182,7 +183,42 @@ export default function Auditoria() {
               Buscar
             </Button>
           </Grid>
+          <Grid item xs={12} sm="auto">
+            <Button
+              variant="outlined"
+              startIcon={<ArticuloIcon />}
+              disabled={loading || logs.length === 0}
+              onClick={() => {
+                const rows = logs.map(l => ({
+                  fecha: format(new Date(l.createdAt), 'dd/MM/yyyy HH:mm', { locale: es }),
+                  usuario: l.usuarioNombre ?? 'Sistema',
+                  accion: l.descripcion ?? '',
+                  tipo: l.metodo,
+                  ruta: l.ruta ?? '',
+                  datos: l.datos ?? '',
+                }));
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
+                XLSX.writeFile(wb, `auditoria_${desde}_${hasta}.xlsx`);
+              }}
+              fullWidth
+            >
+              Exportar
+            </Button>
+          </Grid>
         </Grid>
+        {/* Atajos de período */}
+        <Box display="flex" gap={1} mt={1.5} flexWrap="wrap">
+          {[
+            { label: 'Hoy', fn: () => { const h = format(new Date(), 'yyyy-MM-dd'); setDesde(h); setHasta(h); } },
+            { label: 'Últimos 7 días', fn: () => { setDesde(format(subDays(new Date(), 7), 'yyyy-MM-dd')); setHasta(format(new Date(), 'yyyy-MM-dd')); } },
+            { label: 'Últimos 30 días', fn: () => { setDesde(format(subDays(new Date(), 30), 'yyyy-MM-dd')); setHasta(format(new Date(), 'yyyy-MM-dd')); } },
+            { label: 'Este mes', fn: () => { setDesde(format(startOfMonth(new Date()), 'yyyy-MM-dd')); setHasta(format(endOfMonth(new Date()), 'yyyy-MM-dd')); } },
+          ].map(({ label, fn }) => (
+            <Chip key={label} label={label} size="small" variant="outlined" onClick={fn} sx={{ cursor: 'pointer' }} />
+          ))}
+        </Box>
       </Paper>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}

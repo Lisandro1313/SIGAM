@@ -249,6 +249,52 @@ export class StockService {
     return { success: true };
   }
 
+  // Ajuste / reconciliación de stock
+  async ajustarStock(
+    articuloId: number,
+    depositoId: number,
+    cantidadReal: number,
+    usuarioId: number,
+    observaciones?: string,
+  ) {
+    if (cantidadReal < 0) throw new BadRequestException('La cantidad real no puede ser negativa');
+
+    return await this.prisma.$transaction(async (tx) => {
+      const stock = await tx.stock.findUnique({
+        where: { articuloId_depositoId: { articuloId, depositoId } },
+      });
+
+      const cantidadActual = stock?.cantidad ?? 0;
+      const delta = cantidadReal - cantidadActual;
+
+      // Crear movimiento de AJUSTE con el delta (puede ser negativo)
+      await tx.movimiento.create({
+        data: {
+          tipo: MovimientoTipo.AJUSTE,
+          cantidad: delta,
+          articuloId,
+          depositoDesdeId: depositoId,
+          depositoHaciaId: depositoId,
+          usuarioId,
+          observaciones: observaciones ?? `Ajuste: ${cantidadActual} → ${cantidadReal}`,
+        },
+      });
+
+      if (stock) {
+        return await tx.stock.update({
+          where: { articuloId_depositoId: { articuloId, depositoId } },
+          data: { cantidad: cantidadReal },
+          include: { articulo: true, deposito: true },
+        });
+      } else {
+        return await tx.stock.create({
+          data: { articuloId, depositoId, cantidad: cantidadReal },
+          include: { articulo: true, deposito: true },
+        });
+      }
+    });
+  }
+
   // Obtener movimientos
   async obtenerMovimientos(filtros?: any) {
     const where: any = {};

@@ -63,6 +63,19 @@ export class StockController {
     );
   }
 
+  @Post('ajuste')
+  @Roles('ADMIN', 'LOGISTICA')
+  @ApiOperation({ summary: 'Ajuste / reconciliación de stock a una cantidad real' })
+  ajustarStock(@Body() body: any, @Request() req) {
+    const articuloId = parseInt(body.articuloId, 10);
+    const depositoId = parseInt(body.depositoId, 10);
+    const cantidadReal = parseFloat(body.cantidadReal);
+    if (isNaN(articuloId) || isNaN(depositoId) || isNaN(cantidadReal)) {
+      throw new BadRequestException('articuloId, depositoId y cantidadReal son requeridos');
+    }
+    return this.stockService.ajustarStock(articuloId, depositoId, cantidadReal, req.user.id, body.observaciones);
+  }
+
   @Post('transferir')
   @Roles('ADMIN', 'LOGISTICA')
   @ApiOperation({ summary: 'Transferir entre depósitos' })

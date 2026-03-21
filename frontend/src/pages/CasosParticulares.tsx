@@ -21,6 +21,7 @@ import {
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
+import { useNotificationStore } from '../stores/notificationStore';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const ESTADO_COLOR: Record<string, 'warning' | 'info' | 'success' | 'error' | 'default'> = {
@@ -55,6 +56,7 @@ function resolveUrl(url: string) {
 interface ItemRemito { articuloId: string; cantidad: string; }
 
 export default function CasosParticulares() {
+  const { showNotification } = useNotificationStore();
   const [casos, setCasos]         = useState<any[]>([]);
   const [loading, setLoading]     = useState(false);
   const [tabEstado, setTabEstado] = useState('TODOS');
@@ -84,6 +86,9 @@ export default function CasosParticulares() {
   // Documentos del caso
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const docInputRef = useRef<HTMLInputElement>(null);
+
+  // Stock resumen para revisores
+  const [stockResumen, setStockResumen] = useState<any[]>([]);
 
   // Convertir caso en beneficiario
   const [convirtiendo, setConvirtiendo] = useState(false);
@@ -122,6 +127,18 @@ export default function CasosParticulares() {
     setNotaRevision('');
     setErrRevisar('');
     setDrawerOpen(true);
+    // Cargar stock resumen para revisores cuando el caso está pendiente
+    if (['PENDIENTE', 'EN_REVISION'].includes(caso.estado)) {
+      api.get('/stock').then(r => {
+        // Agrupar por artículo sumando cantidades de todos los depósitos
+        const map: Record<string, { nombre: string; cantidad: number }> = {};
+        for (const s of r.data as any[]) {
+          const key = s.articulo.nombre;
+          map[key] = { nombre: key, cantidad: (map[key]?.cantidad ?? 0) + s.cantidad };
+        }
+        setStockResumen(Object.values(map).filter(s => s.cantidad > 0).sort((a, b) => b.cantidad - a.cantidad).slice(0, 8));
+      }).catch(() => setStockResumen([]));
+    }
   };
 
   // ── Revisar ───────────────────────────────────────────────────────────────
@@ -221,9 +238,10 @@ export default function CasosParticulares() {
   // ── Convertir caso en beneficiario ────────────────────────────────────────
   const handleConvertirBeneficiario = async () => {
     if (!casoSel) return;
+    if (!window.confirm(`¿Registrar a "${casoSel.nombreSolicitante}" como beneficiario del sistema?`)) return;
     setConvirtiendo(true);
     try {
-      await api.post('/beneficiarios', {
+      const res = await api.post('/beneficiarios', {
         nombre: casoSel.nombreSolicitante,
         tipo: 'CASO_PARTICULAR',
         direccion: casoSel.direccion ?? undefined,
@@ -231,9 +249,12 @@ export default function CasosParticulares() {
         responsableDNI: casoSel.dni ?? undefined,
         observaciones: `Caso #${casoSel.id} — ${casoSel.descripcion?.slice(0, 200)}`,
       });
-      alert(`"${casoSel.nombreSolicitante}" registrado como beneficiario.`);
+      // Vincular el beneficiario creado al caso
+      try { await api.patch(`/casos/${casoSel.id}/revisar`, { estado: casoSel.estado, beneficiarioId: res.data.id }); } catch { /* ignorar */ }
+      setCasoSel((prev: any) => ({ ...prev, beneficiarioId: res.data.id }));
+      showNotification(`"${casoSel.nombreSolicitante}" registrado como beneficiario #${res.data.id}`, 'success');
     } catch (e: any) {
-      alert(e.response?.data?.message ?? 'Error al crear el beneficiario');
+      showNotification(e.response?.data?.message ?? 'Error al crear el beneficiario', 'error');
     } finally {
       setConvirtiendo(false);
     }
@@ -274,6 +295,16 @@ export default function CasosParticulares() {
           </Select>
         </FormControl>
       </Box>
+
+      {/* Banner cruce */}
+      {(() => {
+        const conCruce = casos.filter(c => c.alertaCruce && ['PENDIENTE', 'EN_REVISION'].includes(c.estado));
+        return conCruce.length > 0 ? (
+          <Alert severity="warning" icon={<WarnIcon />} sx={{ mb: 2, fontWeight: 500 }}>
+            <strong>{conCruce.length} caso{conCruce.length > 1 ? 's' : ''} con cruce de datos detectado</strong> — {conCruce.map(c => `${c.nombreSolicitante} (DNI ${c.dni})`).join(' · ')}
+          </Alert>
+        ) : null;
+      })()}
 
       {/* Tabs */}
       <Tabs
@@ -332,7 +363,8 @@ export default function CasosParticulares() {
                       {c.nombreSolicitante}
                       {c.alertaCruce && (
                         <Tooltip title={c.detalleCruce ?? 'Cruce detectado'}>
-                          <WarnIcon color="warning" fontSize="small" />
+                          <Chip label="CRUCE" size="small" color="warning" icon={<WarnIcon />}
+                            sx={{ fontSize: '0.65rem', height: 20, cursor: 'pointer' }} />
                         </Tooltip>
                       )}
                     </Box>
@@ -485,6 +517,25 @@ export default function CasosParticulares() {
 
             <Divider sx={{ mb: 2 }} />
 
+            {/* Stock disponible para revisores */}
+            {['PENDIENTE', 'EN_REVISION'].includes(casoSel.estado) && stockResumen.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>Stock disponible</Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {stockResumen.map(s => (
+                    <Chip
+                      key={s.nombre}
+                      label={`${s.nombre}: ${s.cantidad}`}
+                      size="small"
+                      color={s.cantidad <= 0 ? 'error' : s.cantidad < 10 ? 'warning' : 'success'}
+                      variant="outlined"
+                    />
+                  ))}
+                </Box>
+                <Divider sx={{ mt: 1.5 }} />
+              </Box>
+            )}
+
             {/* Acciones de revisión */}
             {['PENDIENTE', 'EN_REVISION'].includes(casoSel.estado) && (
               <Box>
@@ -544,7 +595,7 @@ export default function CasosParticulares() {
             )}
 
             {/* Registrar como beneficiario */}
-            {casoSel.estado === 'RESUELTO' && !casoSel.beneficiarioId && (
+            {['APROBADO', 'RESUELTO'].includes(casoSel.estado) && !casoSel.beneficiarioId && (
               <Box sx={{ mt: 2 }}>
                 <Button
                   variant="outlined" color="secondary"
@@ -557,7 +608,7 @@ export default function CasosParticulares() {
                 </Button>
               </Box>
             )}
-            {casoSel.estado === 'RESUELTO' && casoSel.beneficiarioId && (
+            {casoSel.beneficiarioId && (
               <Alert severity="success" sx={{ mt: 2 }} icon={<PersonAddIcon />}>
                 Ya registrado como beneficiario (ID #{casoSel.beneficiarioId})
               </Alert>
