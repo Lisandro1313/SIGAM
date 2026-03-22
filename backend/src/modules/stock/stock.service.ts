@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MovimientoTipo } from '@prisma/client';
 import { StorageService } from '../../shared/storage/storage.service';
@@ -185,6 +185,114 @@ export class StockService {
         deficit: s.articulo.stockMinimo! - s.cantidad,
       }))
       .sort((a, b) => b.deficit - a.deficit);
+  }
+
+  // ── CRUD de Lotes ──────────────────────────────────────────────────────────
+
+  async getLotes(depositoId?: number, articuloId?: number) {
+    const where: any = {};
+    if (depositoId) where.depositoId = depositoId;
+    if (articuloId) where.articuloId = articuloId;
+    return this.prisma.loteArticulo.findMany({
+      where,
+      include: {
+        articulo: { select: { id: true, nombre: true, categoria: true } },
+        deposito: { select: { id: true, nombre: true } },
+      },
+      orderBy: [{ fechaVencimiento: 'asc' }, { articuloId: 'asc' }],
+    });
+  }
+
+  async createLote(data: {
+    articuloId: number;
+    depositoId: number;
+    cantidad: number;
+    fechaVencimiento: string;
+    lote?: string;
+  }) {
+    return this.prisma.loteArticulo.create({
+      data: {
+        articuloId: data.articuloId,
+        depositoId: data.depositoId,
+        cantidad: data.cantidad,
+        fechaVencimiento: new Date(data.fechaVencimiento),
+        lote: data.lote || null,
+      },
+      include: {
+        articulo: { select: { id: true, nombre: true, categoria: true } },
+        deposito: { select: { id: true, nombre: true } },
+      },
+    });
+  }
+
+  async updateLote(id: number, data: { cantidad?: number; fechaVencimiento?: string; lote?: string }) {
+    const found = await this.prisma.loteArticulo.findUnique({ where: { id } });
+    if (!found) throw new NotFoundException('Lote no encontrado');
+    return this.prisma.loteArticulo.update({
+      where: { id },
+      data: {
+        ...(data.cantidad !== undefined && { cantidad: data.cantidad }),
+        ...(data.fechaVencimiento && { fechaVencimiento: new Date(data.fechaVencimiento) }),
+        ...(data.lote !== undefined && { lote: data.lote || null }),
+      },
+      include: {
+        articulo: { select: { id: true, nombre: true, categoria: true } },
+        deposito: { select: { id: true, nombre: true } },
+      },
+    });
+  }
+
+  async deleteLote(id: number) {
+    const found = await this.prisma.loteArticulo.findUnique({ where: { id } });
+    if (!found) throw new NotFoundException('Lote no encontrado');
+    await this.prisma.loteArticulo.delete({ where: { id } });
+    return { success: true };
+  }
+
+  // Ajuste / reconciliación de stock
+  async ajustarStock(
+    articuloId: number,
+    depositoId: number,
+    cantidadReal: number,
+    usuarioId: number,
+    observaciones?: string,
+  ) {
+    if (cantidadReal < 0) throw new BadRequestException('La cantidad real no puede ser negativa');
+
+    return await this.prisma.$transaction(async (tx) => {
+      const stock = await tx.stock.findUnique({
+        where: { articuloId_depositoId: { articuloId, depositoId } },
+      });
+
+      const cantidadActual = stock?.cantidad ?? 0;
+      const delta = cantidadReal - cantidadActual;
+
+      // Crear movimiento de AJUSTE con el delta (puede ser negativo)
+      await tx.movimiento.create({
+        data: {
+          tipo: MovimientoTipo.AJUSTE,
+          cantidad: delta,
+          articuloId,
+          depositoDesdeId: depositoId,
+          depositoHaciaId: depositoId,
+          usuarioId,
+          observaciones: observaciones ?? `Ajuste: ${cantidadActual} → ${cantidadReal}`,
+        },
+      });
+
+      if (stock) {
+        return await tx.stock.update({
+          where: { articuloId_depositoId: { articuloId, depositoId } },
+          data: { cantidad: cantidadReal },
+          include: { articulo: true, deposito: true },
+        });
+      } else {
+        return await tx.stock.create({
+          data: { articuloId, depositoId, cantidad: cantidadReal },
+          include: { articulo: true, deposito: true },
+        });
+      }
+    });
   }
 
   // Obtener movimientos

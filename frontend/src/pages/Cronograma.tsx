@@ -83,6 +83,12 @@ export default function CronogramaPage() {
   const [genLoadingResumen, setGenLoadingResumen] = useState(false);
   const [genGenerating, setGenGenerating] = useState(false);
 
+  // Generar remitos semana dialog
+  const [semanaGenOpen, setSemanaGenOpen] = useState(false);
+  const [semanaPreview, setSemanaPreview] = useState<{pendientes:number;yaGenerados:number}|null>(null);
+  const [semanaGenLoading, setSemanaGenLoading] = useState(false);
+  const [semanaGenerating, setSemanaGenerating] = useState(false);
+
   // Últimas entregas por beneficiario
   const [ultimasEntregas, setUltimasEntregas] = useState<Record<number, UltimaEntrega>>({});
 
@@ -261,6 +267,38 @@ export default function CronogramaPage() {
 
   const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+  async function handleOpenSemanaGen() {
+    setSemanaGenOpen(true);
+    setSemanaPreview(null);
+    setSemanaGenLoading(true);
+    try {
+      const desde = toDateStr(semanaInicio);
+      const hasta = toDateStr(semanaFin);
+      const r = await api.get(`/cronograma/preview-remitos-rango?desde=${desde}&hasta=${hasta}`);
+      setSemanaPreview(r.data);
+    } catch { showNotification('Error cargando preview', 'error'); }
+    finally { setSemanaGenLoading(false); }
+  }
+
+  async function handleConfirmarSemanaGen() {
+    setSemanaGenerating(true);
+    try {
+      const desde = toDateStr(semanaInicio);
+      const hasta = toDateStr(semanaFin);
+      const r = await api.post('/cronograma/generar-remitos-rango', { desde, hasta, depositoId: depDefault });
+      const { remitosGenerados, errores, detalleErrores } = r.data;
+      if (errores > 0) {
+        showNotification(`${remitosGenerados} remitos generados, ${errores} errores: ${detalleErrores.map((e:any)=>e.beneficiario).join(', ')}`, 'warning');
+      } else {
+        showNotification(`${remitosGenerados} remitos generados correctamente`, 'success');
+      }
+      setSemanaGenOpen(false);
+      loadPlanilla();
+    } catch(e:any) {
+      showNotification(e.response?.data?.message ?? 'Error generando remitos', 'error');
+    } finally { setSemanaGenerating(false); }
+  }
+
   return (
     <Box>
       {/* Header */}
@@ -276,6 +314,9 @@ export default function CronogramaPage() {
           <Typography variant="body1" fontWeight="bold" minWidth={230} textAlign="center">{semanaLabel}</Typography>
           <Tooltip title="Semana siguiente"><IconButton onClick={()=>setSemanaInicio(p=>addDays(p,7))}><ChevronRight/></IconButton></Tooltip>
           <Tooltip title="Hoy"><IconButton onClick={()=>setSemanaInicio(startOfWeek(new Date()))}><TodayIcon/></IconButton></Tooltip>
+          <Button variant="outlined" startIcon={<ReceiptIcon/>} onClick={handleOpenSemanaGen} size="small" color="success">
+            Remitos semana
+          </Button>
           <Button variant="contained" startIcon={<GenerarIcon/>} onClick={handleOpenGen} size="small" sx={{bgcolor:'#1a237e'}}>
             Generar mes
           </Button>
@@ -474,6 +515,44 @@ export default function CronogramaPage() {
             sx={{bgcolor:'#1a237e'}}
           >
             {genGenerating ? 'Generando...' : `Generar ${genResumen?.pendientes ?? ''} entregas`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog: Generar remitos de la semana */}
+      <Dialog open={semanaGenOpen} onClose={()=>setSemanaGenOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{fontWeight:'bold'}}>Generar remitos de la semana</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Semana: <strong>{semanaLabel}</strong>
+          </Typography>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Depósito: <strong>{depositos.find(d=>d.id===depDefault)?.nombre ?? depDefault}</strong>
+          </Typography>
+          {semanaGenLoading && <Box display="flex" justifyContent="center" my={2}><CircularProgress size={24}/></Box>}
+          {semanaPreview && !semanaGenLoading && (
+            <Alert severity={semanaPreview.pendientes === 0 ? 'info' : 'success'} sx={{mb:1}}>
+              <Typography variant="body2"><strong>{semanaPreview.pendientes}</strong> filas sin remito — se generarán</Typography>
+              <Typography variant="body2"><strong>{semanaPreview.yaGenerados}</strong> ya tienen remito generado — se omiten</Typography>
+              {semanaPreview.pendientes === 0 && (
+                <Typography variant="body2" mt={0.5}>Todos los remitos de esta semana ya están generados.</Typography>
+              )}
+            </Alert>
+          )}
+          {semanaPreview && semanaPreview.pendientes > 0 && (
+            <Alert severity="warning" sx={{mt:1}}>
+              <Typography variant="caption">Solo se generan remitos para filas con beneficiario asignado. Las filas sin plantilla de programa se omiten con error.</Typography>
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setSemanaGenOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained" color="success" onClick={handleConfirmarSemanaGen}
+            disabled={semanaGenerating || !semanaPreview || semanaPreview.pendientes === 0}
+            startIcon={semanaGenerating ? <CircularProgress size={16}/> : <ReceiptIcon/>}
+          >
+            {semanaGenerating ? 'Generando...' : `Generar ${semanaPreview?.pendientes ?? ''} remitos`}
           </Button>
         </DialogActions>
       </Dialog>

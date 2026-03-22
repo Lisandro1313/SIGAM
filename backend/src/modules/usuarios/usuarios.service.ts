@@ -108,7 +108,7 @@ export class UsuariosService {
   }
 
   async remove(id: number) {
-    await this.prisma.usuario.delete({ where: { id } });
-    return { success: true, message: 'Usuario eliminado' };
+    await this.prisma.usuario.update({ where: { id }, data: { activo: false } });
+    return { success: true, message: 'Usuario desactivado' };
   }
 }

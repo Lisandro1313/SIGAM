@@ -9,6 +9,7 @@ import { ConfirmarRemitoDto } from './dto/confirmar-remito.dto';
 import { MovimientoTipo, RemitoEstado } from '@prisma/client';
 import { PdfService } from './services/pdf.service';
 import { EmailService, OpcionesEnvio } from './services/email.service';
+import { EventsService } from '../events/events.service';
 
 @Injectable()
 export class RemitosService {
@@ -16,53 +17,30 @@ export class RemitosService {
     private prisma: PrismaService,
     private pdfService: PdfService,
     private emailService: EmailService,
+    private eventsService: EventsService,
   ) {}
 
-  // Generar número correlativo único
+  // Generar número correlativo único — upsert atómico evita race condition en primer remito
   async generarNumeroRemito(secretaria: string = 'PA'): Promise<string> {
-    if (secretaria === 'CITA') {
-      return await this.prisma.$transaction(async (tx) => {
-        let correlativo = await tx.correlativo.findUnique({
-          where: { clave: 'remito_cita' },
-        });
-
-        if (!correlativo) {
-          correlativo = await tx.correlativo.create({
-            data: { clave: 'remito_cita', ultimo: 0 },
-          });
-        }
-
-        const siguiente = correlativo.ultimo + 1;
-
-        await tx.correlativo.update({
-          where: { clave: 'remito_cita' },
-          data: { ultimo: siguiente },
-        });
-
-        return `CITA ${siguiente}`;
-      });
-    }
+    const esCita = secretaria === 'CITA';
+    const clave   = esCita ? 'remito_cita' : 'remito_pa';
+    const inicial = esCita ? 0 : 1001648;
+    const prefijo = esCita ? 'CITA' : 'PA';
 
     return await this.prisma.$transaction(async (tx) => {
-      // Obtener correlativo con lock
-      let correlativo = await tx.correlativo.findUnique({
-        where: { clave: 'remito_pa' },
+      // upsert garantiza que el registro exista; luego increment atómico
+      await tx.correlativo.upsert({
+        where:  { clave },
+        update: {},
+        create: { clave, ultimo: inicial },
       });
 
-      if (!correlativo) {
-        correlativo = await tx.correlativo.create({
-          data: { clave: 'remito_pa', ultimo: 1001648 },
-        });
-      }
-
-      const siguiente = correlativo.ultimo + 1;
-
-      await tx.correlativo.update({
-        where: { clave: 'remito_pa' },
-        data: { ultimo: siguiente },
+      const updated = await tx.correlativo.update({
+        where: { clave },
+        data:  { ultimo: { increment: 1 } },
       });
 
-      return `PA ${siguiente}`;
+      return `${prefijo} ${updated.ultimo}`;
     });
   }
 
@@ -119,6 +97,13 @@ export class RemitosService {
       },
     });
 
+    this.eventsService.broadcast('remito:nuevo', {
+      id: remito.id,
+      numero: remito.numero,
+      beneficiario: remito.beneficiario?.nombre,
+      programa: remito.programa?.nombre,
+    }, secretaria);
+
     return remito;
   }
 
@@ -150,6 +135,25 @@ export class RemitosService {
       }
 
       const depositoId = dto.depositoId || remito.depositoId;
+
+      // Verificar lotes vencidos (advertencia, no bloquea)
+      const hoy = new Date();
+      const alertasVencimiento: string[] = [];
+      for (const item of remito.items) {
+        const lotesVencidos = await tx.loteArticulo.findMany({
+          where: {
+            articuloId: item.articuloId,
+            depositoId,
+            fechaVencimiento: { lte: hoy },
+            cantidad: { gt: 0 },
+          },
+        });
+        if (lotesVencidos.length > 0) {
+          alertasVencimiento.push(
+            `${item.articulo.nombre}: ${lotesVencidos.length} lote(s) vencido(s) (${lotesVencidos.map(l => l.lote ?? 'sin número').join(', ')})`
+          );
+        }
+      }
 
       // Verificar y descontar stock por cada item
       for (const item of remito.items) {
@@ -225,7 +229,13 @@ export class RemitosService {
         data: { estado: 'GENERADA' },
       });
 
-      return remitoConfirmado;
+      this.eventsService.broadcast('remito:confirmado', {
+        id: remitoConfirmado.id,
+        numero: remitoConfirmado.numero,
+        depositoId: remitoConfirmado.depositoId,
+      }, remitoConfirmado.secretaria as string | null);
+
+      return { ...remitoConfirmado, alertasVencimiento };
     });
   }
 
@@ -250,6 +260,32 @@ export class RemitosService {
     }
 
     return await this.pdfService.generarRemitoPdf(remito);
+  }
+
+  async historialPdf(
+    filtros: any,
+    usuarioDepositoId?: number,
+    depositoCodigo?: string,
+    secretaria?: string | null,
+  ): Promise<Buffer> {
+    const remitos = await this.findAll(
+      { ...filtros, estado: 'ENTREGADO' },
+      usuarioDepositoId,
+      depositoCodigo,
+      secretaria,
+    );
+    const programa = filtros.programaId
+      ? (await this.prisma.programa.findUnique({ where: { id: parseInt(filtros.programaId) } }))?.nombre
+      : undefined;
+    const deposito = filtros.depositoId
+      ? (await this.prisma.deposito.findUnique({ where: { id: parseInt(filtros.depositoId) } }))?.nombre
+      : undefined;
+    return this.pdfService.generarHistorialPdf(remitos, {
+      desde: filtros.entregadoDesde,
+      hasta: filtros.entregadoHasta,
+      programa,
+      deposito,
+    });
   }
 
   // Enviar remito por email
@@ -313,7 +349,13 @@ export class RemitosService {
     }
     if (filtros.programaId) where.programaId = parseInt(filtros.programaId);
     if (filtros.beneficiarioId) where.beneficiarioId = parseInt(filtros.beneficiarioId);
-    if (filtros.buscar) where.beneficiario = { nombre: { contains: filtros.buscar, mode: 'insensitive' } };
+    if (filtros.buscar) {
+      where.OR = [
+        { beneficiario: { nombre: { contains: filtros.buscar, mode: 'insensitive' } } },
+        { caso: { nombreSolicitante: { contains: filtros.buscar, mode: 'insensitive' } } },
+        { caso: { dni: { contains: filtros.buscar, mode: 'insensitive' } } },
+      ];
+    }
     if (filtros.depositoId && !usuarioDepositoId) where.depositoId = parseInt(filtros.depositoId);
     
     if (filtros.busqueda) {
@@ -322,20 +364,30 @@ export class RemitosService {
         { numero: { contains: q, mode: 'insensitive' } },
         { beneficiario: { nombre: { contains: q, mode: 'insensitive' } } },
         { beneficiario: { responsableDNI: { contains: q } } },
+        { caso: { nombreSolicitante: { contains: q, mode: 'insensitive' } } },
+        { caso: { dni: { contains: q } } },
       ];
     }
 
     if (filtros.fechaDesde || filtros.fechaHasta) {
       where.fecha = {};
       if (filtros.fechaDesde) where.fecha.gte = new Date(filtros.fechaDesde);
-      if (filtros.fechaHasta) where.fecha.lte = new Date(filtros.fechaHasta);
+      if (filtros.fechaHasta) {
+        const hasta = new Date(filtros.fechaHasta);
+        hasta.setHours(23, 59, 59, 999);
+        where.fecha.lte = hasta;
+      }
     }
 
     // Filtro por fecha de entrega (entregadoAt)
     if (filtros.entregadoDesde || filtros.entregadoHasta) {
       where.entregadoAt = {};
       if (filtros.entregadoDesde) where.entregadoAt.gte = new Date(filtros.entregadoDesde);
-      if (filtros.entregadoHasta) where.entregadoAt.lte = new Date(filtros.entregadoHasta);
+      if (filtros.entregadoHasta) {
+        const hasta = new Date(filtros.entregadoHasta);
+        hasta.setHours(23, 59, 59, 999);
+        where.entregadoAt.lte = hasta;
+      }
     }
 
     // Por defecto excluir ENTREGADO (historial), a menos que se filtre explícitamente
@@ -351,6 +403,7 @@ export class RemitosService {
         beneficiario: true,
         programa: true,
         deposito: true,
+        caso: { select: { id: true, nombreSolicitante: true, dni: true } },
         items: {
           include: {
             articulo: true,
@@ -377,6 +430,7 @@ export class RemitosService {
         beneficiario: true,
         programa: true,
         deposito: true,
+        caso: { select: { id: true, nombreSolicitante: true, dni: true } },
         movimientos: {
           include: {
             articulo: true,
@@ -447,6 +501,12 @@ export class RemitosService {
         where: { remitoId: id },
         data: { estado: 'ENTREGADA' },
       });
+
+      this.eventsService.broadcast('remito:entregado', {
+        id: remitoActualizado.id,
+        numero: remitoActualizado.numero,
+        depositoId: remitoActualizado.depositoId,
+      }, remitoActualizado.secretaria as string | null);
 
       return remitoActualizado;
     });

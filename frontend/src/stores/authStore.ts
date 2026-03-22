@@ -32,6 +32,9 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        // Señal para otras pestañas
+        localStorage.setItem('sigam:logout', Date.now().toString());
+        localStorage.removeItem('sigam:logout');
         set({ token: null, user: null });
       },
       login: async (email, password) => {
@@ -46,3 +49,16 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Escuchar eventos de storage para sincronizar logout entre pestañas
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'sigam:logout') {
+      useAuthStore.setState({ token: null, user: null });
+    }
+    // Si la clave principal fue eliminada (otra pestaña limpió auth-storage)
+    if (e.key === 'auth-storage' && !e.newValue) {
+      useAuthStore.setState({ token: null, user: null });
+    }
+  });
+}

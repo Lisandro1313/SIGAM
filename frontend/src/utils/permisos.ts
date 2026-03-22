@@ -46,6 +46,7 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'auditoria',
     'usuarios',
     'casos-particulares',
+    'busqueda-dni',
   ],
   LOGISTICA: [
     'dashboard',
@@ -66,11 +67,13 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'reportes',
     'tareas',
     'casos-particulares',
+    'busqueda-dni',
   ],
   TRABAJADORA_SOCIAL: [
     'beneficiarios',
     'tareas',
     'mis-casos',
+    'busqueda-dni',
   ],
   ASISTENCIA_CRITICA: [
     'dashboard',
@@ -86,12 +89,14 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'historial-entregas',
     'tareas',
     'casos-particulares',
+    'busqueda-dni',
   ],
   VISOR: [
     'dashboard',
     'programas',
     'beneficiarios',
     'reportes',
+    'busqueda-dni',
   ],
 };
 

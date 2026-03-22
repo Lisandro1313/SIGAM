@@ -36,6 +36,13 @@ function getSecretaria(req: any): string | null {
 export class ReportesController {
   constructor(private readonly reportesService: ReportesService) {}
 
+  @Get('notificaciones')
+  @ApiOperation({ summary: 'Notificaciones operativas para el top bar' })
+  @Roles('ADMIN', 'VISOR', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA')
+  notificaciones(@Request() req) {
+    return this.reportesService.notificaciones(getSecretaria(req));
+  }
+
   @Get('dashboard')
   @ApiOperation({ summary: 'Dashboard con resumen general' })
   dashboard(@Request() req) {
@@ -58,16 +65,24 @@ export class ReportesController {
 
   @Get('articulos-mas-distribuidos')
   @ApiOperation({ summary: 'Artículos más distribuidos' })
-  articulosMasDistribuidos(@Query('mes') mes: string, @Query('anio') anio: string, @Request() req) {
+  articulosMasDistribuidos(
+    @Query('mes') mes: string, @Query('anio') anio: string,
+    @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Request() req,
+  ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.articulosMasDistribuidos(m, a, getSecretaria(req));
+    return this.reportesService.articulosMasDistribuidos(m, a, getSecretaria(req), fechaDesde, fechaHasta);
   }
 
   @Get('entregas-por-programa')
   @ApiOperation({ summary: 'Entregas por programa' })
-  entregasPorPrograma(@Query('mes') mes: string, @Query('anio') anio: string, @Request() req) {
+  entregasPorPrograma(
+    @Query('mes') mes: string, @Query('anio') anio: string,
+    @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Request() req,
+  ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.entregasPorPrograma(m, a, getSecretaria(req));
+    return this.reportesService.entregasPorPrograma(m, a, getSecretaria(req), fechaDesde, fechaHasta);
   }
 
   @Get('stock-bajo')
@@ -86,21 +101,46 @@ export class ReportesController {
   @Get('remitos-detalle')
   @ApiOperation({ summary: 'Detalle de remitos con filtros para exportación' })
   remitosDetalle(
-    @Query('mes') mes: string,
-    @Query('anio') anio: string,
-    @Query('programaId') programaId: string,
-    @Query('estado') estado: string,
+    @Query('mes') mes: string, @Query('anio') anio: string,
+    @Query('programaId') programaId: string, @Query('estado') estado: string,
+    @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
     @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.remitosDetalle(m, a, programaId ? parseInt(programaId) : undefined, estado, getSecretaria(req));
+    return this.reportesService.remitosDetalle(m, a, programaId ? parseInt(programaId) : undefined, estado, getSecretaria(req), fechaDesde, fechaHasta);
+  }
+
+  @Get('cruces-masivos')
+  @ApiOperation({ summary: 'DNIs registrados en más de un programa' })
+  crucesMasivos() {
+    return this.reportesService.crucesMasivos();
+  }
+
+  @Get('sin-entrega')
+  @ApiOperation({ summary: 'Beneficiarios activos con entrega vencida según su frecuencia' })
+  beneficiariosSinEntrega(@Request() req) {
+    return this.reportesService.beneficiariosSinEntregaDetalle(getSecretaria(req));
+  }
+
+  @Get('busqueda')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR')
+  @ApiOperation({ summary: 'Búsqueda global (beneficiarios, casos, remitos)' })
+  busquedaGlobal(@Query('q') q: string, @Request() req) {
+    return this.reportesService.busquedaGlobal(q, getSecretaria(req));
   }
 
   @Get('resumen-entregas-mes')
-  @ApiOperation({ summary: 'Resumen de entregas de un mes: pendientes, generadas, entregadas' })
-  resumenEntregasMes(@Query('mes') mes: string, @Query('anio') anio: string, @Request() req) {
+  @ApiOperation({ summary: 'Resumen de entregas de un período: pendientes, generadas, entregadas' })
+  resumenEntregasMes(
+    @Query('mes') mes: string, @Query('anio') anio: string,
+    @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Request() req,
+  ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    if (!m || !a) throw new BadRequestException('mes y anio son obligatorios');
-    return this.reportesService.resumenEntregasMes(m, a, getSecretaria(req));
+    // Requiere mes+anio OR fechaDesde+fechaHasta
+    if ((!m || !a) && (!fechaDesde || !fechaHasta)) throw new BadRequestException('Proveer mes+anio o fechaDesde+fechaHasta');
+    const mesFinal = m ?? new Date().getMonth() + 1;
+    const anioFinal = a ?? new Date().getFullYear();
+    return this.reportesService.resumenEntregasMes(mesFinal, anioFinal, getSecretaria(req), fechaDesde, fechaHasta);
   }
 }

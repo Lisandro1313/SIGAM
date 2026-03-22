@@ -40,6 +40,7 @@ export default function BeneficiarioForm({
   const [nuevaLocalidad, setNuevaLocalidad] = useState('');
   const [alertaDni, setAlertaDni] = useState<string | null>(null);
   const [checkingDni, setCheckingDni] = useState(false);
+  const [confirmDupOpen, setConfirmDupOpen] = useState(false);
   const { showNotification } = useNotificationStore();
 
   const [formData, setFormData] = useState({
@@ -78,8 +79,8 @@ export default function BeneficiarioForm({
     }
   }, [open, beneficiario]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doSave = async () => {
+    setConfirmDupOpen(false);
     setLoading(true);
     try {
       const data = {
@@ -102,6 +103,15 @@ export default function BeneficiarioForm({
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (alertaDni) {
+      setConfirmDupOpen(true);
+    } else {
+      doSave();
     }
   };
 
@@ -261,16 +271,11 @@ export default function BeneficiarioForm({
                 onBlur={async (e) => {
                   const dni = e.target.value.trim();
                   if (!dni || dni.length < 6) return;
-                  // No chequear si estamos editando el mismo beneficiario
                   setCheckingDni(true);
                   try {
-                    const res = await api.get(`/beneficiarios/check-dni/${dni}`);
-                    if (res.data.encontrado) {
-                      // Si editando, ignorar si el encontrado soy yo mismo
-                      setAlertaDni(res.data.detalle);
-                    } else {
-                      setAlertaDni(null);
-                    }
+                    const params = beneficiario?.id ? `?excludeId=${beneficiario.id}` : '';
+                    const res = await api.get(`/beneficiarios/check-dni/${dni}${params}`);
+                    setAlertaDni(res.data.encontrado ? res.data.detalle : null);
                   } catch { setAlertaDni(null); }
                   finally { setCheckingDni(false); }
                 }}
@@ -354,6 +359,25 @@ export default function BeneficiarioForm({
           </Button>
         </DialogActions>
       </form>
+
+      {/* Diálogo de confirmación cuando hay duplicado de DNI */}
+      <Dialog open={confirmDupOpen} onClose={() => setConfirmDupOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>DNI ya registrado</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            Este DNI ya figura como responsable en: {alertaDni}
+          </Alert>
+          <Typography variant="body2">
+            ¿Querés guardar igual? (podría ser un cruce de programas)
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDupOpen(false)}>Cancelar</Button>
+          <Button variant="contained" color="warning" onClick={doSave}>
+            Guardar igual
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }

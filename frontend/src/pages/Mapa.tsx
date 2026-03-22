@@ -3,6 +3,7 @@ import {
   Box, Typography, CircularProgress, Paper, Chip, Divider, ButtonBase, Tooltip,
   Grid, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Tab, Tabs, List, ListItem, ListItemText, ListItemSecondaryAction,
+  InputAdornment,
 } from '@mui/material';
 import {
   LocationOn as LocationIcon,
@@ -14,7 +15,9 @@ import {
   Check as CheckIcon,
   Close as CloseIcon,
   Edit as EditIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
+import * as XLSX from 'xlsx';
 import api from '../services/api';
 import BeneficiarioMap, { buildLocalidadColors, TIPO_COLORS, TIPO_LABELS, ZonaData, countBenInZona } from '../components/BeneficiarioMap';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -38,35 +41,64 @@ export default function MapaPage() {
   const [editZona, setEditZona]           = useState<ZonaData | null>(null);
   const [editNombre, setEditNombre]       = useState('');
 
-  const localidadColors = useMemo(() => buildLocalidadColors(beneficiarios), [beneficiarios]);
+  // Filtros
+  const [tiposFiltro, setTiposFiltro]     = useState<Set<string>>(new Set());
+  const [buscarBen, setBuscarBen]         = useState('');
+
+  const allTipos = useMemo(() => [...new Set(beneficiarios.map(b => b.tipo))], [beneficiarios]);
+  const benFiltrados = useMemo(() => {
+    let list = beneficiarios;
+    if (tiposFiltro.size > 0) list = list.filter(b => tiposFiltro.has(b.tipo));
+    if (buscarBen.trim()) list = list.filter(b =>
+      b.nombre?.toLowerCase().includes(buscarBen.toLowerCase()) ||
+      b.localidad?.toLowerCase().includes(buscarBen.toLowerCase())
+    );
+    return list;
+  }, [beneficiarios, tiposFiltro, buscarBen]);
+
+  const localidadColors = useMemo(() => buildLocalidadColors(benFiltrados), [benFiltrados]);
 
   useEffect(() => {
     Promise.all([
-      api.get('/beneficiarios'),
+      api.get('/beneficiarios', { params: { limit: 1000 } }),
       api.get('/zonas'),
     ]).then(([benR, zonR]) => {
-      setBeneficiarios(benR.data);
+      setBeneficiarios(benR.data.data ?? benR.data);
       setZonas(zonR.data);
     }).finally(() => setLoading(false));
   }, []);
 
+  // Beneficiarios sin coordenadas
+  const sinCoords = useMemo(() => beneficiarios.filter(b => !b.latitud || !b.longitud), [beneficiarios]);
+
+  // Exportar localidad seleccionada a Excel
+  const exportarLocalidad = () => {
+    const lista = selLocalidad
+      ? benFiltrados.filter(b => (b.localidad || 'Sin localidad') === selLocalidad)
+      : benFiltrados;
+    const rows = lista.map(b => ({
+      nombre: b.nombre, tipo: b.tipo, localidad: b.localidad ?? '', direccion: b.direccion ?? '',
+      telefono: b.telefono ?? '', responsable: b.responsableNombre ?? '', dni: b.responsableDNI ?? '',
+      programa: b.programa?.nombre ?? '', frecuencia: b.frecuenciaEntrega ?? '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Mapa');
+    XLSX.writeFile(wb, `mapa_${selLocalidad ?? 'todos'}.xlsx`);
+  };
+
   // Estadísticas agrupadas por localidad
   const stats = useMemo(() => {
     const map: Record<string, { color: string; total: number; tipos: Record<string, number> }> = {};
-    beneficiarios.forEach((b) => {
+    benFiltrados.forEach((b) => {
       const loc = b.localidad || 'Sin localidad';
       if (!map[loc]) map[loc] = { color: localidadColors[loc] || '#607d8b', total: 0, tipos: {} };
       map[loc].total++;
       map[loc].tipos[b.tipo] = (map[loc].tipos[b.tipo] || 0) + 1;
     });
     return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
-  }, [beneficiarios, localidadColors]);
+  }, [benFiltrados, localidadColors]);
 
-  const totalPorTipo = useMemo(() => {
-    const acc: Record<string, number> = {};
-    beneficiarios.forEach((b) => { acc[b.tipo] = (acc[b.tipo] || 0) + 1; });
-    return acc;
-  }, [beneficiarios]);
 
   function handleMapClick(lat: number, lng: number) {
     if (!drawingMode) return;
@@ -129,19 +161,56 @@ export default function MapaPage() {
   return (
     <Box sx={{ height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center">
-        <Typography variant="h4" fontWeight="bold">
-          Mapa de Beneficiarios — La Plata
-        </Typography>
-        <Box display="flex" gap={1} flexWrap="wrap">
-          {Object.entries(totalPorTipo).map(([tipo, cnt]) => (
-            <Chip
-              key={tipo}
-              label={`${TIPO_LABELS[tipo] || tipo}: ${cnt}`}
-              size="small"
-              sx={{ bgcolor: TIPO_COLORS[tipo] || '#607d8b', color: 'white', fontWeight: 'bold' }}
-            />
-          ))}
+      <Box>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+          <Typography variant="h4" fontWeight="bold">
+            Mapa de Beneficiarios — La Plata
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {benFiltrados.length}{benFiltrados.length !== beneficiarios.length ? ` de ${beneficiarios.length}` : ''} beneficiarios
+          </Typography>
+        </Box>
+        {/* Filtros de tipo (chips toggle) */}
+        <Box display="flex" gap={0.5} flexWrap="wrap" alignItems="center">
+          <Typography variant="caption" color="text.secondary" mr={0.5}>Filtrar:</Typography>
+          {allTipos.map(tipo => {
+            const activo = tiposFiltro.size === 0 || tiposFiltro.has(tipo);
+            return (
+              <Chip
+                key={tipo}
+                label={`${TIPO_LABELS[tipo] || tipo} (${beneficiarios.filter(b => b.tipo === tipo).length})`}
+                size="small"
+                onClick={() => {
+                  setTiposFiltro(prev => {
+                    const next = new Set(prev);
+                    if (prev.size === 0) {
+                      // Primer clic: excluir todos excepto este
+                      allTipos.forEach(t => { if (t !== tipo) next.add(t); });
+                      // Invertir: mostrar solo este tipo
+                      const soloEste = new Set(allTipos.filter(t => t !== tipo));
+                      return soloEste.size === allTipos.length - 1
+                        ? new Set(allTipos.filter(t => t !== tipo))
+                        : soloEste;
+                    }
+                    if (next.has(tipo)) { next.delete(tipo); }
+                    else { next.add(tipo); }
+                    if (next.size === allTipos.length) next.clear();
+                    return next;
+                  });
+                }}
+                sx={{
+                  bgcolor: activo ? TIPO_COLORS[tipo] || '#607d8b' : 'grey.200',
+                  color: activo ? 'white' : 'text.disabled',
+                  fontWeight: activo ? 'bold' : 'normal',
+                  opacity: activo ? 1 : 0.6,
+                  cursor: 'pointer',
+                }}
+              />
+            );
+          })}
+          {tiposFiltro.size > 0 && (
+            <Chip label="Mostrar todos" size="small" variant="outlined" onClick={() => setTiposFiltro(new Set())} />
+          )}
         </Box>
       </Box>
 
@@ -159,12 +228,29 @@ export default function MapaPage() {
           {tabIdx === 0 && (
             <>
               <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="caption" color="text.secondary">
-                  {beneficiarios.length} beneficiarios · {stats.length} localidades
-                  {selLocalidad && (
-                    <Chip label="Limpiar" size="small" icon={<FilterIcon />} onDelete={() => setSelLocalidad(null)} sx={{ ml: 1, fontSize: 10 }} />
-                  )}
-                </Typography>
+                <TextField
+                  size="small" fullWidth placeholder="Buscar beneficiario o localidad..."
+                  value={buscarBen}
+                  onChange={e => setBuscarBen(e.target.value)}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+                  sx={{ mb: 0.5 }}
+                />
+                <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={0.5}>
+                  <Typography variant="caption" color="text.secondary">
+                    {benFiltrados.length} ben. · {stats.length} localidades
+                    {sinCoords.length > 0 && (
+                      <Chip label={`${sinCoords.length} sin GPS`} size="small" color="warning" sx={{ ml: 0.5, fontSize: '0.6rem', height: 16 }} />
+                    )}
+                    {selLocalidad && (
+                      <Chip label="Limpiar" size="small" icon={<FilterIcon />} onDelete={() => setSelLocalidad(null)} sx={{ ml: 0.5, fontSize: 10 }} />
+                    )}
+                  </Typography>
+                  <Tooltip title={selLocalidad ? `Exportar ${selLocalidad}` : 'Exportar todos los visibles'}>
+                    <IconButton size="small" onClick={exportarLocalidad} sx={{ p: 0.3 }}>
+                      <FilterIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </Box>
               <Box sx={{ overflowY: 'auto', flex: 1 }}>
                 {stats.map(([loc, info]) => {
@@ -297,7 +383,7 @@ export default function MapaPage() {
         {/* Mapa */}
         <Box sx={{ flex: 1, overflow: 'hidden' }}>
           <BeneficiarioMap
-            beneficiarios={beneficiarios}
+            beneficiarios={benFiltrados}
             localidadColors={localidadColors}
             localidadSeleccionada={selLocalidad}
             zonas={zonas}

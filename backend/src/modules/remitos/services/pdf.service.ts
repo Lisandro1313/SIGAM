@@ -21,6 +21,183 @@ export class PdfService {
     });
   }
 
+  async generarHistorialPdf(
+    remitos: any[],
+    filtros: { desde?: string; hasta?: string; programa?: string; deposito?: string },
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      this.drawHistorial(doc, remitos, filtros);
+      doc.end();
+    });
+  }
+
+  private drawHistorial(
+    doc: PDFKit.PDFDocument,
+    remitos: any[],
+    filtros: { desde?: string; hasta?: string; programa?: string; deposito?: string },
+  ): void {
+    const totalKg = remitos.reduce((s, r) => s + (r.totalKg ?? 0), 0);
+    const conFoto = remitos.filter((r) => r.entregadoFoto).length;
+
+    // ── Columnas ────────────────────────────────────────────────────────────
+    const cols = [
+      { label: 'N° Remito',      key: 'numero',     w: 60,  align: 'left'   },
+      { label: 'Fecha Entrega',  key: 'fechaEnt',   w: 66,  align: 'center' },
+      { label: 'Beneficiario',   key: 'benef',      w: 130, align: 'left'   },
+      { label: 'DNI',            key: 'dni',        w: 50,  align: 'center' },
+      { label: 'Programa',       key: 'programa',   w: 88,  align: 'left'   },
+      { label: 'Kg',             key: 'kg',         w: 35,  align: 'right'  },
+      { label: '¿Quién retiró?', key: 'quienRetiro',w: 81,  align: 'left'   },
+      { label: 'Foto',           key: 'foto',       w: 28,  align: 'center' },
+    ] as { label: string; key: string; w: number; align: 'left'|'center'|'right' }[];
+
+    const ROW_H   = 14;
+    const HDR_H   = 52; // header page title block
+    const COL_H   = 16; // column headers row
+    const STATS_H = 28; // stats strip
+    const FOOT_H  = 16; // page number footer
+    const PAGE_H_USABLE = PAGE_H - M * 2 - FOOT_H;
+
+    let pageNum = 0;
+    let rowsOnPage = 0;
+    let maxRowsFirstPage: number;
+    let maxRowsOtherPages: number;
+
+    const startPage = () => {
+      pageNum++;
+      doc.addPage({ size: 'A4', margin: 0 });
+
+      // ── Page header ───────────────────────────────────────────────────────
+      let y = M;
+
+      doc.rect(M, y, CW, HDR_H).fillAndStroke('#1565C0', '#1565C0');
+
+      doc.fillColor('#fff').font('Helvetica-Bold').fontSize(11)
+        .text('MUNICIPALIDAD DE LA PLATA', M + 8, y + 6, { width: CW - 16, align: 'left', lineBreak: false });
+
+      doc.font('Helvetica-Bold').fontSize(14)
+        .text('HISTORIAL DE ENTREGAS — SIGAM', M + 8, y + 20, { width: CW - 16, align: 'left', lineBreak: false });
+
+      const periodoLabel = filtros.desde && filtros.hasta
+        ? `Período: ${filtros.desde}  al  ${filtros.hasta}`
+        : `Generado: ${new Date().toLocaleDateString('es-AR')}`;
+      doc.font('Helvetica').fontSize(8)
+        .text(periodoLabel, M + 8, y + 39, { width: CW / 2, align: 'left', lineBreak: false });
+
+      if (filtros.programa) {
+        doc.text(`Programa: ${filtros.programa}`, M + CW / 2, y + 39, { width: CW / 2 - 8, align: 'right', lineBreak: false });
+      }
+
+      y += HDR_H;
+
+      // ── Stats (only first page) ───────────────────────────────────────────
+      if (pageNum === 1) {
+        doc.rect(M, y, CW, STATS_H).fillAndStroke('#E3F2FD', '#1565C0');
+        doc.fillColor('#1565C0').font('Helvetica-Bold').fontSize(9);
+        const stats = [
+          `Total entregas: ${remitos.length}`,
+          `Total Kg: ${totalKg.toFixed(1)} kg`,
+          `Con foto: ${conFoto}`,
+          `Sin foto: ${remitos.length - conFoto}`,
+        ];
+        const sw = CW / stats.length;
+        stats.forEach((s, i) => {
+          doc.text(s, M + sw * i + 6, y + 10, { width: sw - 6, align: 'left', lineBreak: false });
+        });
+        y += STATS_H;
+      }
+
+      // ── Column headers ────────────────────────────────────────────────────
+      doc.rect(M, y, CW, COL_H).fillAndStroke('#90CAF9', '#1565C0');
+      doc.fillColor('#000').font('Helvetica-Bold').fontSize(7.5);
+      let cx = M;
+      for (const col of cols) {
+        doc.text(col.label, cx + 2, y + 4, { width: col.w - 4, align: col.align, lineBreak: false });
+        if (col !== cols[cols.length - 1]) {
+          doc.moveTo(cx + col.w, y).lineTo(cx + col.w, y + COL_H).strokeColor('#1565C0').lineWidth(0.5).stroke();
+        }
+        cx += col.w;
+      }
+      y += COL_H;
+
+      rowsOnPage = 0;
+      return y;
+    };
+
+    // pre-calculate max rows per page
+    const usableFirst  = PAGE_H_USABLE - HDR_H - STATS_H - COL_H;
+    const usableOthers = PAGE_H_USABLE - HDR_H - COL_H;
+    maxRowsFirstPage   = Math.floor(usableFirst  / ROW_H);
+    maxRowsOtherPages  = Math.floor(usableOthers / ROW_H);
+
+    let y = startPage();
+
+    const drawPageNumber = () => {
+      doc.fillColor('#999').font('Helvetica').fontSize(7.5)
+        .text(
+          `Pág. ${pageNum}  ·  Generado ${new Date().toLocaleString('es-AR')}`,
+          M, PAGE_H - M - 10, { width: CW, align: 'right', lineBreak: false },
+        );
+    };
+
+    for (let idx = 0; idx < remitos.length; idx++) {
+      const maxRows = pageNum === 1 ? maxRowsFirstPage : maxRowsOtherPages;
+      if (rowsOnPage >= maxRows) {
+        drawPageNumber();
+        y = startPage();
+      }
+
+      const r = remitos[idx];
+      const bg = rowsOnPage % 2 === 0 ? '#fff' : '#F5F5F5';
+      doc.rect(M, y, CW, ROW_H).fillColor(bg).fill();
+      doc.rect(M, y, CW, ROW_H).strokeColor('#E0E0E0').lineWidth(0.3).stroke();
+
+      const fechaEnt = r.entregadoAt
+        ? new Date(r.entregadoAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+        : '—';
+      const benef = r.caso?.nombreSolicitante ?? r.beneficiario?.nombre ?? '—';
+      const dni   = r.caso?.dni ?? '';
+      const prog  = r.programa?.nombre ?? '—';
+      const kg    = r.totalKg != null ? r.totalKg.toFixed(1) : '—';
+      const quien = r.entregadoNota ?? '';
+      const foto  = r.entregadoFoto ? 'Sí' : 'No';
+
+      const values: Record<string, string> = {
+        numero: r.numero ?? '',
+        fechaEnt,
+        benef,
+        dni,
+        programa: prog,
+        kg,
+        quienRetiro: quien,
+        foto,
+      };
+
+      doc.fillColor('#000').font('Helvetica').fontSize(7.5);
+      let cx2 = M;
+      for (const col of cols) {
+        const val = values[col.key] ?? '';
+        doc.text(val, cx2 + 2, y + 3, { width: col.w - 4, align: col.align, lineBreak: false, ellipsis: true });
+        cx2 += col.w;
+      }
+
+      y += ROW_H;
+      rowsOnPage++;
+    }
+
+    if (remitos.length === 0) {
+      doc.fillColor('#999').font('Helvetica-Oblique').fontSize(10)
+        .text('Sin entregas para el período y filtros seleccionados.', M, y + 16, { width: CW, align: 'center' });
+    }
+
+    drawPageNumber();
+  }
+
   private drawRemito(doc: PDFKit.PDFDocument, remito: any): void {
     const fecha = new Date(remito.fecha).toLocaleDateString('es-AR', {
       day: '2-digit',

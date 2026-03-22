@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Box, Typography, Button, TextField, FormControl, InputLabel, Select,
   MenuItem, Chip, Alert, CircularProgress, Tabs, Tab, Table, TableBody,
@@ -14,10 +14,14 @@ import {
   Cancel as RechazarIcon,
   Visibility as VerIcon,
   ReceiptLong as RemitoIcon,
+  CloudUpload as UploadIcon,
+  PersonAdd as PersonAddIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
+import { useNotificationStore } from '../stores/notificationStore';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const ESTADO_COLOR: Record<string, 'warning' | 'info' | 'success' | 'error' | 'default'> = {
@@ -31,7 +35,7 @@ const PRIORIDAD_COLOR: Record<string, 'error' | 'warning' | 'default' | 'info'> 
   URGENTE: 'error', ALTA: 'warning', NORMAL: 'default', BAJA: 'info',
 };
 const TIPO_LABEL: Record<string, string> = {
-  ALIMENTARIA: 'Alimentaria', NO_ALIMENTARIA: 'No Alimentaria',
+  ALIMENTARIO: 'Alimentario', MERCADERIA: 'Mercadería', MIXTO: 'Mixto',
 };
 const ESTADOS = ['TODOS', 'PENDIENTE', 'EN_REVISION', 'APROBADO', 'RECHAZADO', 'RESUELTO'];
 
@@ -52,6 +56,7 @@ function resolveUrl(url: string) {
 interface ItemRemito { articuloId: string; cantidad: string; }
 
 export default function CasosParticulares() {
+  const { showNotification } = useNotificationStore();
   const [casos, setCasos]         = useState<any[]>([]);
   const [loading, setLoading]     = useState(false);
   const [tabEstado, setTabEstado] = useState('TODOS');
@@ -76,6 +81,17 @@ export default function CasosParticulares() {
   const [remitoItems, setRemitoItems] = useState<ItemRemito[]>([{ articuloId: '', cantidad: '' }]);
   const [generando, setGenerando]     = useState(false);
   const [errRemito, setErrRemito]     = useState('');
+  const [stockMap, setStockMap]       = useState<Record<string, number>>({});
+
+  // Documentos del caso
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const docInputRef = useRef<HTMLInputElement>(null);
+
+  // Stock resumen para revisores
+  const [stockResumen, setStockResumen] = useState<any[]>([]);
+
+  // Convertir caso en beneficiario
+  const [convirtiendo, setConvirtiendo] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -96,11 +112,33 @@ export default function CasosParticulares() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  // Recargar en tiempo real cuando hay eventos de casos
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { tipo } = (e as CustomEvent).detail ?? {};
+      if (tipo === 'caso:nuevo' || tipo === 'caso:actualizado') cargar();
+    };
+    window.addEventListener('sigam:update', handler);
+    return () => window.removeEventListener('sigam:update', handler);
+  }, [cargar]);
+
   const abrirDetalle = (caso: any) => {
     setCasoSel(caso);
     setNotaRevision('');
     setErrRevisar('');
     setDrawerOpen(true);
+    // Cargar stock resumen para revisores cuando el caso está pendiente
+    if (['PENDIENTE', 'EN_REVISION'].includes(caso.estado)) {
+      api.get('/stock').then(r => {
+        // Agrupar por artículo sumando cantidades de todos los depósitos
+        const map: Record<string, { nombre: string; cantidad: number }> = {};
+        for (const s of r.data as any[]) {
+          const key = s.articulo.nombre;
+          map[key] = { nombre: key, cantidad: (map[key]?.cantidad ?? 0) + s.cantidad };
+        }
+        setStockResumen(Object.values(map).filter(s => s.cantidad > 0).sort((a, b) => b.cantidad - a.cantidad).slice(0, 8));
+      }).catch(() => setStockResumen([]));
+    }
   };
 
   // ── Revisar ───────────────────────────────────────────────────────────────
@@ -138,6 +176,16 @@ export default function CasosParticulares() {
     setRemitoOpen(true);
   };
 
+  const cargarStock = async (depositoId: string) => {
+    if (!depositoId) { setStockMap({}); return; }
+    try {
+      const res = await api.get(`/stock/deposito/${depositoId}`);
+      const map: Record<string, number> = {};
+      for (const s of res.data) map[String(s.articuloId)] = s.cantidad;
+      setStockMap(map);
+    } catch { setStockMap({}); }
+  };
+
   const generarRemito = async () => {
     const items = remitoItems.filter((i) => i.articuloId && Number(i.cantidad) > 0);
     if (!remitoDeposito || items.length === 0) {
@@ -161,6 +209,57 @@ export default function CasosParticulares() {
     }
   };
 
+  // ── Subir documento al caso ───────────────────────────────────────────────
+  const handleUploadDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !casoSel) return;
+    e.target.value = '';
+    setUploadingDoc(true);
+    try {
+      const fd = new FormData();
+      fd.append('archivo', file);
+      fd.append('nombre', file.name);
+      const res = await api.post(`/casos/${casoSel.id}/documentos`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setCasoSel((prev: any) => ({ ...prev, documentos: [...(prev.documentos ?? []), res.data] }));
+    } catch { /* silencioso */ }
+    finally { setUploadingDoc(false); }
+  };
+
+  const handleDeleteDoc = async (docId: number) => {
+    if (!casoSel) return;
+    try {
+      await api.delete(`/casos/${casoSel.id}/documentos/${docId}`);
+      setCasoSel((prev: any) => ({ ...prev, documentos: prev.documentos.filter((d: any) => d.id !== docId) }));
+    } catch { /* silencioso */ }
+  };
+
+  // ── Convertir caso en beneficiario ────────────────────────────────────────
+  const handleConvertirBeneficiario = async () => {
+    if (!casoSel) return;
+    if (!window.confirm(`¿Registrar a "${casoSel.nombreSolicitante}" como beneficiario del sistema?`)) return;
+    setConvirtiendo(true);
+    try {
+      const res = await api.post('/beneficiarios', {
+        nombre: casoSel.nombreSolicitante,
+        tipo: 'CASO_PARTICULAR',
+        direccion: casoSel.direccion ?? undefined,
+        telefono: casoSel.telefono ?? undefined,
+        responsableDNI: casoSel.dni ?? undefined,
+        observaciones: `Caso #${casoSel.id} — ${casoSel.descripcion?.slice(0, 200)}`,
+      });
+      // Vincular el beneficiario creado al caso
+      try { await api.patch(`/casos/${casoSel.id}/revisar`, { estado: casoSel.estado, beneficiarioId: res.data.id }); } catch { /* ignorar */ }
+      setCasoSel((prev: any) => ({ ...prev, beneficiarioId: res.data.id }));
+      showNotification(`"${casoSel.nombreSolicitante}" registrado como beneficiario #${res.data.id}`, 'success');
+    } catch (e: any) {
+      showNotification(e.response?.data?.message ?? 'Error al crear el beneficiario', 'error');
+    } finally {
+      setConvirtiendo(false);
+    }
+  };
+
   // ── Conteos por estado ────────────────────────────────────────────────────
   const conteo = (estado: string) =>
     estado === 'TODOS' ? casos.length : casos.filter((c) => c.estado === estado).length;
@@ -180,8 +279,9 @@ export default function CasosParticulares() {
           <InputLabel>Tipo</InputLabel>
           <Select value={filtroTipo} label="Tipo" onChange={(e) => setFiltroTipo(e.target.value)}>
             <MenuItem value="">Todos</MenuItem>
-            <MenuItem value="ALIMENTARIA">Alimentaria</MenuItem>
-            <MenuItem value="NO_ALIMENTARIA">No Alimentaria</MenuItem>
+            <MenuItem value="ALIMENTARIO">Alimentario</MenuItem>
+            <MenuItem value="MERCADERIA">Mercadería</MenuItem>
+            <MenuItem value="MIXTO">Mixto</MenuItem>
           </Select>
         </FormControl>
         <FormControl size="small" sx={{ minWidth: 160 }}>
@@ -195,6 +295,16 @@ export default function CasosParticulares() {
           </Select>
         </FormControl>
       </Box>
+
+      {/* Banner cruce */}
+      {(() => {
+        const conCruce = casos.filter(c => c.alertaCruce && ['PENDIENTE', 'EN_REVISION'].includes(c.estado));
+        return conCruce.length > 0 ? (
+          <Alert severity="warning" icon={<WarnIcon />} sx={{ mb: 2, fontWeight: 500 }}>
+            <strong>{conCruce.length} caso{conCruce.length > 1 ? 's' : ''} con cruce de datos detectado</strong> — {conCruce.map(c => `${c.nombreSolicitante} (DNI ${c.dni})`).join(' · ')}
+          </Alert>
+        ) : null;
+      })()}
 
       {/* Tabs */}
       <Tabs
@@ -253,7 +363,8 @@ export default function CasosParticulares() {
                       {c.nombreSolicitante}
                       {c.alertaCruce && (
                         <Tooltip title={c.detalleCruce ?? 'Cruce detectado'}>
-                          <WarnIcon color="warning" fontSize="small" />
+                          <Chip label="CRUCE" size="small" color="warning" icon={<WarnIcon />}
+                            sx={{ fontSize: '0.65rem', height: 20, cursor: 'pointer' }} />
                         </Tooltip>
                       )}
                     </Box>
@@ -306,9 +417,13 @@ export default function CasosParticulares() {
             </Box>
 
             {casoSel.alertaCruce && (
-              <Alert severity="warning" icon={<WarnIcon />} sx={{ mb: 2 }}>
-                <strong>Cruce detectado:</strong> {casoSel.detalleCruce}
-              </Alert>
+              <Box sx={{ mb: 2, p: 1.5, bgcolor: 'warning.light', borderRadius: 2, border: '2px solid', borderColor: 'warning.main' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <WarnIcon color="warning" />
+                  <Typography variant="subtitle2" color="warning.dark" fontWeight="bold">Cruce de datos detectado</Typography>
+                </Box>
+                <Typography variant="body2" color="warning.dark">{casoSel.detalleCruce}</Typography>
+              </Box>
             )}
 
             <Grid container spacing={1} sx={{ mb: 2 }}>
@@ -362,25 +477,64 @@ export default function CasosParticulares() {
             )}
 
             {/* Documentos */}
-            {casoSel.documentos?.length > 0 && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" fontWeight="bold" color="text.secondary">DOCUMENTOS ADJUNTOS</Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="caption" fontWeight="bold" color="text.secondary">DOCUMENTOS ADJUNTOS</Typography>
+              {casoSel.documentos?.length > 0 ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
                   {casoSel.documentos.map((doc: any) => (
+                    <Box key={doc.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Chip
+                        label={doc.nombre}
+                        size="small"
+                        icon={<AttachIcon />}
+                        onClick={() => window.open(resolveUrl(doc.url), '_blank', 'noopener,noreferrer')}
+                        clickable
+                        sx={{ flex: 1, justifyContent: 'flex-start' }}
+                      />
+                      <IconButton size="small" onClick={() => handleDeleteDoc(doc.id)} color="error">
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.disabled" sx={{ mt: 0.5 }}>Sin documentos adjuntos</Typography>
+              )}
+              {['PENDIENTE', 'EN_REVISION', 'APROBADO'].includes(casoSel.estado) && (
+                <Box sx={{ mt: 1 }}>
+                  <input ref={docInputRef} type="file" hidden onChange={handleUploadDoc} />
+                  <Button
+                    size="small" variant="outlined"
+                    startIcon={uploadingDoc ? <CircularProgress size={14} /> : <UploadIcon />}
+                    onClick={() => docInputRef.current?.click()}
+                    disabled={uploadingDoc}
+                  >
+                    {uploadingDoc ? 'Subiendo...' : 'Adjuntar documento'}
+                  </Button>
+                </Box>
+              )}
+            </Box>
+
+            <Divider sx={{ mb: 2 }} />
+
+            {/* Stock disponible para revisores */}
+            {['PENDIENTE', 'EN_REVISION'].includes(casoSel.estado) && stockResumen.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>Stock disponible</Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {stockResumen.map(s => (
                     <Chip
-                      key={doc.id}
-                      label={doc.nombre}
+                      key={s.nombre}
+                      label={`${s.nombre}: ${s.cantidad}`}
                       size="small"
-                      icon={<AttachIcon />}
-                      onClick={() => window.open(resolveUrl(doc.url), '_blank', 'noopener,noreferrer')}
-                      clickable
+                      color={s.cantidad <= 0 ? 'error' : s.cantidad < 10 ? 'warning' : 'success'}
+                      variant="outlined"
                     />
                   ))}
                 </Box>
+                <Divider sx={{ mt: 1.5 }} />
               </Box>
             )}
-
-            <Divider sx={{ mb: 2 }} />
 
             {/* Acciones de revisión */}
             {['PENDIENTE', 'EN_REVISION'].includes(casoSel.estado) && (
@@ -439,6 +593,26 @@ export default function CasosParticulares() {
                 </Button>
               </Box>
             )}
+
+            {/* Registrar como beneficiario */}
+            {['APROBADO', 'RESUELTO'].includes(casoSel.estado) && !casoSel.beneficiarioId && (
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  variant="outlined" color="secondary"
+                  startIcon={convirtiendo ? <CircularProgress size={16} /> : <PersonAddIcon />}
+                  onClick={handleConvertirBeneficiario}
+                  disabled={convirtiendo}
+                  fullWidth
+                >
+                  Registrar como Beneficiario
+                </Button>
+              </Box>
+            )}
+            {casoSel.beneficiarioId && (
+              <Alert severity="success" sx={{ mt: 2 }} icon={<PersonAddIcon />}>
+                Ya registrado como beneficiario (ID #{casoSel.beneficiarioId})
+              </Alert>
+            )}
           </>
         )}
       </Drawer>
@@ -451,7 +625,7 @@ export default function CasosParticulares() {
 
           <FormControl fullWidth>
             <InputLabel>Depósito *</InputLabel>
-            <Select value={remitoDeposito} label="Depósito *" onChange={(e) => setRemitoDeposito(e.target.value)}>
+            <Select value={remitoDeposito} label="Depósito *" onChange={(e) => { setRemitoDeposito(e.target.value); cargarStock(e.target.value); }}>
               {depositos.map((d: any) => (
                 <MenuItem key={d.id} value={String(d.id)}>{d.nombre}</MenuItem>
               ))}
@@ -459,41 +633,66 @@ export default function CasosParticulares() {
           </FormControl>
 
           <Typography variant="subtitle2">Artículos</Typography>
-          {remitoItems.map((item, idx) => (
-            <Box key={idx} sx={{ display: 'flex', gap: 1 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Artículo</InputLabel>
-                <Select
-                  value={item.articuloId}
-                  label="Artículo"
-                  onChange={(e) => {
-                    const copia = [...remitoItems];
-                    copia[idx].articuloId = e.target.value;
-                    setRemitoItems(copia);
-                  }}
-                >
-                  {articulos.map((a: any) => (
-                    <MenuItem key={a.id} value={String(a.id)}>{a.nombre}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <TextField
-                size="small" label="Cantidad" type="number"
-                value={item.cantidad}
-                onChange={(e) => {
-                  const copia = [...remitoItems];
-                  copia[idx].cantidad = e.target.value;
-                  setRemitoItems(copia);
-                }}
-                sx={{ width: 110 }}
-              />
-              {remitoItems.length > 1 && (
-                <IconButton size="small" onClick={() => setRemitoItems(remitoItems.filter((_, i) => i !== idx))}>
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-          ))}
+          {remitoItems.map((item, idx) => {
+            const stockDisp = item.articuloId ? (stockMap[item.articuloId] ?? null) : null;
+            const excede = stockDisp !== null && Number(item.cantidad) > stockDisp;
+            const sinStock = stockDisp !== null && stockDisp <= 0;
+            return (
+              <Box key={idx} sx={{ display: 'flex', gap: 1, flexDirection: 'column' }}>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Artículo</InputLabel>
+                    <Select
+                      value={item.articuloId}
+                      label="Artículo"
+                      onChange={(e) => {
+                        const copia = [...remitoItems];
+                        copia[idx].articuloId = e.target.value;
+                        setRemitoItems(copia);
+                      }}
+                    >
+                      {articulos.map((a: any) => {
+                        const st = stockMap[String(a.id)];
+                        return (
+                          <MenuItem key={a.id} value={String(a.id)}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 1 }}>
+                              <span>{a.nombre}</span>
+                              {remitoDeposito && st !== undefined && (
+                                <Typography variant="caption" color={st <= 0 ? 'error' : st < 5 ? 'warning.main' : 'text.secondary'}>
+                                  stock: {st}
+                                </Typography>
+                              )}
+                            </Box>
+                          </MenuItem>
+                        );
+                      })}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    size="small" label="Cantidad" type="number"
+                    value={item.cantidad}
+                    error={excede}
+                    onChange={(e) => {
+                      const copia = [...remitoItems];
+                      copia[idx].cantidad = e.target.value;
+                      setRemitoItems(copia);
+                    }}
+                    sx={{ width: 110 }}
+                  />
+                  {remitoItems.length > 1 && (
+                    <IconButton size="small" onClick={() => setRemitoItems(remitoItems.filter((_, i) => i !== idx))}>
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Box>
+                {stockDisp !== null && (
+                  <Typography variant="caption" color={sinStock ? 'error' : excede ? 'error' : 'text.secondary'} sx={{ ml: 0.5 }}>
+                    {sinStock ? '⚠ Sin stock disponible' : excede ? `⚠ Stock insuficiente (disponible: ${stockDisp})` : `Disponible: ${stockDisp}`}
+                  </Typography>
+                )}
+              </Box>
+            );
+          })}
           <Button size="small" onClick={() => setRemitoItems([...remitoItems, { articuloId: '', cantidad: '' }])}>
             + Agregar artículo
           </Button>

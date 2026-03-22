@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Grid, Card, CardContent,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tab, Tabs, Select, MenuItem, FormControl, InputLabel, Button,
-  Chip, LinearProgress, Tooltip,
+  Chip, LinearProgress, Tooltip, TextField, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -12,6 +12,8 @@ import {
 import {
   Refresh as RefreshIcon,
   TrendingUp, Group, Inventory, Assignment,
+  CalendarMonth as MesIcon,
+  DateRange as RangoIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import ExportExcelButton from '../components/ExportExcelButton';
@@ -32,8 +34,13 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(false);
 
   // Filtros globales
+  const [modoFiltro, setModoFiltro] = useState<'mes' | 'rango'>('mes');
   const [mes, setMes]   = useState(hoy.getMonth() + 1);
   const [anio, setAnio] = useState(hoy.getFullYear());
+  const [fechaDesde, setFechaDesde] = useState(
+    new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10)
+  );
+  const [fechaHasta, setFechaHasta] = useState(hoy.toISOString().slice(0, 10));
   const [programaId, setProgramaId] = useState<number | ''>('');
   const [programas, setProgramas] = useState<any[]>([]);
 
@@ -45,6 +52,10 @@ export default function ReportesPage() {
   const [benefPorProg, setBenefPorProg]               = useState<any[]>([]);
   const [remitosDetalle, setRemitosDetalle]           = useState<any[]>([]);
   const [resumenEntregas, setResumenEntregas]         = useState<any>(null);
+  const [crucesMasivos, setCrucesMasivos]             = useState<any[] | null>(null);
+  const [loadingCruces, setLoadingCruces]             = useState(false);
+  const [sinEntrega, setSinEntrega]                   = useState<any | null>(null);
+  const [loadingSinEntrega, setLoadingSinEntrega]     = useState(false);
 
   useEffect(() => {
     api.get('/programas').then(r => setProgramas(r.data.filter((p: any) => p.activo))).catch(() => {});
@@ -65,10 +76,14 @@ export default function ReportesPage() {
   const loadFiltrados = useCallback(async () => {
     setLoading(true);
     try {
-      const params = `mes=${mes}&anio=${anio}`;
+      // Construir params según modo
+      const paramsMes = `mes=${mes}&anio=${anio}`;
+      const paramsRango = `fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`;
+      const params = modoFiltro === 'rango' ? paramsRango : paramsMes;
       const pId = programaId ? `&programaId=${programaId}` : '';
+
       const [kilosRes, artRes, progRes, remRes, entRes] = await Promise.all([
-        api.get(`/reportes/kilos-por-mes?${params}`),
+        api.get(`/reportes/kilos-por-mes?${modoFiltro === 'mes' ? paramsMes : ''}`),
         api.get(`/reportes/articulos-mas-distribuidos?${params}`),
         api.get(`/reportes/entregas-por-programa?${params}`),
         api.get(`/reportes/remitos-detalle?${params}${pId}`),
@@ -81,11 +96,14 @@ export default function ReportesPage() {
       setResumenEntregas(entRes.data);
     } catch { /* silent */ }
     finally { setLoading(false); }
-  }, [mes, anio, programaId]);
+  }, [mes, anio, fechaDesde, fechaHasta, modoFiltro, programaId]);
 
   useEffect(() => { loadFiltrados(); }, [loadFiltrados]);
 
   const anios = Array.from({ length: 5 }, (_, i) => hoy.getFullYear() - i);
+  const labelPeriodo = modoFiltro === 'rango'
+    ? `${fechaDesde} al ${fechaHasta}`
+    : `${MESES_NOMBRE[mes - 1]} ${anio}`;
 
   const pieData = entregasPorPrograma
     .filter(p => p.totalKilos > 0)
@@ -103,18 +121,46 @@ export default function ReportesPage() {
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={1}>
         <Typography variant="h4" fontWeight="bold">Reportes</Typography>
         <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-          <FormControl size="small" sx={{ minWidth: 130 }}>
-            <InputLabel>Mes</InputLabel>
-            <Select value={mes} label="Mes" onChange={e => setMes(Number(e.target.value))}>
-              {MESES_NOMBRE.map((m, i) => <MenuItem key={i+1} value={i+1}>{m}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 90 }}>
-            <InputLabel>Año</InputLabel>
-            <Select value={anio} label="Año" onChange={e => setAnio(Number(e.target.value))}>
-              {anios.map(a => <MenuItem key={a} value={a}>{a}</MenuItem>)}
-            </Select>
-          </FormControl>
+          <ToggleButtonGroup
+            value={modoFiltro}
+            exclusive
+            onChange={(_, v) => { if (v) setModoFiltro(v); }}
+            size="small"
+          >
+            <ToggleButton value="mes"><MesIcon sx={{ mr: 0.5, fontSize: 18 }} />Por mes</ToggleButton>
+            <ToggleButton value="rango"><RangoIcon sx={{ mr: 0.5, fontSize: 18 }} />Rango</ToggleButton>
+          </ToggleButtonGroup>
+
+          {modoFiltro === 'mes' ? (
+            <>
+              <FormControl size="small" sx={{ minWidth: 130 }}>
+                <InputLabel>Mes</InputLabel>
+                <Select value={mes} label="Mes" onChange={e => setMes(Number(e.target.value))}>
+                  {MESES_NOMBRE.map((m, i) => <MenuItem key={i+1} value={i+1}>{m}</MenuItem>)}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 90 }}>
+                <InputLabel>Año</InputLabel>
+                <Select value={anio} label="Año" onChange={e => setAnio(Number(e.target.value))}>
+                  {anios.map(a => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </>
+          ) : (
+            <>
+              <TextField
+                size="small" type="date" label="Desde" value={fechaDesde}
+                onChange={e => setFechaDesde(e.target.value)}
+                InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }}
+              />
+              <TextField
+                size="small" type="date" label="Hasta" value={fechaHasta}
+                onChange={e => setFechaHasta(e.target.value)}
+                InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }}
+              />
+            </>
+          )}
+
           <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel>Programa</InputLabel>
             <Select value={programaId} label="Programa" onChange={e => setProgramaId(e.target.value as number | '')}>
@@ -154,13 +200,31 @@ export default function ReportesPage() {
 
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs value={tabIdx} onChange={(_, v) => setTabIdx(v)} variant="scrollable" scrollButtons="auto">
+        <Tabs value={tabIdx} onChange={(_, v) => {
+          setTabIdx(v);
+          if (v === 6 && crucesMasivos === null) {
+            setLoadingCruces(true);
+            api.get('/reportes/cruces-masivos')
+              .then(r => setCrucesMasivos(r.data))
+              .catch(() => setCrucesMasivos([]))
+              .finally(() => setLoadingCruces(false));
+          }
+          if (v === 7 && sinEntrega === null) {
+            setLoadingSinEntrega(true);
+            api.get('/reportes/sin-entrega')
+              .then(r => setSinEntrega(r.data))
+              .catch(() => setSinEntrega({ total: 0, sinEntregaNunca: 0, detalle: [] }))
+              .finally(() => setLoadingSinEntrega(false));
+          }
+        }} variant="scrollable" scrollButtons="auto">
           <Tab label="Distribución" />
           <Tab label="Cronograma" />
           <Tab label="Beneficiarios" />
           <Tab label="Artículos" />
           <Tab label="Remitos" />
           <Tab label="Stock" />
+          <Tab label="Cruces DNI" />
+          <Tab label="Sin Entrega" />
         </Tabs>
       </Box>
 
@@ -169,7 +233,7 @@ export default function ReportesPage() {
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper elevation={2} sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>Kilos distribuidos — {MESES_NOMBRE[mes-1]} {anio}</Typography>
+              <Typography variant="h6" gutterBottom>Kilos distribuidos — {labelPeriodo}</Typography>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={kilosPorMes}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -204,7 +268,7 @@ export default function ReportesPage() {
             <Paper elevation={2} sx={{ p: 3 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                 <Typography variant="h6">Por programa</Typography>
-                <ExportExcelButton data={entregasPorPrograma} fileName={`por-programa-${mes}-${anio}`} sheetName="Programas" label="Exportar" />
+                <ExportExcelButton data={entregasPorPrograma} fileName={`por-programa-${labelPeriodo.replace(/ /g,'_')}`} sheetName="Programas" label="Exportar" />
               </Box>
               <TableContainer>
                 <Table size="small">
@@ -237,9 +301,9 @@ export default function ReportesPage() {
           <Grid item xs={12}>
             <Paper elevation={2} sx={{ p: 3 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">Entregas del cronograma — {MESES_NOMBRE[mes-1]} {anio}</Typography>
+                <Typography variant="h6">Entregas del cronograma — {labelPeriodo}</Typography>
                 {resumenEntregas && (
-                  <ExportExcelButton data={resumenEntregas.detalle} fileName={`entregas-${mes}-${anio}`} sheetName="Entregas" label="Exportar" />
+                  <ExportExcelButton data={resumenEntregas.detalle} fileName={`entregas-${labelPeriodo.replace(/ /g,'_')}`} sheetName="Entregas" label="Exportar" />
                 )}
               </Box>
               {resumenEntregas ? (
@@ -342,8 +406,8 @@ export default function ReportesPage() {
           <Grid item xs={12} md={7}>
             <Paper elevation={2} sx={{ p: 3 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                <Typography variant="h6">Artículos más distribuidos — {MESES_NOMBRE[mes-1]} {anio}</Typography>
-                <ExportExcelButton data={topArticulos} fileName={`articulos-${mes}-${anio}`} sheetName="Artículos" label="Exportar" />
+                <Typography variant="h6">Artículos más distribuidos — {labelPeriodo}</Typography>
+                <ExportExcelButton data={topArticulos} fileName={`articulos-${labelPeriodo.replace(/ /g,'_')}`} sheetName="Artículos" label="Exportar" />
               </Box>
               <ResponsiveContainer width="100%" height={320}>
                 <BarChart data={topArticulos.slice(0, 10)} layout="vertical" margin={{ left: 20 }}>
@@ -391,10 +455,10 @@ export default function ReportesPage() {
         <Paper elevation={2} sx={{ p: 3 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6">
-              Remitos — {MESES_NOMBRE[mes-1]} {anio}
+              Remitos — {labelPeriodo}
               {programaId ? ` · ${programas.find(p=>p.id===programaId)?.nombre}` : ''}
             </Typography>
-            <ExportExcelButton data={remitosDetalle} fileName={`remitos-${mes}-${anio}`} sheetName="Remitos" label={`Exportar (${remitosDetalle.length})`} />
+            <ExportExcelButton data={remitosDetalle} fileName={`remitos-${labelPeriodo.replace(/ /g,'_')}`} sheetName="Remitos" label={`Exportar (${remitosDetalle.length})`} />
           </Box>
           <TableContainer sx={{ maxHeight: 500 }}>
             <Table size="small" stickyHeader>
@@ -487,6 +551,201 @@ export default function ReportesPage() {
                 </TableBody>
               </Table>
             </TableContainer>
+          )}
+        </Paper>
+      )}
+      {/* ── Tab 6: Cruces DNI ── */}
+      {tabIdx === 6 && (
+        <Paper elevation={2} sx={{ p: 3 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Box>
+              <Typography variant="h6">Cruces por DNI</Typography>
+              <Typography variant="body2" color="text.secondary">
+                DNIs de responsable registrados en más de un beneficiario / programa
+              </Typography>
+            </Box>
+            {crucesMasivos && crucesMasivos.length > 0 && (
+              <ExportExcelButton
+                data={crucesMasivos.flatMap((c: any) => c.registros.map((r: any) => ({
+                  dni: c.dni,
+                  id: r.id,
+                  nombre: r.nombre,
+                  tipo: r.tipo,
+                  programa: r.programa?.nombre ?? '—',
+                  secretaria: r.programa?.secretaria ?? '—',
+                  activo: r.activo ? 'Sí' : 'No',
+                })))}
+                fileName="cruces-dni"
+                sheetName="Cruces"
+                label="Exportar"
+              />
+            )}
+          </Box>
+          {loadingCruces ? (
+            <LinearProgress />
+          ) : !crucesMasivos ? null
+          : crucesMasivos.length === 0 ? (
+            <Typography variant="body2" color="success.main">✓ No se detectaron DNIs duplicados entre programas</Typography>
+          ) : (
+            <>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                {crucesMasivos.length} DNI{crucesMasivos.length !== 1 ? 's' : ''} aparece{crucesMasivos.length === 1 ? '' : 'n'} en más de un registro
+              </Typography>
+              {crucesMasivos.map((c: any) => (
+                <Box key={c.dni} sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Chip label={`DNI ${c.dni}`} color="warning" size="small" />
+                    <Typography variant="caption" color="text.secondary">{c.registros.length} registros</Typography>
+                  </Box>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'grey.50' }}>
+                          <TableCell>#</TableCell>
+                          <TableCell>Nombre</TableCell>
+                          <TableCell>Tipo</TableCell>
+                          <TableCell>Programa</TableCell>
+                          <TableCell>Secretaría</TableCell>
+                          <TableCell>Estado</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {c.registros.map((r: any) => (
+                          <TableRow key={r.id} hover>
+                            <TableCell>{r.id}</TableCell>
+                            <TableCell><strong>{r.nombre}</strong></TableCell>
+                            <TableCell><Typography variant="caption">{r.tipo}</Typography></TableCell>
+                            <TableCell>{r.programa?.nombre ?? '—'}</TableCell>
+                            <TableCell>
+                              {r.programa?.secretaria && (
+                                <Chip label={r.programa.secretaria} size="small" color={r.programa.secretaria === 'CITA' ? 'warning' : 'primary'} variant="outlined" />
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Chip label={r.activo ? 'Activo' : 'Baja'} size="small" color={r.activo ? 'success' : 'default'} />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              ))}
+            </>
+          )}
+        </Paper>
+      )}
+      {/* ── Tab 7: Sin Entrega ── */}
+      {tabIdx === 7 && (
+        <Paper elevation={2} sx={{ p: 3 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={1}>
+            <Box>
+              <Typography variant="h6">Beneficiarios con entrega vencida</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Activos con frecuencia MENSUAL o BIMESTRAL cuya próxima entrega ya pasó
+              </Typography>
+            </Box>
+            <Box display="flex" gap={1} alignItems="center">
+              <Button
+                size="small" variant="outlined" startIcon={<RefreshIcon />}
+                onClick={() => {
+                  setLoadingSinEntrega(true);
+                  api.get('/reportes/sin-entrega')
+                    .then(r => setSinEntrega(r.data))
+                    .catch(() => {})
+                    .finally(() => setLoadingSinEntrega(false));
+                }}
+              >
+                Actualizar
+              </Button>
+              {sinEntrega && sinEntrega.detalle.length > 0 && (
+                <ExportExcelButton
+                  data={sinEntrega.detalle.map((r: any) => ({
+                    id: r.id, nombre: r.nombre, localidad: r.localidad ?? '',
+                    programa: r.programa, frecuencia: r.frecuencia,
+                    ultima_entrega: r.ultimaEntrega ?? 'Nunca',
+                    proxima_entrega: r.proximaEntrega ?? '—',
+                    dias_atraso: r.diasAtraso,
+                  }))}
+                  fileName="sin-entrega"
+                  sheetName="Sin Entrega"
+                  label="Exportar"
+                />
+              )}
+            </Box>
+          </Box>
+
+          {loadingSinEntrega ? (
+            <LinearProgress />
+          ) : !sinEntrega ? null : (
+            <>
+              <Grid container spacing={2} mb={3}>
+                {[
+                  { label: 'Total con entrega vencida', value: sinEntrega.total, color: '#E65100' },
+                  { label: 'Nunca recibieron', value: sinEntrega.sinEntregaNunca, color: '#c62828' },
+                  { label: 'Con atraso', value: sinEntrega.total - sinEntrega.sinEntregaNunca, color: '#f57c00' },
+                ].map((stat, i) => (
+                  <Grid item xs={12} sm={4} key={i}>
+                    <Card elevation={1} sx={{ borderLeft: `4px solid ${stat.color}` }}>
+                      <CardContent sx={{ p: '12px !important' }}>
+                        <Typography variant="caption" color="text.secondary">{stat.label}</Typography>
+                        <Typography variant="h5" fontWeight="bold" sx={{ color: stat.color }}>{stat.value}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+
+              {sinEntrega.detalle.length === 0 ? (
+                <Typography variant="body2" color="success.main">✓ Todos los beneficiarios tienen su entrega al día</Typography>
+              ) : (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'grey.50' }}>
+                        <TableCell>Beneficiario</TableCell>
+                        <TableCell>Programa</TableCell>
+                        <TableCell>Frecuencia</TableCell>
+                        <TableCell>Última entrega</TableCell>
+                        <TableCell>Próxima (venció)</TableCell>
+                        <TableCell align="right">Días de atraso</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {sinEntrega.detalle.map((r: any) => (
+                        <TableRow key={r.id} hover sx={r.sinEntregaNunca ? { bgcolor: 'error.50' } : {}}>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="bold">{r.nombre}</Typography>
+                            {r.localidad && <Typography variant="caption" color="text.secondary">{r.localidad}</Typography>}
+                          </TableCell>
+                          <TableCell>{r.programa || '—'}</TableCell>
+                          <TableCell>
+                            <Chip label={r.frecuencia} size="small" variant="outlined" />
+                          </TableCell>
+                          <TableCell>
+                            {r.sinEntregaNunca
+                              ? <Chip label="Nunca" size="small" color="error" />
+                              : r.ultimaEntrega}
+                          </TableCell>
+                          <TableCell sx={{ color: 'error.main', fontWeight: 'bold' }}>
+                            {r.proximaEntrega ?? '—'}
+                          </TableCell>
+                          <TableCell align="right">
+                            {r.sinEntregaNunca ? '—' : (
+                              <Chip
+                                label={`${r.diasAtraso}d`}
+                                size="small"
+                                color={r.diasAtraso > 30 ? 'error' : 'warning'}
+                              />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </>
           )}
         </Paper>
       )}

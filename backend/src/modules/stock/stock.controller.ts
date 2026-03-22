@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Request, Param, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Query, UseGuards, Request, Param, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -47,14 +47,33 @@ export class StockController {
     @Request() req,
     @UploadedFile() documento?: Express.Multer.File,
   ) {
+    const articuloId = parseInt(body.articuloId, 10);
+    const depositoId = parseInt(body.depositoId, 10);
+    const cantidad = parseFloat(body.cantidad);
+    if (isNaN(articuloId) || isNaN(depositoId) || isNaN(cantidad) || cantidad <= 0) {
+      throw new BadRequestException('articuloId, depositoId y cantidad son requeridos y deben ser números válidos');
+    }
     return this.stockService.registrarIngreso(
-      parseInt(body.articuloId),
-      parseInt(body.depositoId),
-      parseFloat(body.cantidad),
+      articuloId,
+      depositoId,
+      cantidad,
       req.user.id,
       body.observaciones,
       documento,
     );
+  }
+
+  @Post('ajuste')
+  @Roles('ADMIN', 'LOGISTICA')
+  @ApiOperation({ summary: 'Ajuste / reconciliación de stock a una cantidad real' })
+  ajustarStock(@Body() body: any, @Request() req) {
+    const articuloId = parseInt(body.articuloId, 10);
+    const depositoId = parseInt(body.depositoId, 10);
+    const cantidadReal = parseFloat(body.cantidadReal);
+    if (isNaN(articuloId) || isNaN(depositoId) || isNaN(cantidadReal)) {
+      throw new BadRequestException('articuloId, depositoId y cantidadReal son requeridos');
+    }
+    return this.stockService.ajustarStock(articuloId, depositoId, cantidadReal, req.user.id, body.observaciones);
   }
 
   @Post('transferir')
@@ -74,5 +93,40 @@ export class StockController {
   @ApiOperation({ summary: 'Obtener movimientos de stock' })
   obtenerMovimientos(@Query() filtros: any) {
     return this.stockService.obtenerMovimientos(filtros);
+  }
+
+  // ── Lotes ──────────────────────────────────────────────────────────────────
+
+  @Get('lotes')
+  @ApiOperation({ summary: 'Listar lotes de artículos' })
+  getLotes(@Query('depositoId') depositoId?: string, @Query('articuloId') articuloId?: string) {
+    return this.stockService.getLotes(
+      depositoId ? +depositoId : undefined,
+      articuloId ? +articuloId : undefined,
+    );
+  }
+
+  @Post('lotes')
+  @Roles('ADMIN', 'LOGISTICA')
+  @ApiOperation({ summary: 'Crear lote de artículo' })
+  createLote(@Body() body: { articuloId: number; depositoId: number; cantidad: number; fechaVencimiento: string; lote?: string }) {
+    if (!body.articuloId || !body.depositoId || !body.cantidad || !body.fechaVencimiento) {
+      throw new BadRequestException('articuloId, depositoId, cantidad y fechaVencimiento son requeridos');
+    }
+    return this.stockService.createLote(body);
+  }
+
+  @Patch('lotes/:id')
+  @Roles('ADMIN', 'LOGISTICA')
+  @ApiOperation({ summary: 'Actualizar lote' })
+  updateLote(@Param('id') id: string, @Body() body: { cantidad?: number; fechaVencimiento?: string; lote?: string }) {
+    return this.stockService.updateLote(+id, body);
+  }
+
+  @Delete('lotes/:id')
+  @Roles('ADMIN', 'LOGISTICA')
+  @ApiOperation({ summary: 'Eliminar lote' })
+  deleteLote(@Param('id') id: string) {
+    return this.stockService.deleteLote(+id);
   }
 }

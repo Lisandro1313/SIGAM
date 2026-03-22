@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Box, Typography, CircularProgress, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, TextField, Button, Dialog,
@@ -15,8 +16,9 @@ import {
   PhotoCamera as FotoIcon, Download as DownloadIcon, FilterAlt as FilterIcon,
   ExpandMore as ExpandIcon, ExpandLess as CollapseIcon, CheckCircle as CheckIcon,
   Edit as EditIcon, CloudUpload as UploadIcon, Person as PersonIcon,
+  PictureAsPdf as PdfIcon,
 } from '@mui/icons-material';
-import { format, subDays } from 'date-fns';
+import { format, subDays, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
 import ExportExcelButton from '../components/ExportExcelButton';
@@ -34,8 +36,8 @@ export default function HistorialEntregas() {
   const [tabPrograma, setTabPrograma] = useState<string>('todos');
 
   // Filtros
-  const [fechaDesde, setFechaDesde]       = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
-  const [fechaHasta, setFechaHasta]       = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [fechaDesde, setFechaDesde]       = useState(format(subDays(new Date(), 365), 'yyyy-MM-dd'));
+  const [fechaHasta, setFechaHasta]       = useState(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
   const [depositoFiltro, setDepositoFiltro] = useState('');
   const [programaFiltro, setProgramaFiltro] = useState('');
   const [buscar, setBuscar]               = useState('');
@@ -52,6 +54,26 @@ export default function HistorialEntregas() {
   const [editFecha, setEditFecha]     = useState('');
   const [editFoto, setEditFoto]       = useState<File | null>(null);
   const [guardandoEdit, setGuardandoEdit] = useState(false);
+
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExportarPdf = async () => {
+    setExportingPdf(true);
+    try {
+      const params: any = { entregadoDesde: fechaDesde, entregadoHasta: fechaHasta };
+      if (depositoFiltro) params.depositoId = depositoFiltro;
+      if (programaFiltro) params.programaId = programaFiltro;
+      if (buscar.trim()) params.buscar = buscar.trim();
+      const res = await api.get('/remitos/historial-pdf', { params, responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `historial_${fechaDesde}_${fechaHasta}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { /* silencioso */ }
+    finally { setExportingPdf(false); }
+  };
 
   // Inline: subir foto directo desde la tabla
   const [uploadingFotoId, setUploadingFotoId] = useState<number | null>(null);
@@ -139,7 +161,7 @@ export default function HistorialEntregas() {
   const buscarEntregas = async () => {
     setLoading(true);
     try {
-      const params: any = { estado: 'ENTREGADO', fechaDesde, fechaHasta };
+      const params: any = { estado: 'ENTREGADO', entregadoDesde: fechaDesde, entregadoHasta: fechaHasta };
       if (depositoFiltro) params.depositoId = depositoFiltro;
       if (programaFiltro) params.programaId = programaFiltro;
       if (buscar.trim()) params.buscar = buscar.trim();
@@ -173,13 +195,28 @@ export default function HistorialEntregas() {
   const conFoto  = entregasFiltradas.filter((r) => r.entregadoFoto).length;
   const sinFoto  = entregasFiltradas.length - conFoto;
 
+  // Virtual scrolling
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: entregasFiltradas.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 52,
+    overscan: 10,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const paddingTop    = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom = virtualItems.length > 0
+    ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+    : 0;
+
   const exportData = entregasFiltradas.map((r) => ({
     Numero:       r.numero,
     Fecha:        format(new Date(r.fecha), 'dd/MM/yyyy'),
     FechaEntrega: r.entregadoAt ? format(new Date(r.entregadoAt), 'dd/MM/yyyy HH:mm') : '',
-    Beneficiario: r.beneficiario?.nombre,
-    Tipo:         r.beneficiario?.tipo,
-    Localidad:    r.beneficiario?.localidad,
+    Beneficiario: r.caso?.nombreSolicitante ?? r.beneficiario?.nombre,
+    DNI:          r.caso?.dni ?? '',
+    Tipo:         r.caso ? 'Caso Particular' : r.beneficiario?.tipo,
+    Localidad:    r.beneficiario?.localidad ?? '',
     Programa:     r.programa?.nombre,
     Deposito:     r.deposito?.nombre,
     TotalKg:      r.totalKg?.toFixed(2),
@@ -193,12 +230,24 @@ export default function HistorialEntregas() {
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" fontWeight="bold">Historial de Entregas</Typography>
-        <ExportExcelButton
-          data={exportData}
-          fileName={`historial_entregas_${fechaDesde}_${fechaHasta}`}
-          sheetName="Entregas"
-          label="Exportar Excel"
-        />
+        <Box display="flex" gap={1}>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={exportingPdf ? undefined : <PdfIcon />}
+            onClick={handleExportarPdf}
+            disabled={exportingPdf}
+            size="small"
+          >
+            {exportingPdf ? 'Generando PDF...' : 'Exportar PDF'}
+          </Button>
+          <ExportExcelButton
+            data={exportData}
+            fileName={`historial_entregas_${fechaDesde}_${fechaHasta}`}
+            sheetName="Entregas"
+            label="Exportar Excel"
+          />
+        </Box>
       </Box>
 
       {/* Filtros */}
@@ -291,15 +340,21 @@ export default function HistorialEntregas() {
       ) : entregasFiltradas.length === 0 ? (
         <Alert severity="info">No hay entregas en el período seleccionado con los filtros aplicados.</Alert>
       ) : (
-        <TableContainer component={Paper} elevation={2}>
-          <Table size="small">
-            <TableHead>
+        <TableContainer
+          component={Paper}
+          elevation={2}
+          ref={tableContainerRef}
+          sx={{ overflow: 'auto', height: 'calc(100vh - 390px)', minHeight: 360 }}
+        >
+          <Table size="small" sx={{ tableLayout: 'fixed' }}>
+            <TableHead sx={{ position: 'sticky', top: 0, zIndex: 1, bgcolor: 'grey.100' }}>
               <TableRow sx={{ bgcolor: 'grey.100' }}>
                 <TableCell width={32} />
                 <TableCell>N° Remito</TableCell>
                 <TableCell>Fecha Remito</TableCell>
                 <TableCell>Fecha Entrega</TableCell>
-                <TableCell>Beneficiario</TableCell>
+                <TableCell>Beneficiario / Solicitante</TableCell>
+                <TableCell>DNI</TableCell>
                 <TableCell>Programa</TableCell>
                 <TableCell>Depósito</TableCell>
                 <TableCell align="right">Kg</TableCell>
@@ -309,8 +364,12 @@ export default function HistorialEntregas() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {entregasFiltradas.map((remito) => (
-                <>
+              {paddingTop > 0 && (
+                <TableRow><TableCell colSpan={12} sx={{ height: paddingTop, p: 0, border: 0 }} /></TableRow>
+              )}
+              {virtualItems.map((virtualRow) => {
+                const remito = entregasFiltradas[virtualRow.index];
+                return (<>
                   <TableRow
                     key={remito.id}
                     hover
@@ -333,8 +392,19 @@ export default function HistorialEntregas() {
                         : <Typography variant="caption" color="text.disabled">—</Typography>}
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">{remito.beneficiario?.nombre}</Typography>
-                      <Typography variant="caption" color="text.secondary">{remito.beneficiario?.localidad}</Typography>
+                      <Typography variant="body2">
+                        {remito.caso?.nombreSolicitante ?? remito.beneficiario?.nombre ?? '—'}
+                      </Typography>
+                      {remito.caso
+                        ? <Chip label="Caso Particular" size="small" color="info" variant="outlined" sx={{ mt: 0.3 }} />
+                        : <Typography variant="caption" color="text.secondary">{remito.beneficiario?.localidad}</Typography>
+                      }
+                    </TableCell>
+                    <TableCell>
+                      {(remito.caso?.dni)
+                        ? <Typography variant="body2" fontWeight="bold">{remito.caso.dni}</Typography>
+                        : <Typography variant="caption" color="text.disabled">—</Typography>
+                      }
                     </TableCell>
                     <TableCell>
                       <Typography variant="caption">{remito.programa?.nombre || '—'}</Typography>
@@ -424,7 +494,7 @@ export default function HistorialEntregas() {
 
                   {/* Fila expandida: artículos */}
                   <TableRow key={`exp-${remito.id}`}>
-                    <TableCell colSpan={11} sx={{ p: 0, border: expandedId === remito.id ? undefined : 'none' }}>
+                    <TableCell colSpan={12} sx={{ p: 0, border: expandedId === remito.id ? undefined : 'none' }}>
                       <Collapse in={expandedId === remito.id} timeout="auto" unmountOnExit>
                         <Box sx={{ px: 7, py: 1.5, bgcolor: '#f8faff', borderBottom: '1px solid #e0e0e0' }}>
                           <Typography variant="caption" fontWeight="bold" color="text.secondary" display="block" mb={0.5}>
@@ -449,7 +519,11 @@ export default function HistorialEntregas() {
                     </TableCell>
                   </TableRow>
                 </>
-              ))}
+                );
+              })}
+              {paddingBottom > 0 && (
+                <TableRow><TableCell colSpan={12} sx={{ height: paddingBottom, p: 0, border: 0 }} /></TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>

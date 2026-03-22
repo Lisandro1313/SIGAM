@@ -33,8 +33,9 @@ const PRIORIDAD_COLOR: Record<string, 'error' | 'warning' | 'default' | 'info'> 
 };
 
 const TIPO_LABEL: Record<string, string> = {
-  ALIMENTARIA:    'Alimentaria',
-  NO_ALIMENTARIA: 'No Alimentaria',
+  ALIMENTARIO: 'Alimentario',
+  MERCADERIA:  'Mercadería',
+  MIXTO:       'Mixto',
 };
 
 function resolveUrl(url: string) {
@@ -51,7 +52,7 @@ const FORM_VACIO = {
   barrio: '',
   telefono: '',
   descripcion: '',
-  tipo: 'ALIMENTARIA',
+  tipo: 'ALIMENTARIO',
   prioridad: 'NORMAL',
 };
 
@@ -97,6 +98,15 @@ export default function MisCasos() {
   }, [filtroEstado, filtroBuscar]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { tipo } = (e as CustomEvent).detail ?? {};
+      if (tipo === 'caso:nuevo' || tipo === 'caso:actualizado') cargar();
+    };
+    window.addEventListener('sigam:update', handler);
+    return () => window.removeEventListener('sigam:update', handler);
+  }, [cargar]);
 
   // ── Check DNI ─────────────────────────────────────────────────────────────
   const checkDni = async (dni: string) => {
@@ -163,7 +173,7 @@ export default function MisCasos() {
           Mis Casos{esAsistencia ? ' — Asistencia Crítica' : ''}
         </Typography>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => {
-          setForm({ ...FORM_VACIO, tipo: esAsistencia ? 'NO_ALIMENTARIA' : 'ALIMENTARIA' });
+          setForm({ ...FORM_VACIO, tipo: esAsistencia ? 'MERCADERIA' : 'ALIMENTARIO' });
           setAlertaCruce(null);
           setErrorGuardar('');
           setCrearOpen(true);
@@ -382,8 +392,9 @@ export default function MisCasos() {
             <FormControl fullWidth>
               <InputLabel>Tipo *</InputLabel>
               <Select value={form.tipo} label="Tipo *" onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
-                <MenuItem value="ALIMENTARIA">Alimentaria</MenuItem>
-                <MenuItem value="NO_ALIMENTARIA">No Alimentaria (materiales, chapas, etc.)</MenuItem>
+                <MenuItem value="ALIMENTARIO">Alimentario</MenuItem>
+                <MenuItem value="MERCADERIA">Mercadería (materiales, chapas, etc.)</MenuItem>
+                <MenuItem value="MIXTO">Mixto (alimentos + mercadería)</MenuItem>
               </Select>
             </FormControl>
             <FormControl fullWidth>

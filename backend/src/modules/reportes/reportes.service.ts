@@ -6,6 +6,23 @@ import { startOfMonth, endOfMonth } from 'date-fns';
 export class ReportesService {
   constructor(private prisma: PrismaService) {}
 
+  /** Resuelve un rango {inicio, fin} desde mes+anio OR fechaDesde+fechaHasta */
+  private resolverRango(
+    mes?: number, anio?: number,
+    fechaDesde?: string, fechaHasta?: string,
+  ): { inicio: Date; fin: Date } | null {
+    if (fechaDesde && fechaHasta) {
+      const inicio = new Date(fechaDesde); inicio.setHours(0, 0, 0, 0);
+      const fin = new Date(fechaHasta);    fin.setHours(23, 59, 59, 999);
+      return { inicio, fin };
+    }
+    if (mes && anio) {
+      const fecha = new Date(anio, mes - 1, 1);
+      return { inicio: startOfMonth(fecha), fin: endOfMonth(fecha) };
+    }
+    return null;
+  }
+
   // Reporte: Kilos entregados por mes (retorna los últimos N meses si no se especifica)
   async kilosPorMes(mes?: number, anio?: number, secretaria?: string | null) {
     // Si se pasan parámetros válidos, retorna un solo mes
@@ -23,27 +40,35 @@ export class ReportesService {
       return [{ mes, anio, totalKilos, cantidadRemitos: remitos.length }];
     }
 
-    // Sin parámetros: últimos 6 meses
-    const resultados = [];
+    // Sin parámetros: últimos 6 meses — una sola query, agrupación en JS
+    const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
     const hoy = new Date();
+    const inicio6 = startOfMonth(new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1));
+    const fin6    = endOfMonth(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+    const where6: any = { fecha: { gte: inicio6, lte: fin6 }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
+    if (secretaria) where6.secretaria = secretaria;
+    const todosRemitos = await this.prisma.remito.findMany({ where: where6, select: { fecha: true, totalKg: true } });
+
+    // Construir mapa mes->año -> acumulado
+    const mapaKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
+    const mapa: Record<string, { totalKilos: number; cantidadRemitos: number }> = {};
+    for (const r of todosRemitos) {
+      const k = mapaKey(new Date(r.fecha));
+      if (!mapa[k]) mapa[k] = { totalKilos: 0, cantidadRemitos: 0 };
+      mapa[k].totalKilos += r.totalKg || 0;
+      mapa[k].cantidadRemitos++;
+    }
+
+    const resultados = [];
     for (let i = 5; i >= 0; i--) {
       const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-      const inicio = startOfMonth(fecha);
-      const fin = endOfMonth(fecha);
-      const mesWhere: any = { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
-      if (secretaria) mesWhere.secretaria = secretaria;
-      const remitos = await this.prisma.remito.findMany({
-        where: mesWhere,
-        select: { totalKg: true },
-      });
-      const totalKilos = remitos.reduce((sum, r) => sum + (r.totalKg || 0), 0);
-      const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      const k = mapaKey(fecha);
       resultados.push({
         mes: fecha.getMonth() + 1,
         mesNombre: MESES[fecha.getMonth()],
         anio: fecha.getFullYear(),
-        totalKilos,
-        cantidadRemitos: remitos.length,
+        totalKilos: mapa[k]?.totalKilos ?? 0,
+        cantidadRemitos: mapa[k]?.cantidadRemitos ?? 0,
       });
     }
     return resultados;
@@ -106,16 +131,10 @@ export class ReportesService {
   }
 
   // Reporte: Artículos más distribuidos
-  async articulosMasDistribuidos(mes?: number, anio?: number, secretaria?: string | null) {
+  async articulosMasDistribuidos(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
     const where: any = {};
-
-    if (mes && anio) {
-      const fecha = new Date(anio, mes - 1, 1);
-      where.fecha = {
-        gte: startOfMonth(fecha),
-        lte: endOfMonth(fecha),
-      };
-    }
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
+    if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
     if (secretaria) where.secretaria = secretaria;
 
     const items = await this.prisma.remitoItem.findMany({
@@ -152,20 +171,10 @@ export class ReportesService {
   }
 
   // Reporte: Entregas por programa
-  async entregasPorPrograma(mes?: number, anio?: number, secretaria?: string | null) {
-    const where: any = {
-      estado: {
-        in: ['CONFIRMADO', 'ENVIADO'],
-      },
-    };
-
-    if (mes && anio) {
-      const fecha = new Date(anio, mes - 1, 1);
-      where.fecha = {
-        gte: startOfMonth(fecha),
-        lte: endOfMonth(fecha),
-      };
-    }
+  async entregasPorPrograma(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
+    const where: any = { estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
+    if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
     if (secretaria) where.secretaria = secretaria;
 
     const remitos = await this.prisma.remito.findMany({
@@ -262,13 +271,106 @@ export class ReportesService {
     }));
   }
 
-  // Reporte: Remitos con detalle para exportación personalizada
-  async remitosDetalle(mes?: number, anio?: number, programaId?: number, estado?: string, secretaria?: string | null) {
-    const where: any = {};
-    if (mes && anio) {
-      const fecha = new Date(anio, mes - 1, 1);
-      where.fecha = { gte: startOfMonth(fecha), lte: endOfMonth(fecha) };
+  // Reporte: Cruces masivos — beneficiarios que aparecen en más de un programa
+  async crucesMasivos() {
+    const todos = await this.prisma.beneficiario.findMany({
+      where: { responsableDNI: { not: null } },
+      select: {
+        id: true,
+        nombre: true,
+        tipo: true,
+        activo: true,
+        responsableDNI: true,
+        programa: { select: { id: true, nombre: true, secretaria: true } },
+      },
+      orderBy: { responsableDNI: 'asc' },
+    });
+
+    // Agrupar por DNI
+    const porDni = new Map<string, typeof todos>();
+    for (const b of todos) {
+      const dni = b.responsableDNI!;
+      if (!porDni.has(dni)) porDni.set(dni, []);
+      porDni.get(dni)!.push(b);
     }
+
+    // Solo los DNIs que aparecen en más de un registro
+    const cruces: { dni: string; registros: typeof todos }[] = [];
+    for (const [dni, registros] of porDni) {
+      if (registros.length > 1) cruces.push({ dni, registros });
+    }
+
+    return cruces.sort((a, b) => b.registros.length - a.registros.length);
+  }
+
+  // Reporte: Beneficiarios sin entrega reciente (vencidos según frecuencia)
+  async beneficiariosSinEntregaDetalle(secretaria?: string | null) {
+    const hoy = new Date();
+    const MESES_FREQ: Record<string, number> = { MENSUAL: 1, BIMESTRAL: 2 };
+
+    const whereB: any = { activo: true, frecuenciaEntrega: { in: ['MENSUAL', 'BIMESTRAL'] } };
+    if (secretaria) whereB.programa = { secretaria };
+
+    const beneficiarios = await this.prisma.beneficiario.findMany({
+      where: whereB,
+      include: {
+        programa: { select: { nombre: true, secretaria: true } },
+        remitos: {
+          where: { estado: 'ENTREGADO' },
+          orderBy: { entregadoAt: 'desc' },
+          take: 1,
+          select: { entregadoAt: true, fecha: true, totalKg: true },
+        },
+      },
+      orderBy: { nombre: 'asc' },
+    });
+
+    const resultado: any[] = [];
+    for (const b of beneficiarios) {
+      const meses = MESES_FREQ[b.frecuenciaEntrega!] ?? 1;
+      const ultimaEntrega = b.remitos[0]?.entregadoAt ?? b.remitos[0]?.fecha ?? null;
+      const proximaEntrega = ultimaEntrega
+        ? new Date(new Date(ultimaEntrega).setMonth(new Date(ultimaEntrega).getMonth() + meses))
+        : null;
+      const vencida = proximaEntrega ? proximaEntrega < hoy : true;
+      const diasAtraso = vencida && proximaEntrega
+        ? Math.floor((hoy.getTime() - proximaEntrega.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+
+      if (vencida) {
+        resultado.push({
+          id: b.id,
+          nombre: b.nombre,
+          localidad: b.localidad,
+          programa: b.programa?.nombre ?? '',
+          frecuencia: b.frecuenciaEntrega,
+          ultimaEntrega: ultimaEntrega ? new Date(ultimaEntrega).toISOString().slice(0, 10) : null,
+          proximaEntrega: proximaEntrega ? proximaEntrega.toISOString().slice(0, 10) : null,
+          diasAtraso,
+          sinEntregaNunca: !ultimaEntrega,
+        });
+      }
+    }
+
+    // Ordenar: primero los que nunca recibieron, luego por días de atraso desc
+    resultado.sort((a, b) => {
+      if (a.sinEntregaNunca && !b.sinEntregaNunca) return -1;
+      if (!a.sinEntregaNunca && b.sinEntregaNunca) return 1;
+      return b.diasAtraso - a.diasAtraso;
+    });
+
+    return {
+      total: resultado.length,
+      sinEntregaNunca: resultado.filter(r => r.sinEntregaNunca).length,
+      detalle: resultado,
+    };
+  }
+
+  // Reporte: Remitos con detalle para exportación personalizada
+  async remitosDetalle(mes?: number, anio?: number, programaId?: number, estado?: string, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
+    const where: any = {};
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
+    if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
     if (programaId) where.programaId = programaId;
     if (estado) where.estado = estado;
     if (secretaria) where.secretaria = secretaria;
@@ -302,10 +404,9 @@ export class ReportesService {
   }
 
   // Reporte: Resumen de entregas del mes (entregadas vs no entregadas)
-  async resumenEntregasMes(mes: number, anio: number, secretaria?: string | null) {
-    const fecha = new Date(anio, mes - 1, 1);
-    const inicio = startOfMonth(fecha);
-    const fin = endOfMonth(fecha);
+  async resumenEntregasMes(mes: number, anio: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta)!;
+    const { inicio, fin } = rango;
 
     const where: any = { fechaProgramada: { gte: inicio, lte: fin } };
     if (secretaria) where.secretaria = secretaria;
@@ -340,6 +441,125 @@ export class ReportesService {
     return resumen;
   }
 
+  // Búsqueda global: beneficiarios, casos y remitos
+  async busquedaGlobal(q: string, secretaria?: string | null) {
+    if (!q || q.trim().length < 2) return { beneficiarios: [], casos: [], remitos: [] };
+    const term = q.trim();
+
+    const benWhere: any = {
+      activo: true,
+      OR: [
+        { nombre: { contains: term, mode: 'insensitive' } },
+        { responsableDNI: { contains: term } },
+        { responsableNombre: { contains: term, mode: 'insensitive' } },
+      ],
+    };
+    if (secretaria) benWhere.programa = { secretaria };
+
+    const casosWhere: any = {
+      OR: [
+        { nombreSolicitante: { contains: term, mode: 'insensitive' } },
+        { dni: { contains: term } },
+      ],
+    };
+
+    const remitosWhere: any = {
+      OR: [
+        { numero: { contains: term, mode: 'insensitive' } },
+        { beneficiario: { nombre: { contains: term, mode: 'insensitive' } } },
+      ],
+    };
+    if (secretaria) remitosWhere.secretaria = secretaria;
+
+    const [beneficiarios, casos, remitos] = await Promise.all([
+      this.prisma.beneficiario.findMany({
+        where: benWhere,
+        select: { id: true, nombre: true, tipo: true, localidad: true, responsableDNI: true, programa: { select: { nombre: true } } },
+        take: 8, orderBy: { nombre: 'asc' },
+      }),
+      this.prisma.caso.findMany({
+        where: casosWhere,
+        select: { id: true, nombreSolicitante: true, tipo: true, estado: true, prioridad: true, dni: true, createdAt: true },
+        take: 8, orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.remito.findMany({
+        where: remitosWhere,
+        select: { id: true, numero: true, estado: true, fecha: true, totalKg: true, beneficiario: { select: { nombre: true } } },
+        take: 8, orderBy: { fecha: 'desc' },
+      }),
+    ]);
+
+    return { beneficiarios, casos, remitos };
+  }
+
+  // Notificaciones: alertas operativas para el top bar
+  async notificaciones(secretaria?: string | null) {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const hace7dias = new Date(hoy);
+    hace7dias.setDate(hace7dias.getDate() - 7);
+
+    const secFilter = secretaria ? { secretaria } : {};
+
+    const [casosUrgentes, casosAprobadosSinRemito, remitosDemorados, stockItems] =
+      await Promise.all([
+        this.prisma.caso.count({
+          where: { prioridad: { in: ['URGENTE', 'ALTA'] }, estado: { in: ['PENDIENTE', 'EN_REVISION'] } },
+        }),
+        this.prisma.caso.count({
+          where: { estado: 'APROBADO', remitoId: null },
+        }),
+        this.prisma.remito.count({
+          where: { estado: { in: ['CONFIRMADO', 'ENVIADO'] }, fecha: { lte: hace7dias }, ...secFilter },
+        }),
+        this.stockBajo(),
+      ]);
+
+    const notificaciones: any[] = [];
+
+    if (casosUrgentes > 0) {
+      notificaciones.push({
+        tipo: 'CASOS_URGENTES',
+        nivel: 'error',
+        titulo: `${casosUrgentes} caso${casosUrgentes > 1 ? 's' : ''} urgente${casosUrgentes > 1 ? 's' : ''} sin resolver`,
+        descripcion: 'Prioridad URGENTE o ALTA pendientes de revisión',
+        link: '/casos-particulares',
+      });
+    }
+
+    if (casosAprobadosSinRemito > 0) {
+      notificaciones.push({
+        tipo: 'CASOS_APROBADOS',
+        nivel: 'warning',
+        titulo: `${casosAprobadosSinRemito} caso${casosAprobadosSinRemito > 1 ? 's' : ''} aprobado${casosAprobadosSinRemito > 1 ? 's' : ''} sin remito generado`,
+        descripcion: 'Casos aprobados que aún no tienen remito generado',
+        link: '/casos-particulares',
+      });
+    }
+
+    if (remitosDemorados > 0) {
+      notificaciones.push({
+        tipo: 'REMITOS_DEMORADOS',
+        nivel: 'warning',
+        titulo: `${remitosDemorados} remito${remitosDemorados > 1 ? 's' : ''} sin entregar hace +7 días`,
+        descripcion: 'Remitos confirmados o enviados que llevan más de 7 días sin entrega',
+        link: '/remitos',
+      });
+    }
+
+    if (stockItems.length > 0) {
+      notificaciones.push({
+        tipo: 'STOCK_BAJO',
+        nivel: 'warning',
+        titulo: `${stockItems.length} artículo${stockItems.length > 1 ? 's' : ''} con stock bajo mínimo`,
+        descripcion: stockItems.slice(0, 3).map((a: any) => a.articulo).join(', ') + (stockItems.length > 3 ? '...' : ''),
+        link: '/stock',
+      });
+    }
+
+    return { notificaciones, total: notificaciones.length };
+  }
+
   // Dashboard: Resumen operativo
   async dashboard(secretaria?: string | null) {
     const hoy = new Date();
@@ -350,12 +570,16 @@ export class ReportesService {
     pasadoManana.setDate(pasadoManana.getDate() + 2);
     const en7dias = new Date(hoy);
     en7dias.setDate(en7dias.getDate() + 7);
+    const hace30dias = new Date(hoy);
+    hace30dias.setDate(hace30dias.getDate() - 30);
     const inicioMes = startOfMonth(new Date());
     const finMes = endOfMonth(new Date());
+    const inicioMesAnterior = startOfMonth(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1));
+    const finMesAnterior = endOfMonth(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1));
 
     const secFilter = secretaria ? { secretaria } : {};
 
-    const [remitosDelDia, remitosRecientes, proximasEntregas, remitosDelMes, kgDelMes] =
+    const [remitosDelDia, remitosRecientes, proximasEntregas, remitosDelMes, kgDelMes, kgMesAnterior, casosUrgentes] =
       await Promise.all([
         this.prisma.remito.findMany({
           where: { fecha: { gte: hoy, lt: pasadoManana }, ...secFilter },
@@ -399,12 +623,102 @@ export class ReportesService {
           },
           _sum: { totalKg: true },
         }),
+        this.prisma.remito.aggregate({
+          where: {
+            fecha: { gte: inicioMesAnterior, lte: finMesAnterior },
+            estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] },
+            ...secFilter,
+          },
+          _sum: { totalKg: true },
+        }),
+        this.prisma.caso.findMany({
+          where: {
+            prioridad: { in: ['URGENTE', 'ALTA'] },
+            estado: { in: ['PENDIENTE', 'EN_REVISION'] },
+          },
+          select: {
+            id: true,
+            nombreSolicitante: true,
+            prioridad: true,
+            tipo: true,
+            estado: true,
+            createdAt: true,
+          },
+          orderBy: [{ prioridad: 'desc' }, { createdAt: 'asc' }],
+          take: 10,
+        }),
       ]);
+
+    // Evolución mensual: últimos 6 meses
+    const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const evolucionMensual: any[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const fecha = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
+      const inicio = startOfMonth(fecha);
+      const fin = endOfMonth(fecha);
+      const mesWhere: any = {
+        fecha: { gte: inicio, lte: fin },
+        estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] },
+        ...secFilter,
+      };
+      const agg = await this.prisma.remito.aggregate({ where: mesWhere, _sum: { totalKg: true }, _count: true });
+      evolucionMensual.push({
+        mes: fecha.getMonth() + 1,
+        mesNombre: MESES[fecha.getMonth()],
+        anio: fecha.getFullYear(),
+        totalKilos: agg._sum.totalKg || 0,
+        cantidadRemitos: agg._count,
+      });
+    }
+
+    // Beneficiarios activos sin entrega en los últimos 30 días
+    const beneficiariosConEntregaReciente = await this.prisma.remito.findMany({
+      where: {
+        entregadoAt: { gte: hace30dias },
+        estado: 'ENTREGADO',
+        beneficiarioId: { not: null },
+        ...secFilter,
+      },
+      select: { beneficiarioId: true },
+      distinct: ['beneficiarioId'],
+    });
+    const idsConEntrega = beneficiariosConEntregaReciente.map(r => r.beneficiarioId).filter(Boolean) as number[];
+
+    const beneficiariosSinEntrega = await this.prisma.beneficiario.findMany({
+      where: {
+        activo: true,
+        id: { notIn: idsConEntrega.length > 0 ? idsConEntrega : [-1] },
+      },
+      select: { id: true, nombre: true, localidad: true, programa: { select: { nombre: true } } },
+      orderBy: { nombre: 'asc' },
+      take: 10,
+    });
+
+    const totalBeneficiariosSinEntrega = await this.prisma.beneficiario.count({
+      where: {
+        activo: true,
+        id: { notIn: idsConEntrega.length > 0 ? idsConEntrega : [-1] },
+      },
+    });
 
     return {
       resumenMes: {
         remitos: remitosDelMes,
         kg: kgDelMes._sum.totalKg || 0,
+        kgMesAnterior: kgMesAnterior._sum.totalKg || 0,
+      },
+      evolucionMensual,
+      casosUrgentes: casosUrgentes.map(c => ({
+        id: c.id,
+        nombreSolicitante: c.nombreSolicitante,
+        prioridad: c.prioridad,
+        tipo: c.tipo,
+        estado: c.estado,
+        createdAt: c.createdAt,
+      })),
+      beneficiariosSinEntrega: {
+        total: totalBeneficiariosSinEntrega,
+        muestra: beneficiariosSinEntrega,
       },
       remitosDelDia: remitosDelDia.map(r => ({
         id: r.id,

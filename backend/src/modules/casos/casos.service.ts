@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../shared/storage/storage.service';
+import { EventsService } from '../events/events.service';
 
 const INCLUDE_CASO = {
   documentos: { orderBy: { createdAt: 'asc' as const } },
@@ -13,21 +14,29 @@ export class CasosService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private eventsService: EventsService,
   ) {}
 
   // ── Check cruce por DNI ───────────────────────────────────────────────────
   async checkDni(dni: string) {
-    const beneficiarios = await this.prisma.beneficiario.findMany({
-      where: { responsableDNI: dni, activo: true },
-      include: { programa: { select: { nombre: true } } },
-    });
-    const casosActivos = await this.prisma.caso.findMany({
-      where: {
-        dni,
-        estado: { notIn: ['RECHAZADO', 'RESUELTO'] },
-      },
-      select: { id: true, estado: true, tipo: true, createdAt: true },
-    });
+    const [beneficiarios, casosActivos, integrantes] = await Promise.all([
+      this.prisma.beneficiario.findMany({
+        where: { responsableDNI: dni, activo: true },
+        include: { programa: { select: { nombre: true } } },
+      }),
+      this.prisma.caso.findMany({
+        where: { dni, estado: { notIn: ['RECHAZADO', 'RESUELTO'] } },
+        select: { id: true, estado: true, tipo: true, createdAt: true },
+      }),
+      this.prisma.integranteEspacio.findMany({
+        where: { dni, activo: true },
+        include: {
+          beneficiario: {
+            select: { nombre: true, programa: { select: { nombre: true } } },
+          },
+        },
+      }),
+    ]);
 
     const alertas: string[] = [];
     for (const b of beneficiarios) {
@@ -36,12 +45,15 @@ export class CasosService {
     for (const c of casosActivos) {
       alertas.push(`Ya tiene un caso ${c.estado} (ID #${c.id})`);
     }
+    for (const i of integrantes) {
+      alertas.push(`Figura como integrante del espacio "${i.beneficiario.nombre}" (${i.beneficiario.programa?.nombre ?? 'sin programa'})`);
+    }
 
     return { alerta: alertas.length > 0, detalle: alertas.join(' · ') || null };
   }
 
   // ── Crear caso ────────────────────────────────────────────────────────────
-  async create(dto: any, usuarioId: number, usuarioNombre: string) {
+  async create(dto: any, usuarioId: number, usuarioNombre: string, usuarioRol?: string) {
     // Cruce automático si hay DNI
     let alertaCruce = false;
     let detalleCruce: string | null = null;
@@ -51,7 +63,7 @@ export class CasosService {
       detalleCruce = cruce.detalle;
     }
 
-    return this.prisma.caso.create({
+    const nuevo = await this.prisma.caso.create({
       data: {
         nombreSolicitante: dto.nombreSolicitante,
         dni: dto.dni ?? null,
@@ -70,6 +82,13 @@ export class CasosService {
       },
       include: INCLUDE_CASO,
     });
+    const secretaria = usuarioRol === 'ASISTENCIA_CRITICA' ? 'CITA' : 'PA';
+    this.eventsService.broadcast('caso:nuevo', {
+      id: nuevo.id,
+      nombre: nuevo.nombreSolicitante,
+      prioridad: nuevo.prioridad,
+    }, secretaria);
+    return nuevo;
   }
 
   // ── Listar casos ──────────────────────────────────────────────────────────
@@ -130,7 +149,7 @@ export class CasosService {
       throw new BadRequestException(`No se puede revisar un caso en estado ${caso.estado}`);
     }
 
-    return this.prisma.caso.update({
+    const actualizado = await this.prisma.caso.update({
       where: { id },
       data: {
         estado: dto.estado,
@@ -141,6 +160,12 @@ export class CasosService {
       },
       include: INCLUDE_CASO,
     });
+    this.eventsService.broadcast('caso:actualizado', {
+      id: actualizado.id,
+      estado: actualizado.estado,
+      creadoPorId: actualizado.creadoPorId,
+    });
+    return actualizado;
   }
 
   // ── Generar remito desde caso ─────────────────────────────────────────────
@@ -178,6 +203,21 @@ export class CasosService {
 
     // Crear remito + descontar stock en una transacción
     const remito = await this.prisma.$transaction(async (tx) => {
+      // Validar stock ANTES de crear el remito
+      for (const item of itemsConPeso) {
+        const stock = await tx.stock.findUnique({
+          where: { articuloId_depositoId: { articuloId: item.articuloId, depositoId: remitoData.depositoId } },
+          include: { articulo: true },
+        });
+        if (!stock || stock.cantidad < item.cantidad) {
+          const art = articulos.find((a) => a.id === item.articuloId);
+          throw new BadRequestException(
+            `Stock insuficiente para ${art?.nombre ?? item.articuloId}. ` +
+            `Disponible: ${stock?.cantidad ?? 0}, requerido: ${item.cantidad}`,
+          );
+        }
+      }
+
       const r = await tx.remito.create({
         data: {
           numero,
@@ -212,19 +252,19 @@ export class CasosService {
         });
       }
 
-      return r;
-    });
+      // Vincular remito al caso y marcar RESUELTO dentro de la misma transacción
+      await tx.caso.update({
+        where: { id: casoId },
+        data: {
+          remitoId: r.id,
+          estado: 'RESUELTO',
+          revisadoAt: new Date(),
+          revisadoPorId: usuarioId,
+          revisadoPorNombre: usuarioNombre,
+        },
+      });
 
-    // Vincular remito al caso y marcar RESUELTO
-    await this.prisma.caso.update({
-      where: { id: casoId },
-      data: {
-        remitoId: remito.id,
-        estado: 'RESUELTO',
-        revisadoAt: new Date(),
-        revisadoPorId: usuarioId,
-        revisadoPorNombre: usuarioNombre,
-      },
+      return r;
     });
 
     return { caso: await this.findOne(casoId), remito };

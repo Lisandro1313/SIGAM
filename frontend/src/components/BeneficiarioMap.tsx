@@ -284,6 +284,11 @@ export default function BeneficiarioMap({
                       Tel: {b.telefono}
                     </Typography>
                   )}
+                  {b.frecuenciaEntrega && (
+                    <Typography variant="caption" display="block" color="text.secondary">
+                      Frecuencia: {b.frecuenciaEntrega}
+                    </Typography>
+                  )}
                 </Box>
               </Popup>
             </Marker>

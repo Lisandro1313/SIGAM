@@ -23,6 +23,12 @@ import {
   Alert,
   Tabs,
   Tab,
+  Checkbox,
+  LinearProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -37,10 +43,13 @@ import {
   Search as SearchIcon,
   EventRepeat as ReprogramarIcon,
   Cancel as AnularIcon,
+  DoneAll as ConfirmarTodosIcon,
+  FileDownload as ExportarIcon,
 } from '@mui/icons-material';
 import InputAdornment from '@mui/material/InputAdornment';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import RemitoForm from '../components/RemitoForm';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -56,23 +65,132 @@ export default function RemitosPage() {
   const [remitos, setRemitos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
-  const [tabPrograma, setTabPrograma] = useState<string>('todos');
-  const [busqueda, setBusqueda] = useState('');
   const { showNotification } = useNotificationStore();
   const { user } = useAuthStore();
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const busqueda = searchParams.get('q') ?? '';
+  const tabPrograma = searchParams.get('tab') ?? 'todos';
+  const estadoFiltro = searchParams.get('estado') ?? '';
+
+  const setBusqueda = (v: string) => setSearchParams(p => { const n = new URLSearchParams(p); v ? n.set('q', v) : n.delete('q'); n.delete('tab'); return n; }, { replace: true });
+  const setTabPrograma = (v: string) => setSearchParams(p => { const n = new URLSearchParams(p); v && v !== 'todos' ? n.set('tab', v) : n.delete('tab'); return n; }, { replace: true });
+  const setEstadoFiltro = (v: string) => setSearchParams(p => { const n = new URLSearchParams(p); v ? n.set('estado', v) : n.delete('estado'); return n; }, { replace: true });
   const puedeEntregar = user?.rol === 'ADMIN' || user?.rol === 'LOGISTICA' || user?.rol === 'ASISTENCIA_CRITICA';
   const puedeCrear = user?.rol !== 'VISOR';
 
-  // Programas únicos derivados de los remitos cargados
+  // Programas únicos derivados de los remitos (todos, no filtrados por estado)
   const programas = Array.from(
     new Map(remitos.filter(r => r.programa).map(r => [r.programa.id, r.programa])).values()
   ).sort((a, b) => a.nombre.localeCompare(b.nombre));
 
+  const remitosBase = estadoFiltro
+    ? remitos.filter(r => r.estado === estadoFiltro)
+    : remitos;
+
   const remitosVisibles = tabPrograma === 'todos'
-    ? remitos
+    ? remitosBase
     : tabPrograma === 'sin_programa'
-    ? remitos.filter(r => !r.programa)
-    : remitos.filter(r => String(r.programa?.id) === tabPrograma);
+    ? remitosBase.filter(r => !r.programa)
+    : remitosBase.filter(r => String(r.programa?.id) === tabPrograma);
+
+  // Selección masiva
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkEntregarOpen, setBulkEntregarOpen] = useState(false);
+  const [bulkNota, setBulkNota] = useState('');
+  const [bulkProgress, setBulkProgress] = useState<{ total: number; done: number; errors: number } | null>(null);
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === remitosVisibles.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(remitosVisibles.map(r => r.id)));
+    }
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const selectedRemitos = remitosVisibles.filter(r => selectedIds.has(r.id));
+  const selectedBorradores = selectedRemitos.filter(r => r.estado === 'BORRADOR');
+  const selectedEntregables = selectedRemitos.filter(r => r.estado === 'CONFIRMADO' || r.estado === 'ENVIADO');
+
+  const handleBulkConfirmar = async () => {
+    const ids = selectedBorradores.map(r => r.id);
+    setBulkProgress({ total: ids.length, done: 0, errors: 0 });
+    let errors = 0;
+    for (const id of ids) {
+      try {
+        await api.post(`/remitos/${id}/confirmar`);
+      } catch {
+        errors++;
+      }
+      setBulkProgress(p => p ? { ...p, done: p.done + 1, errors: p.errors + (errors > 0 && p.done === ids.indexOf(id) ? 1 : 0) } : null);
+    }
+    setBulkProgress(null);
+    clearSelection();
+    showNotification(`${ids.length - errors} remitos confirmados${errors > 0 ? `, ${errors} errores` : ''}`, errors > 0 ? 'warning' : 'success');
+    loadRemitos(busqueda);
+  };
+
+  const handleBulkEntregar = async () => {
+    const ids = selectedEntregables.map(r => r.id);
+    setBulkProgress({ total: ids.length, done: 0, errors: 0 });
+    let errors = 0;
+    for (const id of ids) {
+      try {
+        const formData = new FormData();
+        if (bulkNota.trim()) formData.append('nota', bulkNota.trim());
+        await api.post(`/remitos/${id}/entregar`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      } catch {
+        errors++;
+      }
+      setBulkProgress(p => p ? { ...p, done: p.done + 1 } : null);
+    }
+    setBulkProgress(null);
+    setBulkEntregarOpen(false);
+    setBulkNota('');
+    clearSelection();
+    showNotification(`${ids.length - errors} remitos marcados como entregados${errors > 0 ? `, ${errors} errores` : ''}`, errors > 0 ? 'warning' : 'success');
+    loadRemitos(busqueda);
+  };
+
+  const handleBulkEmail = async () => {
+    const enviables = selectedRemitos.filter(r => r.estado === 'CONFIRMADO' || r.estado === 'ENVIADO' || r.estado === 'ENTREGADO');
+    setBulkProgress({ total: enviables.length, done: 0, errors: 0 });
+    for (const remito of enviables) {
+      try {
+        await api.post(`/remitos/${remito.id}/enviar-email`);
+      } catch { /* skip */ }
+      setBulkProgress(p => p ? { ...p, done: p.done + 1 } : null);
+    }
+    setBulkProgress(null);
+    showNotification(`Emails enviados (${enviables.length})`, 'success');
+    loadRemitos(busqueda);
+  };
+
+  const handleBulkExportPdf = async () => {
+    const ids = selectedRemitos.map(r => r.id);
+    setBulkProgress({ total: ids.length, done: 0, errors: 0 });
+    for (const remito of selectedRemitos) {
+      try {
+        const response = await api.get(`/remitos/${remito.id}/pdf`, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${(remito.beneficiario?.nombre || `remito-${remito.id}`).toUpperCase().replace(/\s+/g, '_')}.pdf`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+      } catch { /* skip */ }
+      setBulkProgress(p => p ? { ...p, done: p.done + 1 } : null);
+    }
+    setBulkProgress(null);
+  };
 
   // Estado diálogo reprogramar/anular
   const [gestionDialog, setGestionDialog] = useState(false);
@@ -178,6 +296,15 @@ export default function RemitosPage() {
     return () => clearTimeout(delay);
   }, [busqueda]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { tipo } = (e as CustomEvent).detail ?? {};
+      if (tipo === 'remito:nuevo' || tipo === 'remito:confirmado' || tipo === 'remito:entregado') loadRemitos(busqueda);
+    };
+    window.addEventListener('sigam:update', handler);
+    return () => window.removeEventListener('sigam:update', handler);
+  }, [busqueda]);
+
   const loadRemitos = async (q?: string) => {
     try {
       const params: any = {};
@@ -194,8 +321,16 @@ export default function RemitosPage() {
 
   const handleConfirmar = async (id: number) => {
     try {
-      await api.post(`/remitos/${id}/confirmar`);
-      showNotification('Remito confirmado. El stock fue descontado.', 'success');
+      const res = await api.post(`/remitos/${id}/confirmar`);
+      const alertas: string[] = res.data?.alertasVencimiento ?? [];
+      if (alertas.length > 0) {
+        showNotification(
+          `Remito confirmado con advertencias de lotes vencidos: ${alertas.join(' | ')}`,
+          'warning',
+        );
+      } else {
+        showNotification('Remito confirmado. El stock fue descontado.', 'success');
+      }
       loadRemitos(busqueda);
     } catch (error: any) {
       showNotification(error.response?.data?.message || 'Error al confirmar remito', 'error');
@@ -301,7 +436,7 @@ export default function RemitosPage() {
         )}
       </Box>
 
-      <Box mb={2}>
+      <Box mb={2} display="flex" gap={2} alignItems="center" flexWrap="wrap">
         <TextField
           size="small"
           placeholder="Buscar por nombre, DNI o número de remito..."
@@ -316,6 +451,21 @@ export default function RemitosPage() {
           }}
           sx={{ width: 380 }}
         />
+        <FormControl size="small" sx={{ minWidth: 170 }}>
+          <InputLabel>Estado</InputLabel>
+          <Select
+            value={estadoFiltro}
+            label="Estado"
+            onChange={(e) => setEstadoFiltro(e.target.value)}
+          >
+            <MenuItem value="">Todos</MenuItem>
+            <MenuItem value="BORRADOR">Borrador</MenuItem>
+            <MenuItem value="CONFIRMADO">Confirmado</MenuItem>
+            <MenuItem value="ENVIADO">Enviado</MenuItem>
+            <MenuItem value="ENTREGADO">Entregado</MenuItem>
+            <MenuItem value="ANULADO">Anulado</MenuItem>
+          </Select>
+        </FormControl>
       </Box>
 
       {/* Tabs por programa */}
@@ -327,24 +477,99 @@ export default function RemitosPage() {
           scrollButtons="auto"
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
-          <Tab label={`Todos (${remitos.length})`} value="todos" />
+          <Tab label={`Todos (${remitosBase.length})`} value="todos" />
           {programas.map(p => (
             <Tab
               key={p.id}
-              label={`${p.nombre} (${remitos.filter(r => r.programa?.id === p.id).length})`}
+              label={`${p.nombre} (${remitosBase.filter(r => r.programa?.id === p.id).length})`}
               value={String(p.id)}
             />
           ))}
-          {remitos.some(r => !r.programa) && (
-            <Tab label={`Sin programa (${remitos.filter(r => !r.programa).length})`} value="sin_programa" />
+          {remitosBase.some(r => !r.programa) && (
+            <Tab label={`Sin programa (${remitosBase.filter(r => !r.programa).length})`} value="sin_programa" />
           )}
         </Tabs>
       </Paper>
+
+      {/* Toolbar selección masiva */}
+      {selectedIds.size > 0 && (
+        <Paper elevation={3} sx={{ mb: 2, p: 1.5, bgcolor: 'primary.main', color: 'white', display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+          <Typography variant="body2" fontWeight="bold" sx={{ mr: 1 }}>
+            {selectedIds.size} seleccionados
+          </Typography>
+          {selectedBorradores.length > 0 && (
+            <Button
+              size="small" variant="contained" color="success"
+              startIcon={bulkProgress ? <CircularProgress size={14} sx={{ color: 'white' }} /> : <ConfirmarTodosIcon />}
+              onClick={handleBulkConfirmar}
+              disabled={!!bulkProgress}
+              sx={{ bgcolor: 'success.main' }}
+            >
+              Confirmar {selectedBorradores.length} borrador{selectedBorradores.length > 1 ? 'es' : ''}
+            </Button>
+          )}
+          {puedeEntregar && selectedEntregables.length > 0 && (
+            <Button
+              size="small" variant="contained" color="secondary"
+              startIcon={<EntregarIcon />}
+              onClick={() => { setBulkNota(''); setBulkEntregarOpen(true); }}
+              disabled={!!bulkProgress}
+              sx={{ bgcolor: 'secondary.main' }}
+            >
+              Entregar {selectedEntregables.length}
+            </Button>
+          )}
+          {selectedRemitos.some(r => ['CONFIRMADO','ENVIADO','ENTREGADO'].includes(r.estado)) && (
+            <Button
+              size="small" variant="outlined"
+              startIcon={bulkProgress ? <CircularProgress size={14} sx={{ color: 'white' }} /> : <EmailIcon />}
+              onClick={handleBulkEmail}
+              disabled={!!bulkProgress}
+              sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.6)', '&:hover': { borderColor: 'white' } }}
+            >
+              Enviar {selectedRemitos.filter(r => ['CONFIRMADO','ENVIADO','ENTREGADO'].includes(r.estado)).length} emails
+            </Button>
+          )}
+          <Button
+            size="small" variant="outlined"
+            startIcon={bulkProgress ? <CircularProgress size={14} sx={{ color: 'white' }} /> : <ExportarIcon />}
+            onClick={handleBulkExportPdf}
+            disabled={!!bulkProgress}
+            sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.6)', '&:hover': { borderColor: 'white' } }}
+          >
+            Exportar {selectedIds.size} PDF{selectedIds.size > 1 ? 's' : ''}
+          </Button>
+          <Box flex={1} />
+          <Button size="small" onClick={clearSelection} sx={{ color: 'rgba(255,255,255,0.8)' }}>
+            Cancelar
+          </Button>
+          {bulkProgress && (
+            <Box sx={{ width: '100%', mt: 0.5 }}>
+              <LinearProgress
+                variant="determinate"
+                value={(bulkProgress.done / bulkProgress.total) * 100}
+                sx={{ bgcolor: 'rgba(255,255,255,0.3)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }}
+              />
+              <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                {bulkProgress.done} / {bulkProgress.total}
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      )}
 
       <TableContainer component={Paper} elevation={2}>
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell padding="checkbox">
+                <Checkbox
+                  indeterminate={selectedIds.size > 0 && selectedIds.size < remitosVisibles.length}
+                  checked={remitosVisibles.length > 0 && selectedIds.size === remitosVisibles.length}
+                  onChange={toggleSelectAll}
+                  sx={{ color: 'white', '&.Mui-checked': { color: 'white' }, '&.MuiCheckbox-indeterminate': { color: 'white' } }}
+                />
+              </TableCell>
               <TableCell>Número</TableCell>
               <TableCell>Fecha</TableCell>
               <TableCell>Beneficiario</TableCell>
@@ -356,14 +581,28 @@ export default function RemitosPage() {
           </TableHead>
           <TableBody>
             {remitosVisibles.map((remito) => (
-              <TableRow key={remito.id} hover>
+              <TableRow key={remito.id} hover selected={selectedIds.has(remito.id)}>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    checked={selectedIds.has(remito.id)}
+                    onChange={() => toggleSelect(remito.id)}
+                    size="small"
+                  />
+                </TableCell>
                 <TableCell>
                   <strong>{remito.numero || 'BORRADOR'}</strong>
                 </TableCell>
                 <TableCell>
                   {format(new Date(remito.fecha), 'dd/MM/yyyy', { locale: es })}
                 </TableCell>
-                <TableCell>{remito.beneficiario?.nombre}</TableCell>
+                <TableCell>
+                  {remito.caso?.nombreSolicitante ?? remito.beneficiario?.nombre ?? '—'}
+                  {remito.caso?.dni && (
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      DNI: {remito.caso.dni}
+                    </Typography>
+                  )}
+                </TableCell>
                 <TableCell>{remito.deposito?.nombre}</TableCell>
                 <TableCell align="right">
                   <strong>{remito.totalKg.toFixed(2)}</strong>
@@ -550,9 +789,16 @@ export default function RemitosPage() {
               {/* Info general */}
               <Box display="grid" gridTemplateColumns="1fr 1fr" gap={2} mb={3}>
                 <Paper variant="outlined" sx={{ p: 2 }}>
-                  <Typography variant="caption" color="text.secondary">BENEFICIARIO</Typography>
-                  <Typography variant="body1" fontWeight="bold">{detalleRemito.beneficiario?.nombre}</Typography>
-                  {detalleRemito.beneficiario?.dni && (
+                  <Typography variant="caption" color="text.secondary">
+                    {detalleRemito.caso ? 'SOLICITANTE (CASO PARTICULAR)' : 'BENEFICIARIO'}
+                  </Typography>
+                  <Typography variant="body1" fontWeight="bold">
+                    {detalleRemito.caso?.nombreSolicitante ?? detalleRemito.beneficiario?.nombre}
+                  </Typography>
+                  {detalleRemito.caso?.dni && (
+                    <Typography variant="body2" fontWeight="bold" color="primary">DNI: {detalleRemito.caso.dni}</Typography>
+                  )}
+                  {!detalleRemito.caso && detalleRemito.beneficiario?.dni && (
                     <Typography variant="body2" color="text.secondary">DNI: {detalleRemito.beneficiario.dni}</Typography>
                   )}
                   {detalleRemito.beneficiario?.direccion && (
@@ -681,7 +927,11 @@ export default function RemitosPage() {
         <DialogContent>
           {entregarRemito && (
             <Alert severity="success" sx={{ mb: 2 }}>
-              <strong>{entregarRemito.numero}</strong> — {entregarRemito.beneficiario?.nombre}
+              <strong>{entregarRemito.numero}</strong> —{' '}
+              {entregarRemito.caso?.nombreSolicitante ?? entregarRemito.beneficiario?.nombre}
+              {entregarRemito.caso?.dni && (
+                <> · DNI: <strong>{entregarRemito.caso.dni}</strong></>
+              )}
             </Alert>
           )}
           <TextField
@@ -733,6 +983,37 @@ export default function RemitosPage() {
             disabled={entregando}
           >
             Confirmar Entrega
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Diálogo: Entrega masiva */}
+      <Dialog open={bulkEntregarOpen} onClose={() => setBulkEntregarOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <EntregarIcon color="success" />
+          Marcar {selectedEntregables.length} remitos como entregados
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Se marcarán como ENTREGADO los {selectedEntregables.length} remitos seleccionados (CONFIRMADO / ENVIADO).
+          </Alert>
+          <TextField
+            fullWidth multiline rows={2}
+            label="Nota de entrega (opcional, aplica a todos)"
+            value={bulkNota}
+            onChange={(e) => setBulkNota(e.target.value)}
+            placeholder="Ej: Entrega masiva — retiro en depósito"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkEntregarOpen(false)} disabled={!!bulkProgress}>Cancelar</Button>
+          <Button
+            variant="contained" color="success"
+            startIcon={bulkProgress ? <CircularProgress size={16} /> : <EntregarIcon />}
+            onClick={handleBulkEntregar}
+            disabled={!!bulkProgress}
+          >
+            {bulkProgress ? `${bulkProgress.done}/${bulkProgress.total}...` : `Confirmar ${selectedEntregables.length} entregas`}
           </Button>
         </DialogActions>
       </Dialog>

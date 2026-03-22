@@ -31,15 +31,57 @@ export class BeneficiariosController {
   @Get('check-dni/:dni')
   @Roles('ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA')
   @ApiOperation({ summary: 'Verificar si un DNI ya está registrado como responsable de otro beneficiario' })
-  checkDni(@Param('dni') dni: string) {
-    return this.beneficiariosService.checkDni(dni);
+  checkDni(@Param('dni') dni: string, @Query('excludeId') excludeId?: string) {
+    return this.beneficiariosService.checkDni(dni, excludeId ? +excludeId : undefined);
+  }
+
+  @Get('buscar-dni')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR')
+  @ApiOperation({ summary: 'Búsqueda global por DNI (beneficiarios, casos, integrantes)' })
+  searchByDni(@Query('dni') dni: string) {
+    if (!dni) throw new BadRequestException('dni es requerido');
+    return this.beneficiariosService.searchByDni(dni);
   }
 
   @Get()
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR')
   @ApiOperation({ summary: 'Listar beneficiarios' })
-  findAll(@Query() filtros: any) {
-    return this.beneficiariosService.findAll(filtros);
+  findAll(@Query() filtros: any, @Request() req) {
+    const rol = req.user?.rol;
+    const secretaria = rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+      : (rol === 'LOGISTICA' || rol === 'VISOR') ? null
+      : 'PA';
+    return this.beneficiariosService.findAll(filtros, secretaria);
+  }
+
+  // ── Integrantes de espacio/comedor ──────────────────────────────────────────
+
+  @Get(':id/integrantes')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR')
+  @ApiOperation({ summary: 'Listar integrantes del espacio/comedor' })
+  getIntegrantes(@Param('id') id: string) {
+    return this.beneficiariosService.getIntegrantes(+id);
+  }
+
+  @Post(':id/integrantes')
+  @Roles('ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
+  @ApiOperation({ summary: 'Agregar integrante al espacio/comedor' })
+  addIntegrante(@Param('id') id: string, @Body() body: { nombre: string; dni?: string; direccion?: string }) {
+    return this.beneficiariosService.addIntegrante(+id, body);
+  }
+
+  @Post(':id/integrantes/bulk')
+  @Roles('ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
+  @ApiOperation({ summary: 'Importar lista de integrantes (bulk)' })
+  bulkIntegrantes(@Param('id') id: string, @Body() body: { integrantes: { nombre: string; dni?: string; direccion?: string }[] }) {
+    return this.beneficiariosService.bulkIntegrantes(+id, body.integrantes);
+  }
+
+  @Delete(':id/integrantes/:integranteId')
+  @Roles('ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
+  @ApiOperation({ summary: 'Eliminar integrante del espacio/comedor' })
+  removeIntegrante(@Param('id') id: string, @Param('integranteId') integranteId: string) {
+    return this.beneficiariosService.removeIntegrante(+id, +integranteId);
   }
 
   @Get(':id')
@@ -47,6 +89,20 @@ export class BeneficiariosController {
   @ApiOperation({ summary: 'Obtener beneficiario por ID' })
   findOne(@Param('id') id: string) {
     return this.beneficiariosService.findOne(+id);
+  }
+
+  @Get(':id/cruce-programas')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR')
+  @ApiOperation({ summary: 'Cruce de programas y casos por DNI del responsable' })
+  getCruceProgramas(@Param('id') id: string) {
+    return this.beneficiariosService.getCruceProgramas(+id);
+  }
+
+  @Get(':id/proxima-entrega')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR')
+  @ApiOperation({ summary: 'Próxima entrega programada y última entrega efectiva' })
+  getProximaEntrega(@Param('id') id: string) {
+    return this.beneficiariosService.getProximaEntrega(+id);
   }
 
   @Patch(':id')

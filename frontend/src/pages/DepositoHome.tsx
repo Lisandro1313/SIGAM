@@ -1,40 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Box,
-  Typography,
-  CircularProgress,
-  Card,
-  CardContent,
-  CardActions,
-  Button,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Alert,
-  Divider,
-  IconButton,
-  Tooltip,
-  Tabs,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
+  Box, Typography, CircularProgress, Card, CardContent, CardActions,
+  Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
+  TextField, Alert, Divider, IconButton, Tooltip, Tabs, Tab,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Paper, InputAdornment, Slide, AppBar, Toolbar, Badge,
 } from '@mui/material';
+import { TransitionProps } from '@mui/material/transitions';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
+import React from 'react';
 import {
   PictureAsPdf as PdfIcon,
   Print as PrintIcon,
   LocalShipping as EntregarIcon,
-  PhotoCamera as FotoIcon,
   CheckCircle as EntregadoIcon,
   HourglassEmpty as PendienteIcon,
   Refresh as RefreshIcon,
+  Search as SearchIcon,
+  Close as CloseIcon,
+  CameraAlt as CameraIcon,
 } from '@mui/icons-material';
 import { format, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -44,28 +29,32 @@ import { useAuthStore } from '../stores/authStore';
 import { resolveFileUrl } from '../utils/fotoUrl';
 
 const ESTADO_LABEL: Record<string, string> = {
-  BORRADOR: 'Borrador',
-  CONFIRMADO: 'Confirmado',
-  ENVIADO: 'Enviado',
-  ENTREGADO: 'Entregado',
-  PENDIENTE_STOCK: 'Sin stock',
+  BORRADOR: 'Borrador', CONFIRMADO: 'Confirmado', ENVIADO: 'Enviado',
+  ENTREGADO: 'Entregado', PENDIENTE_STOCK: 'Sin stock',
+};
+const ESTADO_COLOR: Record<string, 'default' | 'warning' | 'success' | 'info' | 'error' | 'secondary'> = {
+  BORRADOR: 'default', CONFIRMADO: 'success', ENVIADO: 'info',
+  ENTREGADO: 'secondary', PENDIENTE_STOCK: 'error',
 };
 
-const ESTADO_COLOR: Record<string, 'default' | 'warning' | 'success' | 'info' | 'error' | 'secondary'> = {
-  BORRADOR: 'default',
-  CONFIRMADO: 'success',
-  ENVIADO: 'info',
-  ENTREGADO: 'secondary',
-  PENDIENTE_STOCK: 'error',
-};
+// Transición slide-up para dialog fullscreen en mobile
+const SlideUp = React.forwardRef(function SlideUp(
+  props: TransitionProps & { children: React.ReactElement },
+  ref: React.Ref<unknown>,
+) {
+  return <Slide direction="up" ref={ref} {...props} />;
+});
 
 export default function DepositoHome() {
   const { user } = useAuthStore();
   const { showNotification } = useNotificationStore();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [pendientes, setPendientes] = useState<any[]>([]);
   const [entregadosHoy, setEntregadosHoy] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState('');
 
   // Diálogo marcar entregado
   const [entregarDialog, setEntregarDialog] = useState(false);
@@ -73,6 +62,8 @@ export default function DepositoHome() {
   const [entregarNota, setEntregarNota] = useState('');
   const [entregarFoto, setEntregarFoto] = useState<File | null>(null);
   const [entregando, setEntregando] = useState(false);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Historial
   const [tabIndex, setTabIndex] = useState(0);
@@ -83,6 +74,9 @@ export default function DepositoHome() {
 
   useEffect(() => {
     loadRemitosDeposito();
+    const handler = () => loadRemitosDeposito();
+    window.addEventListener('sigam:update', handler);
+    return () => window.removeEventListener('sigam:update', handler);
   }, []);
 
   const loadRemitosDeposito = async () => {
@@ -90,7 +84,6 @@ export default function DepositoHome() {
     try {
       const hoy = format(new Date(), 'yyyy-MM-dd');
       const manana = format(new Date(Date.now() + 86400000), 'yyyy-MM-dd');
-      // Cargar en paralelo: pendientes (sin filtro de fecha) + entregados hoy
       const [pendientesRes, entregadosRes] = await Promise.all([
         api.get('/remitos', { params: { estado: 'CONFIRMADO,ENVIADO' } }),
         api.get('/remitos', { params: { estado: 'ENTREGADO', entregadoDesde: hoy, entregadoHasta: manana } }),
@@ -108,7 +101,6 @@ export default function DepositoHome() {
     setLoadingHist(true);
     try {
       const res = await api.get('/remitos', {
-        // Filtra por fecha de entrega real (entregadoAt), no por fecha de creación
         params: { estado: 'ENTREGADO', entregadoDesde: histFechaDesde, entregadoHasta: histFechaHasta },
       });
       setHistorial(res.data);
@@ -153,7 +145,17 @@ export default function DepositoHome() {
     setEntregarRemito(remito);
     setEntregarNota('');
     setEntregarFoto(null);
+    setFotoPreview(null);
     setEntregarDialog(true);
+  };
+
+  const handleFotoChange = (file: File | null) => {
+    setEntregarFoto(file);
+    if (file && file.type.startsWith('image/')) {
+      setFotoPreview(URL.createObjectURL(file));
+    } else {
+      setFotoPreview(null);
+    }
   };
 
   const handleConfirmarEntrega = async () => {
@@ -176,55 +178,81 @@ export default function DepositoHome() {
     }
   };
 
+  // Filtro de búsqueda
+  const filtrar = (lista: any[]) =>
+    busqueda.trim()
+      ? lista.filter(r =>
+          r.beneficiario?.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
+          r.numero?.toLowerCase().includes(busqueda.toLowerCase()) ||
+          r.caso?.nombreSolicitante?.toLowerCase().includes(busqueda.toLowerCase())
+        )
+      : lista;
+
+  const pendientesFiltrados = filtrar(pendientes);
+  const entregadosFiltrados = filtrar(entregadosHoy);
   const hoyStr = format(new Date(), "EEEE d 'de' MMMM", { locale: es });
 
   return (
-    <Box>
+    <Box sx={{ pb: isMobile ? 10 : 3 }}>
       {/* Encabezado */}
-      <Box
-        sx={{
-          bgcolor: 'primary.main',
-          color: 'white',
-          borderRadius: 2,
-          p: 3,
-          mb: 3,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
+      <Box sx={{ bgcolor: 'primary.main', color: 'white', borderRadius: 2, p: { xs: 2, sm: 3 }, mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
-          <Typography variant="h5" fontWeight="bold">
+          <Typography variant={isMobile ? 'h6' : 'h5'} fontWeight="bold">
             Buenas, {user?.nombre?.split(' ')[0]} 👋
           </Typography>
-          <Typography variant="body1" sx={{ opacity: 0.85, textTransform: 'capitalize' }}>
+          <Typography variant="body2" sx={{ opacity: 0.85, textTransform: 'capitalize' }}>
             {hoyStr}
           </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.7, mt: 0.5 }}>
-            {user?.rol === 'ASISTENCIA_CRITICA' ? 'Secretaría de Asistencia Crítica · CITA' : (user?.deposito?.nombre || 'Depósito')}
+          <Typography variant="caption" sx={{ opacity: 0.7 }}>
+            {user?.rol === 'ASISTENCIA_CRITICA' ? 'Asistencia Crítica · CITA' : (user?.deposito?.nombre || 'Depósito')}
           </Typography>
         </Box>
         <Box textAlign="center">
-          <Typography variant="h2" fontWeight="bold" lineHeight={1}>
-            {pendientes.length}
-          </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.85 }}>
-            remitos pendientes
-          </Typography>
+          <Badge badgeContent={pendientes.length} color="error" max={99}>
+            <Box>
+              <Typography variant={isMobile ? 'h3' : 'h2'} fontWeight="bold" lineHeight={1}>
+                {pendientes.length}
+              </Typography>
+              <Typography variant="caption" sx={{ opacity: 0.85 }}>
+                pendientes
+              </Typography>
+            </Box>
+          </Badge>
         </Box>
       </Box>
 
-      {/* Tabs: Hoy / Historial */}
+      {/* Buscador */}
+      <Box mb={2}>
+        <TextField
+          fullWidth
+          size={isMobile ? 'medium' : 'small'}
+          placeholder="Buscar por nombre o N° de remito..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+            endAdornment: busqueda ? (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={() => setBusqueda('')}><CloseIcon fontSize="small" /></IconButton>
+              </InputAdornment>
+            ) : null,
+          }}
+          sx={{ bgcolor: 'background.paper', borderRadius: 1 }}
+        />
+      </Box>
+
+      {/* Tabs */}
       <Tabs
         value={tabIndex}
         onChange={(_, v) => { setTabIndex(v); if (v === 1 && historial.length === 0) loadHistorial(); }}
         sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+        variant={isMobile ? 'fullWidth' : 'standard'}
       >
-        <Tab label="� Para Entregar" />
-        <Tab label="📋 Historial de Entregas" />
+        <Tab label={`📦 Entregar (${pendientes.length})`} sx={{ fontWeight: 'bold' }} />
+        <Tab label="📋 Historial" sx={{ fontWeight: 'bold' }} />
       </Tabs>
 
-      {/* TAB HOY */}
+      {/* TAB PARA ENTREGAR */}
       {tabIndex === 0 && (
         <>
           <Box display="flex" justifyContent="flex-end" mb={1}>
@@ -234,30 +262,29 @@ export default function DepositoHome() {
               </IconButton>
             </Tooltip>
           </Box>
+
           {loading ? (
-            <Box display="flex" justifyContent="center" py={6}>
-              <CircularProgress />
-            </Box>
-          ) : pendientes.length === 0 && entregadosHoy.length === 0 ? (
-            <Alert severity="info" sx={{ py: 3 }}>
-              <Typography variant="body1">No hay remitos pendientes para este depósito.</Typography>
+            <Box display="flex" justifyContent="center" py={6}><CircularProgress size={48} /></Box>
+          ) : pendientesFiltrados.length === 0 && entregadosFiltrados.length === 0 ? (
+            <Alert severity="info" sx={{ py: 2 }}>
+              {busqueda ? `Sin resultados para "${busqueda}"` : 'No hay remitos pendientes para este depósito.'}
             </Alert>
           ) : (
             <>
-              {/* Pendientes primero */}
-              {pendientes.length > 0 && (
+              {pendientesFiltrados.length > 0 && (
                 <Box mb={3}>
                   <Box display="flex" alignItems="center" gap={1} mb={1.5}>
                     <PendienteIcon color="warning" />
                     <Typography variant="subtitle1" fontWeight="bold" color="warning.dark">
-                      Pendientes de entrega ({pendientes.length})
+                      Pendientes ({pendientesFiltrados.length})
                     </Typography>
                   </Box>
-                  <Box display="flex" flexDirection="column" gap={2}>
-                    {pendientes.map((remito) => (
+                  <Box display="flex" flexDirection="column" gap={isMobile ? 1.5 : 2}>
+                    {pendientesFiltrados.map((remito) => (
                       <RemitoCard
                         key={remito.id}
                         remito={remito}
+                        isMobile={isMobile}
                         onDescargar={handleDescargarPdf}
                         onImprimir={handleImprimir}
                         onEntregar={handleAbrirEntregar}
@@ -266,21 +293,22 @@ export default function DepositoHome() {
                   </Box>
                 </Box>
               )}
-              {/* Entregados al final */}
-              {entregadosHoy.length > 0 && (
+
+              {entregadosFiltrados.length > 0 && (
                 <Box>
                   <Divider sx={{ mb: 2 }} />
                   <Box display="flex" alignItems="center" gap={1} mb={1.5}>
                     <EntregadoIcon color="success" />
                     <Typography variant="subtitle1" fontWeight="bold" color="success.dark">
-                      Ya entregados hoy ({entregadosHoy.length})
+                      Ya entregados hoy ({entregadosFiltrados.length})
                     </Typography>
                   </Box>
-                  <Box display="flex" flexDirection="column" gap={2}>
-                    {entregadosHoy.map((remito) => (
+                  <Box display="flex" flexDirection="column" gap={isMobile ? 1.5 : 2}>
+                    {entregadosFiltrados.map((remito) => (
                       <RemitoCard
                         key={remito.id}
                         remito={remito}
+                        isMobile={isMobile}
                         onDescargar={handleDescargarPdf}
                         onImprimir={handleImprimir}
                         onEntregar={handleAbrirEntregar}
@@ -297,26 +325,18 @@ export default function DepositoHome() {
       {/* TAB HISTORIAL */}
       {tabIndex === 1 && (
         <Box>
-          <Box display="flex" gap={2} flexWrap="wrap" alignItems="flex-end" mb={2}>
+          <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="flex-end" mb={2}>
             <TextField
-              label="Desde"
-              type="date"
-              size="small"
-              value={histFechaDesde}
+              label="Desde" type="date" size="small" value={histFechaDesde}
               onChange={(e) => setHistFechaDesde(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={{ width: 150 }}
+              InputLabelProps={{ shrink: true }} sx={{ flex: 1, minWidth: 130 }}
             />
             <TextField
-              label="Hasta"
-              type="date"
-              size="small"
-              value={histFechaHasta}
+              label="Hasta" type="date" size="small" value={histFechaHasta}
               onChange={(e) => setHistFechaHasta(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={{ width: 150 }}
+              InputLabelProps={{ shrink: true }} sx={{ flex: 1, minWidth: 130 }}
             />
-            <Button variant="outlined" size="small" onClick={loadHistorial} disabled={loadingHist}>
+            <Button variant="outlined" size="small" onClick={loadHistorial} disabled={loadingHist} fullWidth={isMobile}>
               Buscar
             </Button>
           </Box>
@@ -324,6 +344,33 @@ export default function DepositoHome() {
             <Box display="flex" justifyContent="center" py={4}><CircularProgress /></Box>
           ) : historial.length === 0 ? (
             <Alert severity="info">No hay entregas registradas en ese período.</Alert>
+          ) : isMobile ? (
+            // Vista mobile del historial: cards en vez de tabla
+            <Box display="flex" flexDirection="column" gap={1.5}>
+              {historial.map((r) => (
+                <Card key={r.id} variant="outlined" sx={{ borderLeft: '3px solid', borderLeftColor: 'success.main' }}>
+                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                      <Typography variant="body2" fontWeight="bold">{r.numero}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {r.entregadoAt ? format(new Date(r.entregadoAt), 'dd/MM HH:mm', { locale: es }) : '—'}
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2">{r.beneficiario?.nombre}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {r.totalKg?.toFixed(1)} kg · {r.entregadoNota || 'Sin nota'}
+                    </Typography>
+                    {r.entregadoFoto && (
+                      <Box mt={0.5}>
+                        <a href={resolveFileUrl(r.entregadoFoto)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem' }}>
+                          📷 Ver foto firmada
+                        </a>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </Box>
           ) : (
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
@@ -342,9 +389,7 @@ export default function DepositoHome() {
                     <TableRow key={r.id} hover>
                       <TableCell><strong>{r.numero}</strong></TableCell>
                       <TableCell>
-                        {r.entregadoAt
-                          ? format(new Date(r.entregadoAt), 'dd/MM/yyyy HH:mm', { locale: es })
-                          : '—'}
+                        {r.entregadoAt ? format(new Date(r.entregadoAt), 'dd/MM/yyyy HH:mm', { locale: es }) : '—'}
                       </TableCell>
                       <TableCell>{r.beneficiario?.nombre}</TableCell>
                       <TableCell align="right">{r.totalKg?.toFixed(2)}</TableCell>
@@ -352,16 +397,9 @@ export default function DepositoHome() {
                         <Typography variant="caption">{r.entregadoNota || '—'}</Typography>
                       </TableCell>
                       <TableCell align="center">
-                        {r.entregadoFoto ? (
-                          <a
-                            href={resolveFileUrl(r.entregadoFoto)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ fontSize: '0.8rem' }}
-                          >
-                            📷 Ver
-                          </a>
-                        ) : '—'}
+                        {r.entregadoFoto
+                          ? <a href={resolveFileUrl(r.entregadoFoto)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem' }}>📷 Ver</a>
+                          : '—'}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -372,64 +410,104 @@ export default function DepositoHome() {
         </Box>
       )}
 
-      {/* Diálogo: Marcar Entregado */}
-      <Dialog open={entregarDialog} onClose={() => setEntregarDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <EntregarIcon color="success" />
-          Registrar Entrega
-        </DialogTitle>
-        <DialogContent>
+      {/* Diálogo: Marcar Entregado — fullScreen en mobile */}
+      <Dialog
+        open={entregarDialog}
+        onClose={() => !entregando && setEntregarDialog(false)}
+        fullScreen={isMobile}
+        maxWidth="sm"
+        fullWidth={!isMobile}
+        TransitionComponent={isMobile ? SlideUp : undefined}
+      >
+        {isMobile ? (
+          <AppBar sx={{ position: 'relative' }} color="success">
+            <Toolbar>
+              <IconButton color="inherit" onClick={() => !entregando && setEntregarDialog(false)} edge="start">
+                <CloseIcon />
+              </IconButton>
+              <Typography variant="h6" sx={{ flex: 1, ml: 1 }}>Registrar Entrega</Typography>
+            </Toolbar>
+          </AppBar>
+        ) : (
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <EntregarIcon color="success" />
+            Registrar Entrega
+          </DialogTitle>
+        )}
+
+        <DialogContent sx={{ pt: isMobile ? 2 : undefined }}>
           {entregarRemito && (
             <Alert severity="success" sx={{ mb: 2 }}>
-              <strong>{entregarRemito.numero}</strong> — {entregarRemito.beneficiario?.nombre}
+              <Typography variant="body2" fontWeight="bold">{entregarRemito.numero}</Typography>
+              <Typography variant="body2">
+                {entregarRemito.caso?.nombreSolicitante ?? entregarRemito.beneficiario?.nombre}
+              </Typography>
+              <Typography variant="caption">
+                {entregarRemito.totalKg?.toFixed(1)} kg
+                {entregarRemito.programa ? ` · ${entregarRemito.programa.nombre}` : ''}
+              </Typography>
             </Alert>
           )}
+
           <TextField
             fullWidth
             multiline
-            rows={3}
+            rows={isMobile ? 2 : 3}
             label="¿Quién retiró? (opcional)"
             value={entregarNota}
             onChange={(e) => setEntregarNota(e.target.value)}
             margin="normal"
             placeholder="Ej: Retiró Ana Martínez - DNI 28.444.555"
+            autoFocus={!isMobile}
+            inputProps={{ style: { fontSize: isMobile ? '16px' : undefined } }}
           />
-          <Box sx={{ mt: 2 }}>
-            <Button
-              variant="outlined"
-              component="label"
-              startIcon={<FotoIcon />}
-              fullWidth
-              size="large"
-              sx={{ py: 1.5 }}
-            >
-              {entregarFoto ? `✓ ${entregarFoto.name}` : '📷 Subir foto del remito firmado'}
-              <input
-                type="file"
-                hidden
-                accept="image/*,application/pdf"
-                capture="environment"
-                onChange={(e) => setEntregarFoto(e.target.files?.[0] || null)}
-              />
-            </Button>
-            <Typography variant="caption" color="text.secondary" display="block" mt={0.5} textAlign="center">
-              Foto del remito firmado por quien retira. Máx. 10 MB.
-            </Typography>
-          </Box>
-          {entregarFoto && entregarFoto.type.startsWith('image/') && (
-            <Box mt={2} textAlign="center">
+
+          {/* Botón de cámara — grande en mobile */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            hidden
+            accept="image/*,application/pdf"
+            capture="environment"
+            onChange={(e) => handleFotoChange(e.target.files?.[0] || null)}
+          />
+          <Button
+            variant={entregarFoto ? 'contained' : 'outlined'}
+            color={entregarFoto ? 'success' : 'primary'}
+            fullWidth
+            size="large"
+            startIcon={<CameraIcon />}
+            onClick={() => fileInputRef.current?.click()}
+            sx={{ mt: 2, py: isMobile ? 2 : 1.5, fontSize: isMobile ? '1rem' : undefined }}
+          >
+            {entregarFoto ? `✓ Foto lista — ${entregarFoto.name.slice(0, 25)}` : '📷 Sacar foto del remito firmado'}
+          </Button>
+
+          {fotoPreview && (
+            <Box mt={2} textAlign="center" position="relative">
               <img
-                src={URL.createObjectURL(entregarFoto)}
-                alt="Preview"
-                style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 8, border: '2px solid #4caf50' }}
+                src={fotoPreview}
+                alt="Vista previa"
+                style={{ maxWidth: '100%', maxHeight: isMobile ? 300 : 220, borderRadius: 8, border: '3px solid #4caf50', cursor: 'pointer' }}
+                onClick={() => window.open(fotoPreview, '_blank')}
               />
+              <IconButton
+                size="small"
+                color="error"
+                sx={{ position: 'absolute', top: 4, right: 4, bgcolor: 'white' }}
+                onClick={() => { setEntregarFoto(null); setFotoPreview(null); }}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+              <Typography variant="caption" color="text.secondary" display="block">Toca para ampliar · X para eliminar</Typography>
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button onClick={() => setEntregarDialog(false)} disabled={entregando} size="large">
-            Cancelar
-          </Button>
+
+        <DialogActions sx={{ p: isMobile ? 2 : undefined, flexDirection: isMobile ? 'column' : 'row', gap: 1 }}>
+          {!isMobile && (
+            <Button onClick={() => setEntregarDialog(false)} disabled={entregando}>Cancelar</Button>
+          )}
           <Button
             variant="contained"
             color="success"
@@ -438,8 +516,9 @@ export default function DepositoHome() {
             startIcon={entregando ? <CircularProgress size={20} color="inherit" /> : <EntregarIcon />}
             onClick={handleConfirmarEntrega}
             disabled={entregando}
+            sx={{ py: isMobile ? 2 : undefined, fontSize: isMobile ? '1.1rem' : undefined }}
           >
-            Confirmar Entrega
+            {entregando ? 'Guardando...' : 'Confirmar Entrega'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -447,15 +526,10 @@ export default function DepositoHome() {
   );
 }
 
-// ─── Tarjeta de remito ───────────────────────────────────────────────────────
+// ─── Tarjeta de remito ────────────────────────────────────────────────────────
 
-function RemitoCard({
-  remito,
-  onDescargar,
-  onImprimir,
-  onEntregar,
-}: {
-  remito: any;
+function RemitoCard({ remito, isMobile, onDescargar, onImprimir, onEntregar }: {
+  remito: any; isMobile: boolean;
   onDescargar: (r: any) => void;
   onImprimir: (r: any) => void;
   onEntregar: (r: any) => void;
@@ -468,75 +542,51 @@ function RemitoCard({
       sx={{
         borderLeft: '4px solid',
         borderLeftColor: yaEntregado ? 'success.main' : 'primary.main',
-        opacity: yaEntregado ? 0.75 : 1,
+        opacity: yaEntregado ? 0.8 : 1,
       }}
     >
       <CardContent sx={{ pb: 1 }}>
         {/* Número y estado */}
         <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-          <Typography variant="h6" fontWeight="bold">
-            {remito.numero}
-          </Typography>
-          <Box display="flex" gap={0.5} alignItems="center">
-            <Chip
-              label={remito.secretaria === 'CITA' ? 'Asistencia Crítica' : 'Pol. Alimentaria'}
-              color={remito.secretaria === 'CITA' ? 'warning' : 'primary'}
-              size="small"
-              variant="outlined"
-            />
-            <Chip
-              label={ESTADO_LABEL[remito.estado] ?? remito.estado}
-              color={ESTADO_COLOR[remito.estado] ?? 'default'}
-              size="small"
-            />
+          <Typography variant={isMobile ? 'h6' : 'h6'} fontWeight="bold">{remito.numero}</Typography>
+          <Box display="flex" gap={0.5} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+            {remito.secretaria === 'CITA' && (
+              <Chip label="CITA" color="warning" size="small" variant="outlined" />
+            )}
+            <Chip label={ESTADO_LABEL[remito.estado] ?? remito.estado} color={ESTADO_COLOR[remito.estado] ?? 'default'} size="small" />
           </Box>
         </Box>
 
-        {/* Beneficiario y programa */}
-        <Typography variant="body1" fontWeight="medium">
-          {remito.beneficiario?.nombre}
+        {/* Beneficiario */}
+        <Typography variant={isMobile ? 'body1' : 'body1'} fontWeight="medium">
+          {remito.caso?.nombreSolicitante ?? remito.beneficiario?.nombre}
         </Typography>
         {remito.programa && (
-          <Typography variant="body2" color="text.secondary">
-            Programa: {remito.programa.nombre}
-          </Typography>
+          <Typography variant="body2" color="text.secondary">{remito.programa.nombre}</Typography>
         )}
 
-        {/* Total kg */}
+        {/* Resumen artículos */}
         <Typography variant="body2" color="text.secondary" mt={0.5}>
-          Total: <strong>{remito.totalKg?.toFixed(2)} kg</strong>
-          {' · '}
-          {remito.items?.length ?? 0} artículo{remito.items?.length !== 1 ? 's' : ''}
+          <strong>{remito.totalKg?.toFixed(1)} kg</strong>
+          {' · '}{remito.items?.length ?? 0} artículo{remito.items?.length !== 1 ? 's' : ''}
         </Typography>
 
-        {/* Ítems resumidos */}
         {remito.items && remito.items.length > 0 && (
-          <Box
-            mt={1}
-            p={1}
-            bgcolor="grey.50"
-            borderRadius={1}
-            sx={{ fontSize: '0.8rem' }}
-          >
-            {remito.items.slice(0, 5).map((item: any) => (
+          <Box mt={1} p={1} bgcolor="grey.50" borderRadius={1}>
+            {remito.items.slice(0, isMobile ? 3 : 5).map((item: any) => (
               <Box key={item.id} display="flex" justifyContent="space-between">
-                <Typography variant="caption">
-                  {item.articulo?.descripcion || item.articulo?.nombre}
-                </Typography>
-                <Typography variant="caption" fontWeight="bold">
-                  x{item.cantidad}
-                </Typography>
+                <Typography variant="caption">{item.articulo?.descripcion || item.articulo?.nombre}</Typography>
+                <Typography variant="caption" fontWeight="bold">×{item.cantidad}</Typography>
               </Box>
             ))}
-            {remito.items.length > 5 && (
+            {remito.items.length > (isMobile ? 3 : 5) && (
               <Typography variant="caption" color="text.secondary">
-                +{remito.items.length - 5} más...
+                +{remito.items.length - (isMobile ? 3 : 5)} más...
               </Typography>
             )}
           </Box>
         )}
 
-        {/* Info de entrega si ya fue entregado */}
         {yaEntregado && remito.entregadoNota && (
           <Alert severity="success" sx={{ mt: 1, py: 0.5 }}>
             <Typography variant="caption">{remito.entregadoNota}</Typography>
@@ -544,58 +594,56 @@ function RemitoCard({
         )}
         {yaEntregado && remito.entregadoFoto && (
           <Box mt={0.5}>
-            <a
-              href={resolveFileUrl(remito.entregadoFoto)}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ fontSize: '0.8rem' }}
-            >
+            <a href={resolveFileUrl(remito.entregadoFoto)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem' }}>
               📎 Ver foto firmada
             </a>
           </Box>
         )}
       </CardContent>
 
-      <CardActions sx={{ pt: 0, gap: 1, flexWrap: 'wrap' }}>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<PdfIcon />}
-          onClick={() => onDescargar(remito)}
-        >
-          PDF
-        </Button>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<PrintIcon />}
-          onClick={() => onImprimir(remito)}
-        >
-          Imprimir
-        </Button>
-        {!yaEntregado && remito.estado !== 'BORRADOR' && (
+      <CardActions sx={{ pt: 0, gap: 1, flexWrap: 'wrap', px: isMobile ? 2 : 1 }}>
+        {!yaEntregado && remito.estado !== 'BORRADOR' && isMobile ? (
+          // Mobile: botón ENTREGAR grande y prominente
           <Button
-            size="small"
             variant="contained"
             color="success"
+            fullWidth
+            size="large"
             startIcon={<EntregarIcon />}
             onClick={() => onEntregar(remito)}
-            sx={{ ml: 'auto' }}
+            sx={{ py: 1.5, fontSize: '1rem', fontWeight: 'bold' }}
           >
-            Marcar entregado
+            MARCAR ENTREGADO
           </Button>
+        ) : (
+          <>
+            <Button size="small" variant="outlined" startIcon={<PdfIcon />} onClick={() => onDescargar(remito)}>PDF</Button>
+            <Button size="small" variant="outlined" startIcon={<PrintIcon />} onClick={() => onImprimir(remito)}>Imprimir</Button>
+            {!yaEntregado && remito.estado !== 'BORRADOR' && (
+              <Button
+                size="small" variant="contained" color="success"
+                startIcon={<EntregarIcon />}
+                onClick={() => onEntregar(remito)}
+                sx={{ ml: 'auto' }}
+              >
+                Marcar entregado
+              </Button>
+            )}
+          </>
         )}
         {yaEntregado && (
           <Chip
             icon={<EntregadoIcon />}
-            label={remito.entregadoAt
-              ? `Entregado ${format(new Date(remito.entregadoAt), 'HH:mm')}`
-              : 'Entregado'}
-            color="success"
-            variant="outlined"
-            size="small"
-            sx={{ ml: 'auto' }}
+            label={remito.entregadoAt ? `Entregado ${format(new Date(remito.entregadoAt), 'HH:mm')}` : 'Entregado'}
+            color="success" variant="outlined" size="small"
+            sx={{ ml: isMobile ? 0 : 'auto', width: isMobile ? '100%' : undefined }}
           />
+        )}
+        {isMobile && !yaEntregado && (
+          <Box display="flex" gap={1} width="100%">
+            <Button size="small" variant="outlined" startIcon={<PdfIcon />} onClick={() => onDescargar(remito)} sx={{ flex: 1 }}>PDF</Button>
+            <Button size="small" variant="outlined" startIcon={<PrintIcon />} onClick={() => onImprimir(remito)} sx={{ flex: 1 }}>Imprimir</Button>
+          </Box>
         )}
       </CardActions>
     </Card>
