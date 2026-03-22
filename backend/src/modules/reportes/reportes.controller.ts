@@ -43,6 +43,14 @@ export class ReportesController {
     return this.reportesService.notificaciones(getSecretaria(req));
   }
 
+  @Get('entregas-recientes')
+  @ApiOperation({ summary: 'Entregas confirmadas por depósitos en las últimas N horas (notificaciones efímeras)' })
+  @Roles('ADMIN', 'VISOR', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
+  entregasRecientes(@Query('horas') horas: string, @Request() req) {
+    const h = horas ? parseInt(horas, 10) : 72;
+    return this.reportesService.entregasRecientes(h, getSecretaria(req));
+  }
+
   @Get('dashboard')
   @ApiOperation({ summary: 'Dashboard con resumen general' })
   dashboard(@Request() req) {

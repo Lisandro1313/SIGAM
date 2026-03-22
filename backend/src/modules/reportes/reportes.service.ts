@@ -492,6 +492,36 @@ export class ReportesService {
     return { beneficiarios, casos, remitos };
   }
 
+  // Entregas recientes: notificaciones efímeras cuando un depósito marca entrega
+  async entregasRecientes(horas = 72, secretaria?: string | null) {
+    const desde = new Date(Date.now() - horas * 60 * 60 * 1000);
+    const remitos = await this.prisma.remito.findMany({
+      where: {
+        entregadoAt: { gte: desde },
+        ...(secretaria ? { secretaria } : {}),
+      },
+      include: {
+        beneficiario: { select: { nombre: true } },
+        deposito:     { select: { nombre: true } },
+        programa:     { select: { nombre: true } },
+      },
+      orderBy: { entregadoAt: 'desc' },
+      take: 100,
+    });
+
+    return remitos.map(r => ({
+      id:          r.id,
+      tipo:        'ENTREGA',
+      titulo:      `${r.deposito?.nombre ?? 'Depósito'} entregó el pedido de ${r.beneficiario?.nombre ?? 'Beneficiario'}`,
+      descripcion: r.entregadoNota ?? (r.totalKg ? `${r.totalKg} kg` : null),
+      programa:    r.programa?.nombre ?? null,
+      link:        `/remitos`,
+      fecha:       r.entregadoAt,
+      remitoId:    r.id,
+      numero:      r.numero,
+    }));
+  }
+
   // Notificaciones: alertas operativas para el top bar
   async notificaciones(secretaria?: string | null) {
     const hoy = new Date();

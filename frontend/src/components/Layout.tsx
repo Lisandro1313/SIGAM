@@ -28,6 +28,8 @@ import {
   InputAdornment,
   CircularProgress,
   Tooltip,
+  Tab,
+  Tabs,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -55,6 +57,9 @@ import {
   Close as CloseIcon,
   Badge as BadgeIcon,
   Search as SearchIcon,
+  CheckCircle as EntregaOkIcon,
+  History as HistoryIcon,
+  DoneAll as MarcarTodasIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { puedeAcceder, ROL_LABELS, Rol } from '../utils/permisos';
@@ -101,12 +106,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [bellAnchor, setBellAnchor] = useState<null | HTMLElement>(null);
+  const [bellTab, setBellTab] = useState(0);
   const [notifs, setNotifs] = useState<any[]>([]);
+  const [entregas, setEntregas] = useState<any[]>([]);
+  const [leidasIds, setLeidasIds] = useState<Set<number>>(new Set());
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [updateBanner, setUpdateBanner] = useState<{ msg: string; tipo: string } | null>(null);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+
+  // Clave de localStorage por usuario — cargamos las leídas cuando user está listo
+  const leidasKey = `sigam_leidas_${user?.id ?? 'anon'}`;
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(leidasKey);
+      if (raw) setLeidasIds(new Set(JSON.parse(raw)));
+    } catch { /* ignorar */ }
+  }, [leidasKey]);
   const location = useLocation();
 
   // Búsqueda global
@@ -202,6 +219,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             const payload = JSON.parse(e.data);
             if (payload.tipo && payload.tipo !== 'ping') {
               setUpdateBanner({ msg: buildMsg(payload), tipo: payload.tipo });
+              // Si es una entrega, recargar la lista de entregas recientes
+              if (payload.tipo === 'remito:entregado') {
+                api.get('/reportes/entregas-recientes', { params: { horas: 72 } })
+                  .then(r => setEntregas(r.data ?? []))
+                  .catch(() => {});
+              }
             }
             window.dispatchEvent(new CustomEvent('sigam:update', { detail: payload }));
           } catch { /* ignorar mensajes malformados */ }
@@ -221,13 +244,40 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // Cargar notificaciones cada 2 minutos
   useEffect(() => {
+    const esDeliveryRole = user && !user.depositoId && ['ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR'].includes(user.rol);
     const fetchNotifs = () => {
       api.get('/reportes/notificaciones').then(r => setNotifs(r.data.notificaciones ?? [])).catch(() => {});
+      if (esDeliveryRole) {
+        api.get('/reportes/entregas-recientes', { params: { horas: 72 } })
+          .then(r => setEntregas(r.data ?? []))
+          .catch(() => {});
+      }
     };
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 2 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
+
+  // Marcar entrega como leída
+  const marcarLeida = (remitoId: number) => {
+    setLeidasIds(prev => {
+      const next = new Set(prev);
+      next.add(remitoId);
+      try { localStorage.setItem(leidasKey, JSON.stringify([...next])); } catch { /* ignorar */ }
+      return next;
+    });
+  };
+
+  const marcarTodasLeidas = () => {
+    setLeidasIds(prev => {
+      const next = new Set(prev);
+      entregas.forEach(e => next.add(e.remitoId));
+      try { localStorage.setItem(leidasKey, JSON.stringify([...next])); } catch { /* ignorar */ }
+      return next;
+    });
+  };
+
+  const entregasNoLeidas = entregas.filter(e => !leidasIds.has(e.remitoId));
 
   const rolLabel = user?.rol ? ROL_LABELS[user.rol as Rol] ?? user.rol : '';
   // Usuarios de depósito físico: LOGISTICA con depositoId asignado
@@ -314,7 +364,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </IconButton>
             </Tooltip>
             <IconButton color="inherit" size="small" onClick={(e) => setBellAnchor(e.currentTarget)}>
-              <Badge badgeContent={notifs.length || null} color="error" max={9}>
+              <Badge badgeContent={(notifs.length + entregasNoLeidas.length) || null} color="error" max={9}>
                 <BellIcon />
               </Badge>
             </IconButton>
@@ -348,37 +398,137 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <Paper sx={{ width: 360, maxHeight: 480, overflow: 'auto' }}>
-          <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="subtitle1" fontWeight="bold">Notificaciones</Typography>
-          </Box>
-          {notifs.length === 0 ? (
-            <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">Sin alertas activas</Typography>
+        <Paper sx={{ width: 380, maxHeight: 520, display: 'flex', flexDirection: 'column' }}>
+          {/* Header */}
+          <Box sx={{ px: 2, pt: 1.5, pb: 0, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="subtitle1" fontWeight="bold">Notificaciones</Typography>
+              {bellTab === 1 && entregasNoLeidas.length > 0 && (
+                <Tooltip title="Marcar todas como leídas">
+                  <IconButton size="small" onClick={marcarTodasLeidas}>
+                    <MarcarTodasIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Box>
-          ) : (
-            <List disablePadding>
-              {notifs.map((n: any, i: number) => (
-                <ListItem
-                  key={i}
-                  divider
-                  button
-                  onClick={() => { setBellAnchor(null); navigate(n.link); }}
-                  sx={{ alignItems: 'flex-start', py: 1.5, cursor: 'pointer' }}
-                >
-                  <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
-                    {n.nivel === 'error'
-                      ? <ErrorIcon color="error" fontSize="small" />
-                      : <WarningIcon color="warning" fontSize="small" />
-                    }
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={<Typography variant="body2" fontWeight="bold">{n.titulo}</Typography>}
-                    secondary={<Typography variant="caption" color="text.secondary">{n.descripcion}</Typography>}
-                  />
-                </ListItem>
-              ))}
-            </List>
+            <Tabs value={bellTab} onChange={(_, v) => setBellTab(v)} sx={{ minHeight: 36 }}>
+              <Tab
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    Alertas
+                    {notifs.length > 0 && (
+                      <Chip label={notifs.length} size="small" color="error" sx={{ height: 16, fontSize: '0.6rem' }} />
+                    )}
+                  </Box>
+                }
+                sx={{ minHeight: 36, py: 0, fontSize: '0.8rem' }}
+              />
+              <Tab
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    Entregas
+                    {entregasNoLeidas.length > 0 && (
+                      <Chip label={entregasNoLeidas.length} size="small" color="success" sx={{ height: 16, fontSize: '0.6rem' }} />
+                    )}
+                  </Box>
+                }
+                sx={{ minHeight: 36, py: 0, fontSize: '0.8rem' }}
+              />
+            </Tabs>
+          </Box>
+
+          {/* Cuerpo con scroll */}
+          <Box sx={{ overflow: 'auto', flex: 1 }}>
+
+            {/* ── Tab Alertas (persistentes) ── */}
+            {bellTab === 0 && (
+              notifs.length === 0 ? (
+                <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">Sin alertas activas</Typography>
+                </Box>
+              ) : (
+                <List disablePadding>
+                  {notifs.map((n: any, i: number) => (
+                    <ListItem
+                      key={i} divider
+                      onClick={() => { setBellAnchor(null); navigate(n.link); }}
+                      sx={{ alignItems: 'flex-start', py: 1.5, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                        {n.nivel === 'error'
+                          ? <ErrorIcon color="error" fontSize="small" />
+                          : <WarningIcon color="warning" fontSize="small" />
+                        }
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={<Typography variant="body2" fontWeight="bold">{n.titulo}</Typography>}
+                        secondary={<Typography variant="caption" color="text.secondary">{n.descripcion}</Typography>}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              )
+            )}
+
+            {/* ── Tab Entregas (efímeras) ── */}
+            {bellTab === 1 && (
+              entregas.length === 0 ? (
+                <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">Sin entregas en las últimas 72 hs</Typography>
+                </Box>
+              ) : (
+                <List disablePadding>
+                  {entregas.map((e: any) => {
+                    const leida = leidasIds.has(e.remitoId);
+                    return (
+                      <ListItem
+                        key={e.remitoId}
+                        divider
+                        onClick={() => { marcarLeida(e.remitoId); setBellAnchor(null); navigate(e.link); }}
+                        sx={{
+                          alignItems: 'flex-start', py: 1.5, cursor: 'pointer',
+                          bgcolor: leida ? 'transparent' : 'success.50',
+                          '&:hover': { bgcolor: leida ? 'action.hover' : 'success.100' },
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                          <EntregaOkIcon color={leida ? 'disabled' : 'success'} fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={
+                            <Typography variant="body2" fontWeight={leida ? 'normal' : 'bold'} color={leida ? 'text.secondary' : 'text.primary'}>
+                              {e.titulo}
+                            </Typography>
+                          }
+                          secondary={
+                            <Box>
+                              {e.descripcion && <Typography variant="caption" color="text.secondary">{e.descripcion}</Typography>}
+                              <Typography variant="caption" color="text.disabled" sx={{ display: 'block' }}>
+                                {e.fecha ? new Date(e.fecha).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                                {e.numero ? ` · ${e.numero}` : ''}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                        {!leida && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main', mt: 1.5, flexShrink: 0 }} />}
+                      </ListItem>
+                    );
+                  })}
+                </List>
+              )
+            )}
+          </Box>
+
+          {/* Footer — historial */}
+          {bellTab === 1 && (
+            <Box sx={{ borderTop: '1px solid', borderColor: 'divider', p: 1 }}>
+              <Button
+                fullWidth size="small" startIcon={<HistoryIcon />}
+                onClick={() => { setBellAnchor(null); navigate('/historial-entregas'); }}
+              >
+                Ver historial completo de entregas
+              </Button>
+            </Box>
           )}
         </Paper>
       </Popover>
