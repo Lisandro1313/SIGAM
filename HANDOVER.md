@@ -1,7 +1,7 @@
 # SIGAM — Handover para continuar desde otra PC
 
-> Fecha: 21/03/2026
-> Estado: Todos los ítems del roadmap completados. Próxima fase: integraciones WhatsApp y Email.
+> Fecha: 22/03/2026
+> Estado: Todos los ítems del roadmap completados + Rendición ANEXO VI. Próxima fase: integraciones WhatsApp y Email.
 
 ---
 
@@ -19,6 +19,8 @@ El sistema está completamente funcional con las siguientes mejoras incorporadas
 | Stock | CRUD de lotes/vencimientos, ajuste de stock (reconciliación física), ajuste por fila o por formulario |
 | Mapa | Contador "sin GPS", exportar localidad a Excel, frecuencia entrega en popup |
 | Auditoría | Exportar a Excel, atajos de período (Hoy / 7d / 30d / Este mes) |
+| Rendición | Pestaña en Reportes: selector bimestre + programa → genera ANEXO VI (.xlsx) con beneficiarios que retiraron + hoja de ingresos de mercadería |
+| WhatsApp | Botón en remitos con mensaje precargado (wa.me), mensaje configurable por programa con variables |
 | Layout | Búsqueda global Ctrl+K (beneficiarios, casos, remitos) |
 | Performance | React.lazy() en todas las páginas, paginación server-side |
 
