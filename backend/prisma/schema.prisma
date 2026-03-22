@@ -83,8 +83,9 @@ model Programa {
   usaCronograma  Boolean  @default(false)
   usaPlantilla   Boolean  @default(true)
   descuentaStock Boolean  @default(true)
-  activo         Boolean  @default(true)
-  secretaria     String   @default("PA")
+  activo            Boolean  @default(true)
+  secretaria        String   @default("PA")
+  mensajeWhatsapp   String?
   
   // Relaciones
   plantillas        Plantilla[]

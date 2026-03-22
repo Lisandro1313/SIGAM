@@ -13,6 +13,7 @@ import {
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
 import BeneficiarioForm from '../components/BeneficiarioForm';
+import RemitoForm from '../components/RemitoForm';
 
 interface Beneficiario {
   id: number; nombre: string; tipo: string;
@@ -94,6 +95,10 @@ export default function CronogramaPage() {
 
   // Nuevo beneficiario desde cronograma
   const [openNuevoBen, setOpenNuevoBen] = useState(false);
+
+  // RemitoForm desde cronograma
+  const [remitoFormOpen, setRemitoFormOpen] = useState(false);
+  const [remitoFormData, setRemitoFormData] = useState<{ fecha: string; fila: FilaData } | null>(null);
 
   const semanaFin = addDays(semanaInicio, 6);
   const semanaLabel = `${semanaInicio.getDate()} ${MESES_ES[semanaInicio.getMonth()]} - ${semanaFin.getDate()} ${MESES_ES[semanaFin.getMonth()]} ${semanaFin.getFullYear()}`;
@@ -215,18 +220,22 @@ export default function CronogramaPage() {
     }
     removeFila(fecha,fila.tempId);
   }
-  async function handleGenerarRemito(fecha:string, fila:FilaData) {
+  function handleGenerarRemito(fecha:string, fila:FilaData) {
     if (!fila.id){showNotification('Selecciona un beneficiario primero','warning');return;}
     if (fila.remito){showNotification(`Remito ${fila.remito.numero} ya existe`,'info');return;}
-    setFila(fecha,fila.tempId,{saving:true});
-    try {
-      const r = await api.post(`/cronograma/fila/${fila.id}/generar-remito`,{depositoId:fila.depositoId});
-      setFila(fecha,fila.tempId,{saving:false,estado:'GENERADA',remito:{id:r.data.id,numero:r.data.numero,estado:r.data.estado}});
-      showNotification(`Remito ${r.data.numero} generado`,'success');
-    } catch(e:any){
-      setFila(fecha,fila.tempId,{saving:false});
-      showNotification(e.response?.data?.message??'Error generando remito','error');
-    }
+    setRemitoFormData({ fecha, fila });
+    setRemitoFormOpen(true);
+  }
+
+  function handleRemitoFormSuccess(remito: any) {
+    if (!remitoFormData) return;
+    const { fecha, fila } = remitoFormData;
+    setFila(fecha, fila.tempId, {
+      estado: 'GENERADA',
+      remito: { id: remito.id, numero: remito.numero, estado: remito.estado },
+    });
+    setRemitoFormOpen(false);
+    setRemitoFormData(null);
   }
   function handleAgregarFila(fecha:string) {
     setDias(prev=>prev.map(d=>d.fecha!==fecha?d:{...d,filas:[...d.filas,{tempId:makeTempId(),beneficiario:null,hora:'',kilos:'',responsableRetiro:'',depositoId:depDefault,estado:'PENDIENTE',remito:null}]}));
@@ -566,6 +575,22 @@ export default function CronogramaPage() {
           setTodosLosBens(r.data?.data ?? r.data);
         }}
       />
+
+      {remitoFormData && (
+        <RemitoForm
+          open={remitoFormOpen}
+          onClose={() => { setRemitoFormOpen(false); setRemitoFormData(null); }}
+          onSuccess={handleRemitoFormSuccess}
+          initialData={{
+            beneficiarioId: remitoFormData.fila.beneficiario?.id,
+            fecha: remitoFormData.fecha,
+            horaRetiro: remitoFormData.fila.hora || '11:00',
+            depositoId: remitoFormData.fila.depositoId,
+            programaId: remitoFormData.fila.beneficiario?.programaId ?? programaActivo?.id,
+            cronogramaEntregaId: remitoFormData.fila.id,
+          }}
+        />
+      )}
     </Box>
   );
 }

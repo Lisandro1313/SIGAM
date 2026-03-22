@@ -104,6 +104,14 @@ export class RemitosService {
       programa: remito.programa?.nombre,
     }, secretaria);
 
+    // Si viene de cronograma, vincular la entrega programada
+    if (createRemitoDto.cronogramaEntregaId) {
+      await this.prisma.entregaProgramada.update({
+        where: { id: createRemitoDto.cronogramaEntregaId },
+        data: { estado: 'GENERADA' as any, remitoId: remito.id },
+      });
+    }
+
     return remito;
   }
 

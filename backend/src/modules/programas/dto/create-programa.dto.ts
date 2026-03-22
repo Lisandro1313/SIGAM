@@ -31,4 +31,9 @@ export class CreateProgramaDto {
   @IsBoolean()
   @IsOptional()
   descuentaStock?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  mensajeWhatsapp?: string;
 }

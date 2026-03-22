@@ -48,6 +48,11 @@ export class CreateRemitoDto {
   @IsOptional()
   horaRetiro?: string;
 
+  @ApiProperty({ required: false })
+  @IsInt()
+  @IsOptional()
+  cronogramaEntregaId?: number;
+
   @ApiProperty({ type: [RemitoItemDto] })
   @IsArray()
   @ValidateNested({ each: true })

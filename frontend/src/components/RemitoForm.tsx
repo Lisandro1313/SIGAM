@@ -34,10 +34,20 @@ import { useNotificationStore } from '../stores/notificationStore';
 import { useAuthStore } from '../stores/authStore';
 import BeneficiarioForm from './BeneficiarioForm';
 
+interface InitialData {
+  beneficiarioId?: number;
+  fecha?: string;
+  horaRetiro?: string;
+  depositoId?: number;
+  programaId?: number;
+  cronogramaEntregaId?: number;
+}
+
 interface RemitoFormProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (remito?: any) => void;
+  initialData?: InitialData;
 }
 
 interface RemitoItem {
@@ -49,7 +59,7 @@ interface RemitoItem {
 
 const steps = ['Datos del Remito', 'Artículos', 'Confirmar'];
 
-export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps) {
+export default function RemitoForm({ open, onClose, onSuccess, initialData }: RemitoFormProps) {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const showNotification = useNotificationStore((state) => state.showNotification);
@@ -84,6 +94,13 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
       loadArticulos();
       loadProgramas();
       loadPlantillas();
+      if (initialData) {
+        if (initialData.beneficiarioId) setBeneficiarioId(String(initialData.beneficiarioId));
+        if (initialData.fecha) setFecha(initialData.fecha);
+        if (initialData.horaRetiro) setHoraRetiro(initialData.horaRetiro);
+        if (initialData.depositoId) setDepositoId(String(initialData.depositoId));
+        if (initialData.programaId) setProgramaId(String(initialData.programaId));
+      }
     }
   }, [open]);
 
@@ -205,12 +222,13 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await api.post('/remitos', {
+      const res = await api.post('/remitos', {
         beneficiarioId: parseInt(beneficiarioId),
         depositoId: parseInt(depositoId),
         programaId: programaId ? parseInt(programaId) : undefined,
         fecha,
         horaRetiro,
+        cronogramaEntregaId: initialData?.cronogramaEntregaId,
         items: items.map((item) => ({
           articuloId: item.articuloId,
           cantidad: item.cantidad,
@@ -218,7 +236,7 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
       });
       showNotification('Remito creado exitosamente', 'success');
       handleClose();
-      onSuccess();
+      onSuccess(res.data);
     } catch (error) {
       console.error('Error al crear remito:', error);
       showNotification('Error al crear el remito', 'error');
@@ -263,6 +281,7 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
               <Autocomplete
                 fullWidth
                 options={beneficiarios}
+                disabled={!!initialData?.beneficiarioId}
                 getOptionLabel={(b: any) => b.nombre + (b.localidad ? ` — ${b.localidad}` : '')}
                 filterOptions={(options, { inputValue }) => {
                   const q = inputValue.toLowerCase();
@@ -312,15 +331,17 @@ export default function RemitoForm({ open, onClose, onSuccess }: RemitoFormProps
                 )}
                 noOptionsText="No se encontraron beneficiarios"
               />
-              <Tooltip title="Crear nuevo beneficiario">
-                <IconButton
-                  color="primary"
-                  onClick={() => setOpenNuevoBeneficiario(true)}
-                  sx={{ flexShrink: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
-                >
-                  <PersonAddIcon />
-                </IconButton>
-              </Tooltip>
+              {!initialData?.beneficiarioId && (
+                <Tooltip title="Crear nuevo beneficiario">
+                  <IconButton
+                    color="primary"
+                    onClick={() => setOpenNuevoBeneficiario(true)}
+                    sx={{ flexShrink: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
+                  >
+                    <PersonAddIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Box>
 
             {/* Última entrega */}

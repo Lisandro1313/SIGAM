@@ -45,6 +45,7 @@ import {
   Cancel as AnularIcon,
   DoneAll as ConfirmarTodosIcon,
   FileDownload as ExportarIcon,
+  WhatsApp as WhatsAppIcon,
 } from '@mui/icons-material';
 import InputAdornment from '@mui/material/InputAdornment';
 import { format } from 'date-fns';
@@ -59,6 +60,38 @@ import LoadingPage from '../components/LoadingPage';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 function resolveUrl(url: string) {
   return url.startsWith('http') ? url : `${API_BASE}/${url.replace(/^\//, '')}`;
+}
+
+const DEFAULT_MSG_WSP =
+  'Hola {nombre}, te informamos que tenés turno para el retiro de mercadería el {fecha} a las {hora} hs en el depósito {deposito}, ubicado en {direccion}. Remito N°{numero}. Saludos, Dirección General de Política Alimentaria.';
+
+function buildWhatsappUrl(remito: any): string {
+  const template = remito.programa?.mensajeWhatsapp || DEFAULT_MSG_WSP;
+  const fecha = remito.fecha
+    ? format(new Date(remito.fecha), 'dd/MM/yyyy', { locale: es })
+    : '';
+  const msg = template
+    .replace(/{nombre}/g, remito.beneficiario?.nombre ?? remito.caso?.nombreSolicitante ?? '')
+    .replace(/{fecha}/g, fecha)
+    .replace(/{hora}/g, remito.horaRetiro ?? '')
+    .replace(/{deposito}/g, remito.deposito?.nombre ?? '')
+    .replace(/{direccion}/g, remito.deposito?.direccion ?? '')
+    .replace(/{numero}/g, String(remito.numero ?? ''));
+
+  const telefono = remito.beneficiario?.telefono ?? '';
+  // Normalizar número argentino: quitar no-dígitos, prefijar 549 si hace falta
+  const digits = telefono.replace(/\D/g, '');
+  let phone = '';
+  if (digits.length >= 8) {
+    if (digits.startsWith('549')) phone = digits;
+    else if (digits.startsWith('54')) phone = '549' + digits.slice(2);
+    else if (digits.startsWith('0')) phone = '549' + digits.slice(1);
+    else phone = '549' + digits;
+  }
+
+  return phone
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
 }
 
 export default function RemitosPage() {
@@ -664,6 +697,20 @@ export default function RemitosPage() {
                         onClick={() => abrirDialogoEmail(remito)}
                       >
                         {remito.emailEnviado ? <SendIcon /> : <EmailIcon />}
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  {(remito.estado === 'CONFIRMADO' || remito.estado === 'ENVIADO' || remito.estado === 'BORRADOR') && (
+                    <Tooltip title={remito.beneficiario?.telefono ? `WhatsApp a ${remito.beneficiario.telefono}` : 'Enviar por WhatsApp (sin teléfono registrado)'}>
+                      <IconButton
+                        size="small"
+                        component="a"
+                        href={buildWhatsappUrl(remito)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ color: '#25D366' }}
+                      >
+                        <WhatsAppIcon />
                       </IconButton>
                     </Tooltip>
                   )}

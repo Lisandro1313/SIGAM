@@ -15,6 +15,7 @@ import {
   Tooltip,
   Popover,
   Typography,
+  Chip,
 } from '@mui/material';
 import { AddCircleOutline as AddTypeIcon } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -54,6 +55,7 @@ export default function ProgramaForm({
     usaPlantilla: programa?.usaPlantilla || false,
     descuentaStock: programa?.descuentaStock ?? true,
     activo: programa?.activo ?? true,
+    mensajeWhatsapp: programa?.mensajeWhatsapp || '',
   });
 
   useEffect(() => {
@@ -68,6 +70,7 @@ export default function ProgramaForm({
         usaPlantilla: programa?.usaPlantilla || false,
         descuentaStock: programa?.descuentaStock ?? true,
         activo: programa?.activo ?? true,
+        mensajeWhatsapp: programa?.mensajeWhatsapp || '',
       });
     }
   }, [open, programa]);
@@ -218,6 +221,38 @@ export default function ProgramaForm({
             }
             label="Activo"
           />
+
+          {/* Mensaje WhatsApp */}
+          <Box mt={2}>
+            <Typography variant="subtitle2" gutterBottom>
+              Mensaje WhatsApp
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+              Variables disponibles:
+            </Typography>
+            <Box display="flex" flexWrap="wrap" gap={0.5} mb={1}>
+              {['{nombre}', '{fecha}', '{hora}', '{deposito}', '{direccion}', '{numero}'].map(v => (
+                <Chip
+                  key={v}
+                  label={v}
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleChange('mensajeWhatsapp', (formData.mensajeWhatsapp || '') + v)}
+                  sx={{ cursor: 'pointer', fontFamily: 'monospace', fontSize: '0.7rem' }}
+                />
+              ))}
+            </Box>
+            <TextField
+              fullWidth
+              multiline
+              minRows={4}
+              label="Plantilla del mensaje"
+              value={formData.mensajeWhatsapp}
+              onChange={(e) => handleChange('mensajeWhatsapp', e.target.value)}
+              placeholder={`Hola {nombre}, tenés turno para retirar mercadería el {fecha} a las {hora} hs en el depósito {deposito}, ubicado en {direccion}. Remito N°{numero}. Saludos, Dirección General de Política Alimentaria.`}
+              helperText="Si está vacío se usará un mensaje genérico"
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose} disabled={loading}>
