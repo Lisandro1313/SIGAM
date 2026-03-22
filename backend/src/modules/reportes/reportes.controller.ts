@@ -129,6 +129,22 @@ export class ReportesController {
     return this.reportesService.busquedaGlobal(q, getSecretaria(req));
   }
 
+  @Get('rendicion')
+  @ApiOperation({ summary: 'Rendición ANEXO VI — beneficiarios que retiraron en el período + ingresos de mercadería' })
+  rendicion(
+    @Query('desde') desde: string,
+    @Query('hasta') hasta: string,
+    @Query('programaId') programaId: string,
+    @Request() req,
+  ) {
+    if (!desde || !hasta) throw new BadRequestException('Proveer desde y hasta (YYYY-MM-DD)');
+    return this.reportesService.rendicionAnexoVI(
+      desde, hasta,
+      programaId ? parseInt(programaId, 10) : undefined,
+      getSecretaria(req),
+    );
+  }
+
   @Get('resumen-entregas-mes')
   @ApiOperation({ summary: 'Resumen de entregas de un período: pendientes, generadas, entregadas' })
   resumenEntregasMes(

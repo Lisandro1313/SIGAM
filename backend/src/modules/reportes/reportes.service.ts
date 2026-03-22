@@ -561,6 +561,92 @@ export class ReportesService {
   }
 
   // Dashboard: Resumen operativo
+  // ── Rendición ANEXO VI ────────────────────────────────────────────────────
+  async rendicionAnexoVI(desde: string, hasta: string, programaId?: number, secretaria?: string | null) {
+    const inicio = new Date(desde); inicio.setHours(0, 0, 0, 0);
+    const fin    = new Date(hasta);  fin.setHours(23, 59, 59, 999);
+
+    const whereRemito: any = {
+      estado: { in: ['CONFIRMADO', 'ENVIADO'] },
+      fecha:  { gte: inicio, lte: fin },
+    };
+    if (programaId) whereRemito.programaId = programaId;
+    if (secretaria) whereRemito.secretaria  = secretaria;
+
+    const remitos = await this.prisma.remito.findMany({
+      where: whereRemito,
+      select: {
+        beneficiarioId: true,
+        beneficiario: {
+          select: {
+            nombre:           true,
+            responsableNombre: true,
+            responsableDNI:   true,
+            direccion:        true,
+            localidad:        true,
+            _count:           { select: { integrantes: true } },
+          },
+        },
+      },
+    });
+
+    // Deduplicar por beneficiarioId — si retiró varias veces en el período, cuenta 1 vez
+    const seen = new Set<number>();
+    const filas: any[] = [];
+    for (const r of remitos) {
+      if (!r.beneficiarioId || seen.has(r.beneficiarioId)) continue;
+      seen.add(r.beneficiarioId);
+      const b = r.beneficiario;
+      if (!b) continue;
+
+      // Intentar separar apellido/nombre del responsable (último bloque = apellido)
+      const fullName = (b.responsableNombre || b.nombre || '').trim();
+      const parts = fullName.split(' ');
+      const apellido = parts.length > 1 ? parts.slice(Math.ceil(parts.length / 2)).join(' ') : fullName;
+      const nombre   = parts.length > 1 ? parts.slice(0, Math.ceil(parts.length / 2)).join(' ')  : '';
+
+      // Grupo = integrantes activos + 1 (el responsable); mínimo 1
+      const grupo = (b._count?.integrantes ?? 0) + 1;
+
+      filas.push({
+        apellido,
+        nombre,
+        dni:       b.responsableDNI || '',
+        grupo,
+        direccion: [b.direccion, b.localidad].filter(Boolean).join(' - '),
+      });
+    }
+
+    // Ordenar alfabéticamente por apellido
+    filas.sort((a, b) => a.apellido.localeCompare(b.apellido, 'es'));
+
+    // Ingresos de mercadería del período para el mismo programa
+    const whereIngreso: any = { tipo: 'INGRESO', fecha: { gte: inicio, lte: fin } };
+    if (programaId) whereIngreso.programaId = programaId;
+    if (secretaria) whereIngreso.programa    = { secretaria };
+
+    const ingresos = await this.prisma.movimiento.findMany({
+      where: whereIngreso,
+      include: { articulo: { select: { nombre: true, categoria: true } }, depositoHacia: { select: { nombre: true } } },
+      orderBy: { fecha: 'asc' },
+    });
+
+    return {
+      totalBeneficiarios: filas.length,
+      desde,
+      hasta,
+      filas,
+      ingresos: ingresos.map(m => ({
+        fecha:    m.fecha,
+        articulo: m.articulo.nombre,
+        categoria: m.articulo.categoria || '',
+        cantidad: m.cantidad,
+        deposito: m.depositoHacia?.nombre || '',
+        obs:      m.observaciones || '',
+      })),
+    };
+  }
+
   async dashboard(secretaria?: string | null) {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);

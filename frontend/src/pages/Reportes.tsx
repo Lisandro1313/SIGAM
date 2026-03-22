@@ -57,6 +57,23 @@ export default function ReportesPage() {
   const [sinEntrega, setSinEntrega]                   = useState<any | null>(null);
   const [loadingSinEntrega, setLoadingSinEntrega]     = useState(false);
 
+  // ── Rendición ──────────────────────────────────────────────────────────────
+  const BIMESTRES = [
+    { label: 'Ene - Feb', desde: '01-01', hasta: '02-28' },
+    { label: 'Mar - Abr', desde: '03-01', hasta: '04-30' },
+    { label: 'May - Jun', desde: '05-01', hasta: '06-30' },
+    { label: 'Jul - Ago', desde: '07-01', hasta: '08-31' },
+    { label: 'Sep - Oct', desde: '09-01', hasta: '10-31' },
+    { label: 'Nov - Dic', desde: '11-01', hasta: '12-31' },
+  ];
+  // Bimestre anterior al mes actual como default
+  const bimestreDefault = Math.max(0, Math.floor(hoy.getMonth() / 2) - 1);
+  const [bimestreIdx, setBimestreIdx]         = useState(bimestreDefault === 0 && hoy.getMonth() < 2 ? 5 : bimestreDefault);
+  const [anioRendicion, setAnioRendicion]     = useState(hoy.getFullYear());
+  const [programaRendicion, setProgramaRendicion] = useState<number | ''>('');
+  const [rendicion, setRendicion]             = useState<any | null>(null);
+  const [loadingRendicion, setLoadingRendicion] = useState(false);
+
   useEffect(() => {
     api.get('/programas').then(r => setProgramas(r.data.filter((p: any) => p.activo))).catch(() => {});
     loadBase();
@@ -225,6 +242,7 @@ export default function ReportesPage() {
           <Tab label="Stock" />
           <Tab label="Cruces DNI" />
           <Tab label="Sin Entrega" />
+          <Tab label="Rendición" />
         </Tabs>
       </Box>
 
@@ -744,6 +762,180 @@ export default function ReportesPage() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+              )}
+            </>
+          )}
+        </Paper>
+      )}
+      {/* ── Tab 8: Rendición ANEXO VI ── */}
+      {tabIdx === 8 && (
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="h6" fontWeight="bold" mb={2}>Rendición — ANEXO VI</Typography>
+
+          {/* Selectores */}
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Bimestre</InputLabel>
+              <Select value={bimestreIdx} label="Bimestre" onChange={e => { setBimestreIdx(e.target.value as number); setRendicion(null); }}>
+                {BIMESTRES.map((b, i) => <MenuItem key={i} value={i}>{b.label}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 100 }}>
+              <InputLabel>Año</InputLabel>
+              <Select value={anioRendicion} label="Año" onChange={e => { setAnioRendicion(e.target.value as number); setRendicion(null); }}>
+                {[hoy.getFullYear(), hoy.getFullYear() - 1, hoy.getFullYear() - 2].map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Programa</InputLabel>
+              <Select value={programaRendicion} label="Programa" onChange={e => { setProgramaRendicion(e.target.value as number | ''); setRendicion(null); }}>
+                <MenuItem value="">Todos</MenuItem>
+                {programas.map(p => <MenuItem key={p.id} value={p.id}>{p.nombre}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <Button
+              variant="contained"
+              disabled={loadingRendicion}
+              onClick={async () => {
+                setLoadingRendicion(true);
+                setRendicion(null);
+                try {
+                  const bim = BIMESTRES[bimestreIdx];
+                  const desde = `${anioRendicion}-${bim.desde}`;
+                  const hasta = `${anioRendicion}-${bim.hasta}`;
+                  const params: any = { desde, hasta };
+                  if (programaRendicion) params.programaId = programaRendicion;
+                  const r = await api.get('/reportes/rendicion', { params });
+                  setRendicion(r.data);
+                } catch { /* silent */ }
+                finally { setLoadingRendicion(false); }
+              }}
+            >
+              Consultar
+            </Button>
+          </Box>
+
+          {loadingRendicion && <LinearProgress sx={{ mb: 2 }} />}
+
+          {rendicion && (
+            <>
+              {/* Resumen */}
+              <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Chip label={`${rendicion.totalBeneficiarios} familias retiraron`} color="primary" />
+                <Chip label={`${BIMESTRES[bimestreIdx].label} ${anioRendicion}`} variant="outlined" />
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    import('xlsx').then(XLSX => {
+                      const bim = BIMESTRES[bimestreIdx];
+                      const periodo = `${bim.label} ${anioRendicion}`;
+                      const hoja = 1;
+                      const total = Math.ceil(rendicion.filas.length / 25) || 1;
+
+                      const aoa: any[][] = [
+                        ['MUNICIPALIDAD DE LA PLATA - ANEXO VI', '', '', '', ''],
+                        [`Período: ${periodo}`, '', `Hoja ${hoja} de ${total}`, '', ''],
+                        [],
+                        ['Apellido', 'Nombre', 'DNI', 'Grupo', 'Dirección'],
+                        ...rendicion.filas.map((f: any) => [f.apellido, f.nombre, f.dni, f.grupo, f.direccion]),
+                        [],
+                        ['Firma del responsable:', '', '', 'Aclaración:', ''],
+                      ];
+
+                      const ws = XLSX.utils.aoa_to_sheet(aoa);
+                      ws['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 13 }, { wch: 7 }, { wch: 45 }];
+                      ws['!merges'] = [
+                        { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, // título
+                      ];
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, 'ANEXO VI');
+
+                      // Hoja de ingresos si hay datos
+                      if (rendicion.ingresos?.length > 0) {
+                        const aoaIng: any[][] = [
+                          ['Ingresos de Mercadería', '', '', '', ''],
+                          [`Período: ${periodo}`, '', '', '', ''],
+                          [],
+                          ['Fecha', 'Artículo', 'Cantidad', 'Unidad', 'Depósito', 'Observaciones'],
+                          ...rendicion.ingresos.map((m: any) => [
+                            new Date(m.fecha).toLocaleDateString('es-AR'),
+                            m.articulo, m.cantidad, m.categoria, m.deposito, m.obs,
+                          ]),
+                        ];
+                        const wsIng = XLSX.utils.aoa_to_sheet(aoaIng);
+                        wsIng['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 30 }];
+                        wsIng['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+                        XLSX.utils.book_append_sheet(wb, wsIng, 'Ingresos');
+                      }
+
+                      XLSX.writeFile(wb, `ANEXO_VI_${periodo.replace(/ /g, '_')}.xlsx`);
+                    });
+                  }}
+                >
+                  Descargar ANEXO VI (.xlsx)
+                </Button>
+              </Box>
+
+              {/* Tabla preview */}
+              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 450 }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'grey.100' }}>
+                      <TableCell><strong>Apellido</strong></TableCell>
+                      <TableCell><strong>Nombre</strong></TableCell>
+                      <TableCell><strong>DNI</strong></TableCell>
+                      <TableCell align="center"><strong>Grupo</strong></TableCell>
+                      <TableCell><strong>Dirección</strong></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {rendicion.filas.map((f: any, i: number) => (
+                      <TableRow key={i} hover>
+                        <TableCell>{f.apellido}</TableCell>
+                        <TableCell>{f.nombre}</TableCell>
+                        <TableCell>{f.dni || '—'}</TableCell>
+                        <TableCell align="center">{f.grupo}</TableCell>
+                        <TableCell>{f.direccion || '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {/* Ingresos */}
+              {rendicion.ingresos?.length > 0 && (
+                <Box mt={3}>
+                  <Typography variant="subtitle1" fontWeight="bold" mb={1}>
+                    Ingresos de mercadería del período ({rendicion.ingresos.length})
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'grey.50' }}>
+                          <TableCell>Fecha</TableCell>
+                          <TableCell>Artículo</TableCell>
+                          <TableCell align="right">Cantidad</TableCell>
+                          <TableCell>Unidad</TableCell>
+                          <TableCell>Depósito</TableCell>
+                          <TableCell>Observaciones</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {rendicion.ingresos.map((m: any, i: number) => (
+                          <TableRow key={i} hover>
+                            <TableCell>{new Date(m.fecha).toLocaleDateString('es-AR')}</TableCell>
+                            <TableCell>{m.articulo}</TableCell>
+                            <TableCell align="right">{m.cantidad}</TableCell>
+                            <TableCell>{m.categoria || '—'}</TableCell>
+                            <TableCell>{m.deposito}</TableCell>
+                            <TableCell>{m.obs || '—'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
               )}
             </>
           )}
