@@ -32,11 +32,17 @@
 | Informes armados a mano para la Provincia | Exportación automática del ANEXO VI |
 | Sin coordinación entre depósitos | Transferencias entre depósitos con trazabilidad completa |
 
-### Dos secretarías en un solo sistema
+### Dos secretarías, dos depósitos
 
-El sistema opera con **dos secretarías separadas** cuyos datos no se mezclan:
-- **PA** (Política Alimentaria) — Programas regulares de distribución alimentaria
-- **CITA** (Asistencia Crítica) — Atención de casos urgentes y críticos
+El sistema opera con **dos secretarías** cuyos datos no se mezclan:
+- **Política Alimentaria (PA)** — Programas regulares de distribución alimentaria
+- **Asistencia Crítica** — Atención de casos urgentes y críticos
+
+Y físicamente hay **dos depósitos** donde se almacena y entrega la mercadería:
+- **Depósito LOGISTICA** — Sirve a la secretaría de Política Alimentaria
+- **Depósito CITA** — Sirve a la secretaría de Asistencia Crítica
+
+> Nota técnica: en la base de datos el campo `secretaria` usa los valores `"PA"` y `"CITA"` para identificar a qué secretaría pertenece cada registro. El depósito físico también se llama CITA, pero son conceptos distintos.
 
 ---
 
@@ -156,7 +162,7 @@ El sistema tiene **6 roles** con accesos diferenciados:
 | **OPERADOR_PROGRAMA** | Operador de la Secretaría | Beneficiarios, remitos, cronograma, casos, reportes |
 | **LOGISTICA** | Personal de depósito | Stock, remitos de su depósito, transferencias, historial |
 | **TRABAJADORA_SOCIAL** | Trabajadora social en campo | Sus propios casos, relevamiento de beneficiarios |
-| **ASISTENCIA_CRITICA** | Personal de CITA | Igual que OPERADOR pero solo datos CITA |
+| **ASISTENCIA_CRITICA** | Personal de la Secretaría de Asistencia Crítica | Igual que OPERADOR pero solo ve datos de Asistencia Crítica (depósito CITA) |
 | **VISOR** | Solo lectura | Dashboard, beneficiarios, reportes (sin modificar nada) |
 
 ### Permisos por acción
@@ -320,9 +326,9 @@ Trabaja en campo, registra casos urgentes de familias que necesitan asistencia.
 
 ---
 
-### 5.5 ASISTENCIA CRÍTICA (CITA)
+### 5.5 ASISTENCIA CRÍTICA
 
-Opera exactamente igual que el OPERADOR_PROGRAMA, pero todos los datos que ve y crea pertenecen exclusivamente a la secretaría CITA. Los beneficiarios, remitos y stock de PA no son visibles.
+Opera exactamente igual que el OPERADOR_PROGRAMA, pero todos los datos que ve y crea pertenecen exclusivamente a la **Secretaría de Asistencia Crítica** (depósito CITA). Los beneficiarios, remitos y stock de Política Alimentaria no son visibles para este rol.
 
 ---
 
@@ -680,7 +686,10 @@ El sistema genera PDFs de:
 | **Movimiento** | Registro de cualquier cambio en el stock (ingreso, egreso, ajuste, transferencia) |
 | **Caso particular** | Solicitud de asistencia urgente de una familia no incluida en programas regulares |
 | **Tarea** | Acción pendiente asignada a un usuario del sistema |
-| **Secretaría** | Departamento de gobierno (PA = Política Alimentaria, CITA = Asistencia Crítica) |
+| **Política Alimentaria (PA)** | Una de las dos secretarías del sistema. Gestiona los programas regulares de distribución. Usa el depósito LOGISTICA. |
+| **Asistencia Crítica** | La otra secretaría del sistema. Gestiona casos urgentes. Usa el depósito CITA. |
+| **Depósito LOGISTICA** | Almacén físico que sirve a la secretaría de Política Alimentaria |
+| **Depósito CITA** | Almacén físico que sirve a la secretaría de Asistencia Crítica |
 | **ANEXO VI** | Documento oficial requerido por la Provincia para la rendición bimestral |
 | **Rendición** | Presentación formal ante la Provincia de las entregas realizadas en el período |
 | **Cruce de DNI** | Alerta cuando el DNI de un solicitante ya aparece en otro programa o caso |
