@@ -23,7 +23,7 @@ function parseFiltroFecha(mes?: string, anio?: string): { mes?: number; anio?: n
 
 function getSecretaria(req: any): string | null {
   const rol = req.user?.rol;
-  if (rol === 'ASISTENCIA_CRITICA') return 'CITA';
+  if (rol === 'ASISTENCIA_CRITICA') return 'AC';
   if (rol === 'LOGISTICA' || rol === 'VISOR') return null;
   return 'PA';
 }

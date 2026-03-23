@@ -48,7 +48,7 @@ export class BeneficiariosController {
   @ApiOperation({ summary: 'Listar beneficiarios' })
   findAll(@Query() filtros: any, @Request() req) {
     const rol = req.user?.rol;
-    const secretaria = rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+    const secretaria = rol === 'ASISTENCIA_CRITICA' ? 'AC'
       : (rol === 'LOGISTICA' || rol === 'VISOR') ? null
       : 'PA';
     return this.beneficiariosService.findAll(filtros, secretaria);

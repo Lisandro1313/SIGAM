@@ -25,7 +25,7 @@ export class ArticulosController {
   @Get()
   @ApiOperation({ summary: 'Listar artículos' })
   findAll(@Request() req) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
       : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
       : 'PA';
     return this.articulosService.findAll(secretaria);

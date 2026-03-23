@@ -82,7 +82,7 @@ export class CasosService {
       },
       include: INCLUDE_CASO,
     });
-    const secretaria = usuarioRol === 'ASISTENCIA_CRITICA' ? 'CITA' : 'PA';
+    const secretaria = usuarioRol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
     this.eventsService.broadcast('caso:nuevo', {
       id: nuevo.id,
       nombre: nuevo.nombreSolicitante,

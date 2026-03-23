@@ -42,7 +42,7 @@ Y físicamente hay **dos depósitos** donde se almacena y entrega la mercadería
 - **Depósito LOGISTICA** — Sirve a la secretaría de Política Alimentaria
 - **Depósito CITA** — Sirve a la secretaría de Asistencia Crítica
 
-> Nota técnica: en la base de datos el campo `secretaria` usa los valores `"PA"` y `"CITA"` para identificar a qué secretaría pertenece cada registro. El depósito físico también se llama CITA, pero son conceptos distintos.
+> Nota técnica: en la base de datos el campo `secretaria` usa los valores `"PA"` y `"AC"` para identificar a qué secretaría pertenece cada registro. El depósito físico se llama `CITA` (su código en BD), pero son conceptos distintos.
 
 ---
 

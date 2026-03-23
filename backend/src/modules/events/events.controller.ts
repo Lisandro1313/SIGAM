@@ -6,7 +6,7 @@ import { EventsService } from './events.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 function getSecretaria(rol: string): string | null {
-  if (rol === 'ASISTENCIA_CRITICA') return 'CITA';
+  if (rol === 'ASISTENCIA_CRITICA') return 'AC';
   if (rol === 'LOGISTICA' || rol === 'VISOR') return null;
   return 'PA';
 }

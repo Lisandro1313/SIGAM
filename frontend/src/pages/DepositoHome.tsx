@@ -550,7 +550,7 @@ function RemitoCard({ remito, isMobile, onDescargar, onImprimir, onEntregar }: {
         <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
           <Typography variant={isMobile ? 'h6' : 'h6'} fontWeight="bold">{remito.numero}</Typography>
           <Box display="flex" gap={0.5} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
-            {remito.secretaria === 'CITA' && (
+            {remito.secretaria === 'AC' && (
               <Chip label="CITA" color="warning" size="small" variant="outlined" />
             )}
             <Chip label={ESTADO_LABEL[remito.estado] ?? remito.estado} color={ESTADO_COLOR[remito.estado] ?? 'default'} size="small" />

@@ -20,7 +20,7 @@ export class TareasController {
     @Query('prioridad') prioridad: string,
     @Request() req,
   ) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
       : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
       : 'PA';
     return this.tareasService.findAll({

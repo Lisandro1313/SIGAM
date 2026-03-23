@@ -34,7 +34,7 @@ export class CronogramaController {
   @Get()
   @ApiOperation({ summary: 'Obtener entregas programadas' })
   obtenerEntregas(@Query() query: any, @Request() req) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
       : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
       : 'PA';
     return this.cronogramaService.obtenerEntregas(query, secretaria);
@@ -44,7 +44,7 @@ export class CronogramaController {
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
   @ApiOperation({ summary: 'Preview de remitos a generar para un rango de fechas' })
   previewRemitosRango(@Query('desde') desde: string, @Query('hasta') hasta: string, @Request() req) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
       : (req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR') ? null : 'PA';
     return this.cronogramaService.previewRemitosRango(desde, hasta, secretaria);
   }
@@ -69,7 +69,7 @@ export class CronogramaController {
     @Query('programaId') programaId: string,
     @Request() req,
   ) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
       : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
       : 'PA';
     return this.cronogramaService.obtenerPlanilla(

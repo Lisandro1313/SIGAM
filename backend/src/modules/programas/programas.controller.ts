@@ -29,7 +29,7 @@ export class ProgramasController {
   @Get()
   @ApiOperation({ summary: 'Listar programas' })
   findAll(@Request() req) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
       : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
       : 'PA';
     return this.programasService.findAll(secretaria);

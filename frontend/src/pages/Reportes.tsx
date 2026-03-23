@@ -636,7 +636,7 @@ export default function ReportesPage() {
                             <TableCell>{r.programa?.nombre ?? '—'}</TableCell>
                             <TableCell>
                               {r.programa?.secretaria && (
-                                <Chip label={r.programa.secretaria} size="small" color={r.programa.secretaria === 'CITA' ? 'warning' : 'primary'} variant="outlined" />
+                                <Chip label={r.programa.secretaria} size="small" color={r.programa.secretaria === 'AC' ? 'warning' : 'primary'} variant="outlined" />
                               )}
                             </TableCell>
                             <TableCell>

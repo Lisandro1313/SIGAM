@@ -85,13 +85,13 @@ export class RemitosController {
   async historialPdf(@Query() query: any, @Request() req, @Res() res: Response) {
     const esLogistica = req.user.rol === 'LOGISTICA' && req.user.depositoId;
     const esCita = req.user.rol === 'ASISTENCIA_CRITICA';
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
       : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
       : 'PA';
     const pdf = await this.remitosService.historialPdf(
       query,
       esLogistica ? req.user.depositoId : undefined,
-      esCita ? 'CITA' : undefined,
+      esCita ? 'AC' : undefined,
       secretaria,
     );
     const desde = query.entregadoDesde ?? 'historial';
@@ -112,13 +112,13 @@ export class RemitosController {
     // ASISTENCIA_CRITICA: auto-filtra al depósito CITA
     const esCita = req.user.rol === 'ASISTENCIA_CRITICA';
     // Determinar secretaría por rol
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'CITA'
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
       : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
       : 'PA';
     return this.remitosService.findAll(
       query,
       esLogistica ? req.user.depositoId : undefined,
-      esCita ? 'CITA' : undefined,
+      esCita ? 'AC' : undefined,
       secretaria,
     );
   }

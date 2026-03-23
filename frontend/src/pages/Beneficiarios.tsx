@@ -768,7 +768,7 @@ export default function BeneficiariosPage() {
                                     <Chip
                                       label={b.programa?.secretaria ?? '—'}
                                       size="small"
-                                      color={b.programa?.secretaria === 'CITA' ? 'warning' : 'primary'}
+                                      color={b.programa?.secretaria === 'AC' ? 'warning' : 'primary'}
                                       variant="outlined"
                                     />
                                   </TableCell>

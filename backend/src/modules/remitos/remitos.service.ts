@@ -22,10 +22,10 @@ export class RemitosService {
 
   // Generar número correlativo único — upsert atómico evita race condition en primer remito
   async generarNumeroRemito(secretaria: string = 'PA'): Promise<string> {
-    const esCita = secretaria === 'CITA';
+    const esCita = secretaria === 'AC';
     const clave   = esCita ? 'remito_cita' : 'remito_pa';
     const inicial = esCita ? 0 : 1001648;
-    const prefijo = esCita ? 'CITA' : 'PA';
+    const prefijo = esCita ? 'AC' : 'PA';
 
     return await this.prisma.$transaction(async (tx) => {
       // upsert garantiza que el registro exista; luego increment atómico
@@ -46,7 +46,7 @@ export class RemitosService {
 
   // Crear remito borrador
   async create(createRemitoDto: CreateRemitoDto, usuario: { id: number; rol?: string }) {
-    const secretaria = usuario.rol === 'ASISTENCIA_CRITICA' ? 'CITA' : 'PA';
+    const secretaria = usuario.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
     const numero = await this.generarNumeroRemito(secretaria);
 
     // Calcular peso total

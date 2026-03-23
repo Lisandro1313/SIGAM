@@ -109,7 +109,7 @@ export class CronogramaService {
   async generarRemitosRango(desde: string, hasta: string, depositoId: number, usuarioId: number, usuarioRol?: string) {
     const desdeDate = new Date(desde); desdeDate.setHours(0, 0, 0, 0);
     const hastaDate = new Date(hasta); hastaDate.setHours(23, 59, 59, 999);
-    const secretaria = usuarioRol === 'ASISTENCIA_CRITICA' ? 'CITA' : 'PA';
+    const secretaria = usuarioRol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
     const filtroSec = { programa: { secretaria } };
 
     const entregas = await this.prisma.entregaProgramada.findMany({

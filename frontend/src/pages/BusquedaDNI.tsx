@@ -106,7 +106,7 @@ export default function BusquedaDNI() {
                         <TableCell>{b.programa?.nombre ?? '—'}</TableCell>
                         <TableCell>
                           {b.programa?.secretaria && (
-                            <Chip label={b.programa.secretaria} size="small" color={b.programa.secretaria === 'CITA' ? 'warning' : 'primary'} variant="outlined" />
+                            <Chip label={b.programa.secretaria} size="small" color={b.programa.secretaria === 'AC' ? 'warning' : 'primary'} variant="outlined" />
                           )}
                         </TableCell>
                         <TableCell>
