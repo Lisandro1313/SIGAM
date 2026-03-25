@@ -58,9 +58,84 @@ function rutaAmigable(ruta: string): string {
   };
   const parts = ruta.replace(/^\//, '').split('/');
   const modulo = map[parts[0]] ?? parts[0];
-  const id = parts[1] ? ` #${parts[1]}` : '';
-  const sub = parts[2] ? ` / ${parts[2]}` : '';
+  const id = parts[1] && /^\d+$/.test(parts[1]) ? ` #${parts[1]}` : '';
+  const sub = parts[2] ? ` › ${parts[2]}` : '';
   return `${modulo}${id}${sub}`;
+}
+
+// Nombres legibles para los campos
+const CAMPO_LABELS: Record<string, string> = {
+  nombre: 'Nombre',
+  tipo: 'Tipo',
+  direccion: 'Dirección',
+  localidad: 'Localidad',
+  telefono: 'Teléfono',
+  responsableNombre: 'Responsable',
+  responsableDNI: 'DNI responsable',
+  frecuenciaEntrega: 'Frecuencia de entrega',
+  programaId: 'Programa',
+  observaciones: 'Observaciones',
+  kilosHabitual: 'Kilos habituales',
+  activo: 'Estado',
+  motivoBaja: 'Motivo de baja',
+  notaBaja: 'Nota de baja',
+  secretaria: 'Secretaría',
+  estado: 'Estado',
+  descripcion: 'Descripción',
+  cantidad: 'Cantidad',
+  fecha: 'Fecha',
+  usuarioId: 'Usuario',
+  beneficiarioId: 'Beneficiario',
+  depositoId: 'Depósito',
+  articuloId: 'Artículo',
+  loteId: 'Lote',
+  rol: 'Rol',
+  email: 'Email',
+  lat: 'Latitud',
+  lng: 'Longitud',
+  mensajeWhatsapp: 'Mensaje WhatsApp',
+  whatsappLink: 'Link WhatsApp',
+};
+
+function valorLegible(key: string, val: any): string {
+  if (val === null || val === undefined || val === '') return '—';
+  if (key === 'activo') return val ? 'Activo' : 'Dado de baja';
+  if (key === 'frecuenciaEntrega') {
+    const m: Record<string, string> = { MENSUAL: 'Mensual', BIMESTRAL: 'Bimestral', EVENTUAL: 'Eventual' };
+    return m[val] ?? val;
+  }
+  if (key === 'secretaria') return val === 'PA' ? 'Programa Alimentario' : val === 'AC' ? 'Asistencia Crítica' : val;
+  if (key === 'tipo') {
+    const m: Record<string, string> = {
+      ESPACIO: 'Espacio', ORGANIZACION: 'Organización', CASO_PARTICULAR: 'Caso particular', COMEDOR: 'Comedor',
+    };
+    return m[val] ?? val;
+  }
+  if (typeof val === 'boolean') return val ? 'Sí' : 'No';
+  return String(val);
+}
+
+function DatosLegibles({ datos }: { datos: string }) {
+  let parsed: Record<string, any> = {};
+  try { parsed = JSON.parse(datos); } catch { return <Typography variant="caption" color="text.secondary">{datos}</Typography>; }
+
+  const entries = Object.entries(parsed).filter(([, v]) => v !== null && v !== undefined && v !== '');
+  if (entries.length === 0) return null;
+
+  return (
+    <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+      {entries.map(([key, val]) => (
+        <Box key={key} sx={{ bgcolor: 'grey.100', borderRadius: 1, px: 1, py: 0.25 }}>
+          <Typography component="span" variant="caption" color="text.secondary">
+            {CAMPO_LABELS[key] ?? key}:{' '}
+          </Typography>
+          <Typography component="span" variant="caption" fontWeight="600" color="text.primary">
+            {valorLegible(key, val)}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  );
 }
 
 export default function Auditoria() {
@@ -316,7 +391,7 @@ export default function Auditoria() {
                       {tieneData && (
                         <>
                           <Box display="flex" alignItems="center" gap={0.5} mt={0.5}>
-                            <Tooltip title={estaExpandido ? 'Ocultar datos' : 'Ver datos enviados'}>
+                            <Tooltip title={estaExpandido ? 'Ocultar detalle' : 'Ver detalle'}>
                               <IconButton
                                 size="small"
                                 onClick={() => setExpanded(prev => ({ ...prev, [log.id]: !prev[log.id] }))}
@@ -325,22 +400,10 @@ export default function Auditoria() {
                                 {estaExpandido ? <CollapseIcon fontSize="small" /> : <ExpandIcon fontSize="small" />}
                               </IconButton>
                             </Tooltip>
-                            <Typography variant="caption" color="text.disabled">datos adjuntos</Typography>
+                            <Typography variant="caption" color="text.disabled">ver detalle</Typography>
                           </Box>
                           <Collapse in={estaExpandido}>
-                            <Box
-                              component="pre"
-                              sx={{
-                                mt: 0.5, p: 1, bgcolor: 'grey.100', borderRadius: 1,
-                                fontSize: '0.72rem', overflowX: 'auto', maxHeight: 200,
-                                fontFamily: 'monospace', color: 'text.secondary',
-                              }}
-                            >
-                              {(() => {
-                                try { return JSON.stringify(JSON.parse(log.datos), null, 2); }
-                                catch { return log.datos; }
-                              })()}
-                            </Box>
+                            <DatosLegibles datos={log.datos} />
                           </Collapse>
                         </>
                       )}
