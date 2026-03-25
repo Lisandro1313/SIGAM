@@ -265,7 +265,7 @@ export default function BeneficiarioForm({
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
-                label="Responsable - DNI"
+                label="Responsable - DNI (opcional)"
                 value={formData.responsableDNI}
                 onChange={(e) => { handleChange('responsableDNI', e.target.value); setAlertaDni(null); }}
                 onBlur={async (e) => {
@@ -280,7 +280,6 @@ export default function BeneficiarioForm({
                   finally { setCheckingDni(false); }
                 }}
                 margin="normal"
-                required
                 InputProps={{ endAdornment: checkingDni ? <CircularProgress size={14} /> : undefined }}
               />
               {alertaDni && (
