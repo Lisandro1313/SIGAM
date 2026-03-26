@@ -37,7 +37,7 @@ const TIPO_COLOR: Record<string, 'success' | 'error' | 'warning' | 'info'> = {
 
 export default function StockPage() {
   const { user } = useAuthStore();
-  const soloLectura = !['ADMIN', 'LOGISTICA'].includes(user?.rol ?? '');
+  const soloLectura = user?.rol !== 'ADMIN';
   const { showNotification } = useNotificationStore();
 
   const [stock, setStock] = useState<any[]>([]);
