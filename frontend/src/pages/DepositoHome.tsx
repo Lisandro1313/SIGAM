@@ -565,13 +565,13 @@ function RemitoCard({ remito, isMobile, onDescargar, onImprimir, onEntregar }: {
           <Typography variant="body2" color="text.secondary">{remito.programa.nombre}</Typography>
         )}
 
-        {/* Fecha y hora de retiro */}
+        {/* Fecha y hora de retiro — se lee en UTC para evitar desfase de timezone */}
         {remito.fecha && (
           <Box display="flex" alignItems="center" gap={1} mt={0.5}>
             <Typography variant="body2" fontWeight="medium" color="primary.main">
               📅 {format(new Date(remito.fecha), "dd/MM/yyyy", { locale: es })}
               {' · '}
-              ⏰ {format(new Date(remito.fecha), "HH:mm")} hs
+              ⏰ {new Date(remito.fecha).toISOString().slice(11, 16)} hs
             </Typography>
           </Box>
         )}
