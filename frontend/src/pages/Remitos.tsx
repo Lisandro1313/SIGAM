@@ -47,6 +47,7 @@ import {
   FileDownload as ExportarIcon,
   WhatsApp as WhatsAppIcon,
 } from '@mui/icons-material';
+import TableSortLabel from '@mui/material/TableSortLabel';
 import InputAdornment from '@mui/material/InputAdornment';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -148,6 +149,32 @@ export default function RemitosPage() {
     }
   };
   const clearSelection = () => setSelectedIds(new Set());
+
+  // Ordenamiento de columnas
+  type SortField = 'numero' | 'fecha' | 'beneficiario' | 'estado';
+  const ESTADO_ORDEN: Record<string, number> = { BORRADOR: 0, CONFIRMADO: 1, ENVIADO: 2, ENTREGADO: 3, ANULADO: 4 };
+  const [sortField, setSortField] = useState<SortField>('estado');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const remitosOrdenados = [...remitosVisibles].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'numero') cmp = (a.numero ?? 0) - (b.numero ?? 0);
+    else if (sortField === 'fecha') cmp = new Date(a.fecha).getTime() - new Date(b.fecha).getTime();
+    else if (sortField === 'beneficiario') cmp = (a.beneficiario?.nombre ?? '').localeCompare(b.beneficiario?.nombre ?? '');
+    else if (sortField === 'estado') cmp = (ESTADO_ORDEN[a.estado] ?? 99) - (ESTADO_ORDEN[b.estado] ?? 99);
+    if (cmp !== 0) return sortDir === 'asc' ? cmp : -cmp;
+    // Desempate: los más recientes primero (mayor número)
+    return (b.numero ?? 0) - (a.numero ?? 0);
+  });
 
   const selectedRemitos = remitosVisibles.filter(r => selectedIds.has(r.id));
   const selectedBorradores = selectedRemitos.filter(r => r.estado === 'BORRADOR');
@@ -603,17 +630,33 @@ export default function RemitosPage() {
                   sx={{ color: 'white', '&.Mui-checked': { color: 'white' }, '&.MuiCheckbox-indeterminate': { color: 'white' } }}
                 />
               </TableCell>
-              <TableCell>Número</TableCell>
-              <TableCell>Fecha</TableCell>
-              <TableCell>Beneficiario</TableCell>
+              <TableCell sortDirection={sortField === 'numero' ? sortDir : false} sx={{ cursor: 'pointer' }}>
+                <TableSortLabel active={sortField === 'numero'} direction={sortField === 'numero' ? sortDir : 'asc'} onClick={() => handleSort('numero')} sx={{ color: 'inherit !important', '& .MuiTableSortLabel-icon': { color: 'inherit !important' } }}>
+                  Número
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sortDirection={sortField === 'fecha' ? sortDir : false} sx={{ cursor: 'pointer' }}>
+                <TableSortLabel active={sortField === 'fecha'} direction={sortField === 'fecha' ? sortDir : 'asc'} onClick={() => handleSort('fecha')} sx={{ color: 'inherit !important', '& .MuiTableSortLabel-icon': { color: 'inherit !important' } }}>
+                  Fecha
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sortDirection={sortField === 'beneficiario' ? sortDir : false} sx={{ cursor: 'pointer' }}>
+                <TableSortLabel active={sortField === 'beneficiario'} direction={sortField === 'beneficiario' ? sortDir : 'asc'} onClick={() => handleSort('beneficiario')} sx={{ color: 'inherit !important', '& .MuiTableSortLabel-icon': { color: 'inherit !important' } }}>
+                  Beneficiario
+                </TableSortLabel>
+              </TableCell>
               <TableCell>Depósito</TableCell>
               <TableCell align="right">Total Kg</TableCell>
-              <TableCell>Estado</TableCell>
+              <TableCell sortDirection={sortField === 'estado' ? sortDir : false} sx={{ cursor: 'pointer' }}>
+                <TableSortLabel active={sortField === 'estado'} direction={sortField === 'estado' ? sortDir : 'asc'} onClick={() => handleSort('estado')} sx={{ color: 'inherit !important', '& .MuiTableSortLabel-icon': { color: 'inherit !important' } }}>
+                  Estado
+                </TableSortLabel>
+              </TableCell>
               <TableCell align="center">Acciones</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {remitosVisibles.map((remito) => (
+            {remitosOrdenados.map((remito) => (
               <TableRow key={remito.id} hover selected={selectedIds.has(remito.id)}>
                 <TableCell padding="checkbox">
                   <Checkbox
@@ -742,7 +785,7 @@ export default function RemitosPage() {
         </Table>
       </TableContainer>
 
-      <RemitoForm open={formOpen} onClose={() => setFormOpen(false)} onSuccess={loadRemitos} />
+      <RemitoForm open={formOpen} onClose={() => setFormOpen(false)} onSuccess={() => loadRemitos(busqueda)} />
 
       {/* Diálogo: Reprogramar / Anular */}
       <Dialog open={gestionDialog} onClose={() => setGestionDialog(false)} maxWidth="xs" fullWidth>
