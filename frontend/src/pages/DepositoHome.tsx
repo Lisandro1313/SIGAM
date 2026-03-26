@@ -566,12 +566,15 @@ function RemitoCard({ remito, isMobile, onDescargar, onImprimir, onEntregar }: {
         )}
 
         {/* Fecha y hora de retiro */}
-        <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-          <Typography variant="body2" fontWeight="medium" color="primary.main">
-            📅 {remito.fecha ? format(new Date(remito.fecha), "dd/MM/yyyy", { locale: es }) : '—'}
-            {remito.horaRetiro && <> &nbsp;·&nbsp; ⏰ {remito.horaRetiro} hs</>}
-          </Typography>
-        </Box>
+        {remito.fecha && (
+          <Box display="flex" alignItems="center" gap={1} mt={0.5}>
+            <Typography variant="body2" fontWeight="medium" color="primary.main">
+              📅 {format(new Date(remito.fecha), "dd/MM/yyyy", { locale: es })}
+              {' · '}
+              ⏰ {format(new Date(remito.fecha), "HH:mm")} hs
+            </Typography>
+          </Box>
+        )}
 
         {/* Resumen artículos */}
         <Typography variant="body2" color="text.secondary" mt={0.5}>
