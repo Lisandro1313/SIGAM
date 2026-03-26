@@ -122,7 +122,11 @@ export default function StockPage() {
       ]);
       const esCita = user?.rol === 'ASISTENCIA_CRITICA';
       const todos = depositosRes.data as any[];
-      const depositosFiltrados = esCita ? todos.filter((d) => d.codigo === 'CITA') : todos;
+      const depositosFiltrados = esCita
+        ? todos.filter((d) => d.codigo === 'CITA')
+        : user?.depositoId
+        ? todos.filter((d) => d.id === user.depositoId)
+        : todos;
       setDepositos(depositosFiltrados);
       setStockBajo(stockBajoRes.data);
       setArticulos((artRes.data ?? []).filter((a: any) => a.activo));
