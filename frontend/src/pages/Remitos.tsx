@@ -225,7 +225,7 @@ export default function RemitosPage() {
     setBulkProgress({ total: enviables.length, done: 0, errors: 0 });
     for (const remito of enviables) {
       try {
-        await api.post(`/remitos/${remito.id}/enviar-email`);
+        await api.post(`/remitos/${remito.id}/enviar`);
       } catch { /* skip */ }
       setBulkProgress(p => p ? { ...p, done: p.done + 1 } : null);
     }

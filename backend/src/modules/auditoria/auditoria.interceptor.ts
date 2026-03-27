@@ -64,8 +64,13 @@ const DESCRIPCIONES: Array<{ pattern: RegExp; metodo: string; desc: string }> = 
   { pattern: /^\/casos\/\d+\/documentos\/\d+$/, metodo: 'DELETE', desc: 'Eliminó documento de caso' },
 ];
 
+function normalizePath(path: string): string {
+  // Quitar prefijo /api si existe, y query string
+  return path.split('?')[0].replace(/^\/api/, '') || '/';
+}
+
 function buildDescripcion(method: string, path: string): string {
-  const cleanPath = path.split('?')[0];
+  const cleanPath = normalizePath(path);
   for (const { pattern, metodo, desc } of DESCRIPCIONES) {
     if (metodo === method && pattern.test(cleanPath)) return desc;
   }
@@ -73,6 +78,68 @@ function buildDescripcion(method: string, path: string): string {
   const metodosLabel: Record<string, string> = { POST: 'Creó/ejecutó', PATCH: 'Editó', PUT: 'Actualizó', DELETE: 'Eliminó' };
   const segmento = cleanPath.split('/').filter(Boolean)[0] ?? 'recurso';
   return `${metodosLabel[method] ?? method} ${segmento}`;
+}
+
+function enrichDescripcion(base: string, method: string, path: string, result: any): string {
+  if (!result || typeof result !== 'object') return base;
+  const cleanPath = normalizePath(path);
+
+  // Remito creado
+  if (method === 'POST' && /^\/remitos$/.test(cleanPath) && result.numero) {
+    const nombre = result.beneficiario?.nombre ?? result.caso?.nombreSolicitante ?? '';
+    return `Creó remito ${result.numero}${nombre ? ` para ${nombre}` : ''}`;
+  }
+  // Remito confirmado
+  if (method === 'POST' && /^\/remitos\/\d+\/confirmar$/.test(cleanPath) && result.numero) {
+    const nombre = result.beneficiario?.nombre ?? result.caso?.nombreSolicitante ?? '';
+    return `Confirmó remito ${result.numero}${nombre ? ` para ${nombre}` : ''}`;
+  }
+  // Remito entregado
+  if (method === 'POST' && /^\/remitos\/\d+\/entregar$/.test(cleanPath) && result.numero) {
+    const nombre = result.beneficiario?.nombre ?? result.caso?.nombreSolicitante ?? '';
+    return `Marcó como entregado remito ${result.numero}${nombre ? ` para ${nombre}` : ''}`;
+  }
+  // Remito enviado por email
+  if (method === 'POST' && /^\/remitos\/\d+\/enviar$/.test(cleanPath)) {
+    return base;
+  }
+  // Ajuste de stock
+  if (method === 'POST' && /^\/stock\/ajuste$/.test(cleanPath) && result.articulo) {
+    const deposito = result.deposito?.nombre ? ` en ${result.deposito.nombre}` : '';
+    return `Ajustó stock de ${result.articulo.nombre} a ${result.cantidad} u.${deposito}`;
+  }
+  // Ingreso de stock
+  if (method === 'POST' && /^\/stock\/ingreso$/.test(cleanPath) && result.articulo) {
+    const deposito = result.deposito?.nombre ? ` en ${result.deposito.nombre}` : '';
+    return `Registró ingreso de ${result.articulo.nombre} (${result.cantidad} u.)${deposito}`;
+  }
+  // Transferencia
+  if (method === 'POST' && /^\/stock\/transferir$/.test(cleanPath)) {
+    return base;
+  }
+  // Creó beneficiario
+  if (method === 'POST' && /^\/beneficiarios$/.test(cleanPath) && result.nombre) {
+    return `Creó beneficiario "${result.nombre}"`;
+  }
+  // Editó beneficiario
+  if (method === 'PATCH' && /^\/beneficiarios\/\d+$/.test(cleanPath) && result.nombre) {
+    return `Editó beneficiario "${result.nombre}"`;
+  }
+  // Eliminó beneficiario
+  if (method === 'DELETE' && /^\/beneficiarios\/\d+$/.test(cleanPath) && result.nombre) {
+    return `Eliminó beneficiario "${result.nombre}"`;
+  }
+  // Generó remito desde cronograma / caso
+  if (method === 'POST' && /^\/cronograma\/fila\/\d+\/generar-remito$/.test(cleanPath) && result.numero) {
+    const nombre = result.beneficiario?.nombre ?? '';
+    return `Generó remito ${result.numero} desde cronograma${nombre ? ` para ${nombre}` : ''}`;
+  }
+  if (method === 'POST' && /^\/casos\/\d+\/generar-remito$/.test(cleanPath) && result.numero) {
+    const nombre = result.caso?.nombreSolicitante ?? result.beneficiario?.nombre ?? '';
+    return `Generó remito ${result.numero} desde caso particular${nombre ? ` para ${nombre}` : ''}`;
+  }
+
+  return base;
 }
 
 function sanitizarBody(body: any): string {
@@ -95,16 +162,18 @@ export class AuditoriaInterceptor implements NestInterceptor {
     if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return next.handle();
     if (url.includes('/auth/')) return next.handle();
 
-    const descripcion = buildDescripcion(method, url);
+    const descripcionBase = buildDescripcion(method, url);
     const datos = sanitizarBody(body);
+    const rutaLimpia = normalizePath(url);
 
     return next.handle().pipe(
-      tap(() => {
+      tap((result) => {
+        const descripcion = enrichDescripcion(descripcionBase, method, url, result);
         this.auditoriaService.log({
           usuarioId: user?.id,
           usuarioNombre: user?.nombre,
           metodo: method,
-          ruta: url.split('?')[0],
+          ruta: rutaLimpia,
           descripcion,
           datos,
         }).catch(() => { /* no interrumpir si falla el log */ });

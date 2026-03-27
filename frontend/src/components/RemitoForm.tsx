@@ -282,7 +282,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                 fullWidth
                 options={beneficiarios}
                 disabled={!!initialData?.beneficiarioId}
-                getOptionLabel={(b: any) => b.nombre + (b.localidad ? ` — ${b.localidad}` : '')}
+                getOptionLabel={(b: any) => b.nombre + (b.localidad ? ` — ${b.localidad}` : '') + (b.responsableNombre ? ` (${b.responsableNombre})` : '')}
                 filterOptions={(options, { inputValue }) => {
                   const q = inputValue.toLowerCase();
                   return options.filter((b: any) =>

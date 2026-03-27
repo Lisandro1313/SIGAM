@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import {
   Box, Button, Typography, CircularProgress, Paper,
@@ -13,6 +13,8 @@ import {
   Description as DocIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  Lock as LockIcon,
+  LockOpen as LockOpenIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -39,6 +41,56 @@ export default function StockPage() {
   const { user } = useAuthStore();
   const soloLectura = user?.rol !== 'ADMIN';
   const { showNotification } = useNotificationStore();
+
+  // PIN lock para modificaciones de stock
+  const PIN_STOCK = '6409';
+  const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
+  const [desbloqueado, setDesbloqueado] = useState(false);
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+  const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingActionRef = useRef<(() => void) | null>(null);
+
+  const iniciarTimerLockeo = () => {
+    if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+    lockTimerRef.current = setTimeout(() => {
+      setDesbloqueado(false);
+      showNotification('Stock bloqueado automáticamente', 'info');
+    }, LOCK_TIMEOUT_MS);
+  };
+
+  const handleAbrirConPin = (accion: () => void) => {
+    if (desbloqueado) {
+      accion();
+    } else {
+      pendingActionRef.current = accion;
+      setPinInput('');
+      setPinError('');
+      setPinDialogOpen(true);
+    }
+  };
+
+  const handleConfirmarPin = () => {
+    if (pinInput === PIN_STOCK) {
+      setDesbloqueado(true);
+      setPinDialogOpen(false);
+      iniciarTimerLockeo();
+      if (pendingActionRef.current) {
+        pendingActionRef.current();
+        pendingActionRef.current = null;
+      }
+    } else {
+      setPinError('Código incorrecto');
+      setPinInput('');
+    }
+  };
+
+  const handleBloquearManual = () => {
+    if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+    setDesbloqueado(false);
+    showNotification('Stock bloqueado', 'info');
+  };
 
   const [stock, setStock] = useState<any[]>([]);
   const [movimientos, setMovimientos] = useState<any[]>([]);
@@ -243,19 +295,30 @@ export default function StockPage() {
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" fontWeight="bold">Stock</Typography>
-        <Box display="flex" gap={2}>
+        <Box display="flex" gap={2} alignItems="center">
           {!soloLectura && (
-            <Button variant="outlined" startIcon={<TransferIcon />} onClick={() => setTransferFormOpen(true)}>
+            <Tooltip title={desbloqueado ? 'Stock desbloqueado — click para bloquear' : 'Stock bloqueado — click para desbloquear'}>
+              <IconButton
+                onClick={desbloqueado ? handleBloquearManual : () => handleAbrirConPin(() => {})}
+                color={desbloqueado ? 'warning' : 'default'}
+                size="small"
+              >
+                {desbloqueado ? <LockOpenIcon /> : <LockIcon />}
+              </IconButton>
+            </Tooltip>
+          )}
+          {!soloLectura && (
+            <Button variant="outlined" startIcon={<TransferIcon />} onClick={() => handleAbrirConPin(() => setTransferFormOpen(true))}>
               Transferir
             </Button>
           )}
           {!soloLectura && (
-            <Button variant="outlined" color="warning" startIcon={<EditIcon />} onClick={() => abrirAjuste()}>
+            <Button variant="outlined" color="warning" startIcon={<EditIcon />} onClick={() => handleAbrirConPin(() => abrirAjuste())}>
               Ajuste
             </Button>
           )}
           {!soloLectura && (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setIngresoFormOpen(true)}>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleAbrirConPin(() => setIngresoFormOpen(true))}>
               Registrar Ingreso
             </Button>
           )}
@@ -320,7 +383,7 @@ export default function StockPage() {
                         {!soloLectura && (
                           <TableCell align="center" sx={{ p: 0.5 }}>
                             <Tooltip title="Ajustar cantidad">
-                              <IconButton size="small" onClick={() => abrirAjuste(item)}>
+                              <IconButton size="small" onClick={() => handleAbrirConPin(() => abrirAjuste(item))}>
                                 <EditIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
@@ -412,7 +475,7 @@ export default function StockPage() {
               </Tabs>
             </Paper>
             {!soloLectura && (
-              <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleAbrirLoteForm()}>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleAbrirConPin(() => handleAbrirLoteForm())}>
                 Nuevo Lote
               </Button>
             )}
@@ -474,12 +537,12 @@ export default function StockPage() {
                           {!soloLectura && (
                             <TableCell align="center">
                               <Tooltip title="Editar">
-                                <IconButton size="small" onClick={() => handleAbrirLoteForm(lote)}>
+                                <IconButton size="small" onClick={() => handleAbrirConPin(() => handleAbrirLoteForm(lote))}>
                                   <EditIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
                               <Tooltip title="Eliminar">
-                                <IconButton size="small" color="error" onClick={() => handleEliminarLote(lote)}>
+                                <IconButton size="small" color="error" onClick={() => handleAbrirConPin(() => handleEliminarLote(lote))}>
                                   <DeleteIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
@@ -557,6 +620,33 @@ export default function StockPage() {
         onClose={() => setTransferFormOpen(false)}
         onSuccess={() => { loadData(); setTransferFormOpen(false); }}
       />
+
+      {/* Diálogo PIN desbloqueo de stock */}
+      <Dialog open={pinDialogOpen} onClose={() => setPinDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <LockIcon color="warning" /> Desbloquear modificaciones de stock
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Código de acceso"
+            type="password"
+            value={pinInput}
+            onChange={(e) => { setPinInput(e.target.value); setPinError(''); }}
+            onKeyDown={(e) => e.key === 'Enter' && handleConfirmarPin()}
+            error={!!pinError}
+            helperText={pinError || 'Ingresá el código para habilitar los cambios por 5 minutos'}
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPinDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleConfirmarPin} disabled={!pinInput}>
+            Desbloquear
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Diálogo ajuste de stock */}
       <Dialog open={ajusteOpen} onClose={() => setAjusteOpen(false)} maxWidth="sm" fullWidth>
