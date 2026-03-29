@@ -133,6 +133,9 @@ export default function RemitosPage() {
   const [bulkEntregarOpen, setBulkEntregarOpen] = useState(false);
   const [bulkNota, setBulkNota] = useState('');
   const [bulkProgress, setBulkProgress] = useState<{ total: number; done: number; errors: number } | null>(null);
+  const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
+  const [bulkEmailDestinosExtra, setBulkEmailDestinosExtra] = useState('');
+  const [bulkEmailTextoExtra, setBulkEmailTextoExtra] = useState('');
 
   const toggleSelect = (id: number) => {
     setSelectedIds(prev => {
@@ -221,16 +224,39 @@ export default function RemitosPage() {
   };
 
   const handleBulkEmail = async () => {
-    const enviables = selectedRemitos.filter(r => r.estado === 'CONFIRMADO' || r.estado === 'ENVIADO' || r.estado === 'ENTREGADO');
+    const enviables = selectedRemitos.filter(r => r.estado === 'CONFIRMADO' || r.estado === 'ENVIADO');
     setBulkProgress({ total: enviables.length, done: 0, errors: 0 });
+    let errors = 0;
+    const extras = bulkEmailDestinosExtra.split(/[,;\n]+/).map(e => e.trim()).filter(Boolean);
     for (const remito of enviables) {
       try {
-        await api.post(`/remitos/${remito.id}/enviar`);
-      } catch { /* skip */ }
-      setBulkProgress(p => p ? { ...p, done: p.done + 1 } : null);
+        const payload: any = {};
+        if (extras.length > 0) {
+          // Mantener el depósito del remito + agregar extras
+          const codigoDeposito = remito.deposito?.codigo as string | undefined;
+          const base = DEPOSITOS_EMAIL
+            .filter(d => !codigoDeposito || (codigoDeposito === 'CITA' ? d.codigo === 'CITA' : d.codigo === 'LOGISTICA'))
+            .map(d => d.email);
+          payload.destinatarios = [...base, ...extras];
+        }
+        if (bulkEmailTextoExtra.trim()) payload.textoExtra = bulkEmailTextoExtra.trim();
+        await api.post(`/remitos/${remito.id}/enviar`, payload);
+      } catch {
+        errors++;
+      }
+      setBulkProgress(p => p ? { ...p, done: p.done + 1, errors } : null);
     }
     setBulkProgress(null);
-    showNotification(`Emails enviados (${enviables.length})`, 'success');
+    setBulkEmailOpen(false);
+    setBulkEmailDestinosExtra('');
+    setBulkEmailTextoExtra('');
+    clearSelection();
+    showNotification(
+      errors > 0
+        ? `${enviables.length - errors} emails enviados, ${errors} errores`
+        : `${enviables.length} emails enviados correctamente`,
+      errors > 0 ? 'warning' : 'success'
+    );
     loadRemitos(busqueda);
   };
 
@@ -579,15 +605,15 @@ export default function RemitosPage() {
               Entregar {selectedEntregables.length}
             </Button>
           )}
-          {selectedRemitos.some(r => ['CONFIRMADO','ENVIADO','ENTREGADO'].includes(r.estado)) && (
+          {selectedRemitos.some(r => ['CONFIRMADO','ENVIADO'].includes(r.estado)) && (
             <Button
               size="small" variant="outlined"
-              startIcon={bulkProgress ? <CircularProgress size={14} sx={{ color: 'white' }} /> : <EmailIcon />}
-              onClick={handleBulkEmail}
+              startIcon={<EmailIcon />}
+              onClick={() => { setBulkEmailDestinosExtra(''); setBulkEmailTextoExtra(''); setBulkEmailOpen(true); }}
               disabled={!!bulkProgress}
               sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.6)', '&:hover': { borderColor: 'white' } }}
             >
-              Enviar {selectedRemitos.filter(r => ['CONFIRMADO','ENVIADO','ENTREGADO'].includes(r.estado)).length} emails
+              Enviar {selectedRemitos.filter(r => ['CONFIRMADO','ENVIADO'].includes(r.estado)).length} emails
             </Button>
           )}
           <Button
@@ -1104,6 +1130,48 @@ export default function RemitosPage() {
             disabled={!!bulkProgress}
           >
             {bulkProgress ? `${bulkProgress.done}/${bulkProgress.total}...` : `Confirmar ${selectedEntregables.length} entregas`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Diálogo: Envío masivo de emails */}
+      <Dialog open={bulkEmailOpen} onClose={() => !bulkProgress && setBulkEmailOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <EmailIcon color="primary" />
+          Enviar {selectedRemitos.filter(r => ['CONFIRMADO','ENVIADO'].includes(r.estado)).length} emails
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <Alert severity="info">
+            Se enviará el PDF de cada remito al email del depósito correspondiente.
+            CITA → citadeposito, Logística → logística.
+          </Alert>
+          <TextField
+            fullWidth
+            label="CC adicionales (opcional)"
+            placeholder="tu@email.com, otro@email.com"
+            value={bulkEmailDestinosExtra}
+            onChange={(e) => setBulkEmailDestinosExtra(e.target.value)}
+            helperText="Separados por coma o punto y coma. Ej: tu propio email para recibir copia."
+            size="small"
+          />
+          <TextField
+            fullWidth multiline rows={2}
+            label="Texto adicional en el email (opcional)"
+            value={bulkEmailTextoExtra}
+            onChange={(e) => setBulkEmailTextoExtra(e.target.value)}
+            placeholder="Ej: Recordamos que el horario de retiro es de 8 a 12hs."
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkEmailOpen(false)} disabled={!!bulkProgress}>Cancelar</Button>
+          <Button
+            variant="contained"
+            startIcon={bulkProgress ? <CircularProgress size={16} /> : <EmailIcon />}
+            onClick={handleBulkEmail}
+            disabled={!!bulkProgress}
+          >
+            {bulkProgress ? `Enviando ${bulkProgress.done}/${bulkProgress.total}...` : 'Enviar emails'}
           </Button>
         </DialogActions>
       </Dialog>
