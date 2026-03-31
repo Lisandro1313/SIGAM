@@ -32,12 +32,38 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import LoadingPage from '../components/LoadingPage';
 
-function getSaludo(nombre: string): string {
+const SALUDOS: Record<'manana' | 'tarde' | 'noche', string[]> = {
+  manana: [
+    '¡Buenos días! ¿Cómo estás? Espero que tengas un gran día.',
+    '¡Buenos días! ¿Cómo estás? Que arranque bien la jornada.',
+    '¡Buenos días! ¿Cómo estás? ¿Todo listo para el día?',
+    '¡Buenos días! ¿Cómo estás? Espero que haya dormido bien.',
+    '¡Buenos días! ¿Cómo estás? Que sea un buen día.',
+  ],
+  tarde: [
+    '¡Buenas tardes! ¿Cómo estás? Espero que el día vaya bien.',
+    '¡Buenas tardes! ¿Cómo estás? ¿Cómo va la jornada?',
+    '¡Buenas tardes! ¿Cómo estás? Espero que todo tranquilo.',
+    '¡Buenas tardes! ¿Cómo estás? ¿Todo bien por ahí?',
+    '¡Buenas tardes! ¿Cómo estás? Que sea una buena tarde.',
+  ],
+  noche: [
+    '¡Buenas noches! ¿Cómo estás? Espero que hayas tenido un buen día.',
+    '¡Buenas noches! ¿Cómo estás? Espero que todo haya ido bien hoy.',
+    '¡Buenas noches! ¿Cómo estás? ¿Cómo te fue hoy?',
+    '¡Buenas noches! ¿Cómo estás? Espero que hayas cerrado bien el día.',
+    '¡Buenas noches! ¿Cómo estás? Que tengas una linda noche.',
+  ],
+};
+
+function getSaludo(): string {
   const hora = new Date().getHours();
-  const primerNombre = nombre.split(' ')[0];
-  if (hora >= 6 && hora < 12) return `¡Buenos días, ${primerNombre}!`;
-  if (hora >= 12 && hora < 20) return `¡Buenas tardes, ${primerNombre}!`;
-  return `¡Buenas noches, ${primerNombre}!`;
+  const dia = new Date().getDate();
+  const turno: 'manana' | 'tarde' | 'noche' =
+    hora >= 6 && hora < 12 ? 'manana' :
+    hora >= 12 && hora < 20 ? 'tarde' : 'noche';
+  const lista = SALUDOS[turno];
+  return lista[dia % lista.length];
 }
 
 const ESTADO_COLOR: Record<string, any> = {
@@ -94,7 +120,7 @@ export default function Dashboard() {
   if (loading) return <LoadingPage />;
 
   const hoy = format(new Date(), "EEEE d 'de' MMMM", { locale: es });
-  const saludo = getSaludo(user?.nombre ?? 'usuario');
+  const saludo = getSaludo();
 
   const kgMes = data?.resumenMes?.kg ?? 0;
   const kgAnterior = data?.resumenMes?.kgMesAnterior ?? 0;
