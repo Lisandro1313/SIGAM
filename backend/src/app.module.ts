@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
@@ -20,6 +21,7 @@ import { AuditoriaInterceptor } from './modules/auditoria/auditoria.interceptor'
 import { TareasModule } from './modules/tareas/tareas.module';
 import { CasosModule } from './modules/casos/casos.module';
 import { EventsModule } from './modules/events/events.module';
+import { BackupModule } from './modules/backup/backup.module';
 
 @Module({
   imports: [
@@ -28,6 +30,9 @@ import { EventsModule } from './modules/events/events.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    // Tareas programadas (backup semanal, etc.)
+    ScheduleModule.forRoot(),
 
     // Rate limiting global: máximo 60 requests por minuto por IP
     ThrottlerModule.forRoot([
@@ -57,6 +62,7 @@ import { EventsModule } from './modules/events/events.module';
     TareasModule,
     CasosModule,
     EventsModule,
+    BackupModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente
