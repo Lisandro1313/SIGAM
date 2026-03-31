@@ -27,7 +27,6 @@ import {
   PieChart, Pie, Legend,
 } from 'recharts';
 import api from '../services/api';
-import { useAuthStore } from '../stores/authStore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import LoadingPage from '../components/LoadingPage';
@@ -95,8 +94,6 @@ export default function Dashboard() {
   const [tabDashPrograma, setTabDashPrograma] = useState<string>('todos');
   const [paginaRemitos, setPaginaRemitos] = useState(0);
   const [buscarRecientes, setBuscarRecientes] = useState('');
-  const user = useAuthStore(s => s.user);
-
   const cargarDashboard = () => {
     api.get('/reportes/dashboard').then(r => setData(r.data)).catch(e => console.error(e)).finally(() => setLoading(false));
     api.get('/stock/alertas').then(r => setStockAlertas(r.data)).catch(() => {});
