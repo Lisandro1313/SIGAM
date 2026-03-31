@@ -68,7 +68,7 @@ export class BackupService {
         orderBy: { createdAt: 'desc' },
         take: 1000,
       }),
-      this.prisma.stockItem.findMany({
+      this.prisma.stock.findMany({
         include: {
           articulo: { select: { nombre: true, categoria: true } },
           deposito: { select: { nombre: true } },
