@@ -3,7 +3,7 @@ import {
   Box, Grid, Card, CardContent, Typography,
   Paper, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, Chip, Divider, List, ListItem, ListItemText, Tabs, Tab, Tooltip,
-  TextField, InputAdornment, IconButton, Button,
+  TextField, InputAdornment, IconButton,
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -468,7 +468,7 @@ export default function Dashboard() {
                     cx="50%"
                     cy="50%"
                     outerRadius={85}
-                    label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
+                    label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
                     labelLine={false}
                   >
                     {kgLocalidad.slice(0, 10).map((_: any, i: number) => (

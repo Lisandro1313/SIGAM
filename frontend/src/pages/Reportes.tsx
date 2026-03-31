@@ -334,7 +334,7 @@ export default function ReportesPage() {
                         nameKey="localidad"
                         cx="50%" cy="50%"
                         outerRadius={100}
-                        label={({ name, percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
+                        label={({ percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
                         labelLine={false}
                       >
                         {entregasPorLocalidad.slice(0, 10).map((_: any, i: number) => (
