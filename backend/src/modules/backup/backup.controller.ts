@@ -16,7 +16,11 @@ export class BackupController {
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Ejecutar backup manual y enviar por email (solo ADMIN)' })
   async ejecutarManual() {
-    await this.backupService.generarYEnviarBackup();
-    return { ok: true, mensaje: 'Backup enviado correctamente' };
+    try {
+      await this.backupService.generarYEnviarBackup();
+      return { ok: true, mensaje: 'Backup enviado correctamente' };
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? String(err) };
+    }
   }
 }

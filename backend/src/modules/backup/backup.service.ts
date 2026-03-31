@@ -48,33 +48,31 @@ export class BackupService {
     const fechaStr = ahora.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
     const semana = `${ahora.getFullYear()}-S${Math.ceil((ahora.getDate()) / 7).toString().padStart(2, '0')}`;
 
-    // ── Exportar datos ────────────────────────────────────────────────────────
-    const [beneficiarios, remitos, casos, stock] = await Promise.all([
-      this.prisma.beneficiario.findMany({
-        where: { activo: true },
-        include: { programa: { select: { nombre: true } } },
-        orderBy: { nombre: 'asc' },
-      }),
-      this.prisma.remito.findMany({
-        include: {
-          beneficiario: { select: { nombre: true, localidad: true } },
-          programa: { select: { nombre: true } },
-          deposito: { select: { nombre: true } },
-        },
-        orderBy: { fecha: 'desc' },
-        take: 2000,
-      }),
-      this.prisma.caso.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 1000,
-      }),
-      this.prisma.stock.findMany({
-        include: {
-          articulo: { select: { nombre: true, categoria: true } },
-          deposito: { select: { nombre: true } },
-        },
-      }),
-    ]);
+    // ── Exportar datos (secuencial para no saturar el pool) ──────────────────
+    const beneficiarios = await this.prisma.beneficiario.findMany({
+      where: { activo: true },
+      include: { programa: { select: { nombre: true } } },
+      orderBy: { nombre: 'asc' },
+    });
+    const remitos = await this.prisma.remito.findMany({
+      include: {
+        beneficiario: { select: { nombre: true, localidad: true } },
+        programa: { select: { nombre: true } },
+        deposito: { select: { nombre: true } },
+      },
+      orderBy: { fecha: 'desc' },
+      take: 2000,
+    });
+    const casos = await this.prisma.caso.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 1000,
+    });
+    const stock = await this.prisma.stock.findMany({
+      include: {
+        articulo: { select: { nombre: true, categoria: true } },
+        deposito: { select: { nombre: true } },
+      },
+    });
 
     const csvBenef = toCsv(beneficiarios.map(b => ({
       ID: b.id,
