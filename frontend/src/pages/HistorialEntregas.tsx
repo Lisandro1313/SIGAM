@@ -278,10 +278,10 @@ export default function HistorialEntregas() {
             </Select>
           </FormControl>
           <TextField
-            label="Buscar beneficiario" size="small" value={buscar}
+            label="Buscar por nombre o DNI" size="small" value={buscar}
             onChange={(e) => setBuscar(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') buscarEntregas(); }}
-            sx={{ width: 200 }}
+            sx={{ width: 220 }}
           />
           <Button variant="contained" startIcon={<FilterIcon />} onClick={buscarEntregas} disabled={loading}>
             Buscar

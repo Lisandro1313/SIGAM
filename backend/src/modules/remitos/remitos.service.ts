@@ -360,8 +360,9 @@ export class RemitosService {
     if (filtros.buscar) {
       where.OR = [
         { beneficiario: { nombre: { contains: filtros.buscar, mode: 'insensitive' } } },
+        { beneficiario: { responsableDNI: { contains: filtros.buscar } } },
         { caso: { nombreSolicitante: { contains: filtros.buscar, mode: 'insensitive' } } },
-        { caso: { dni: { contains: filtros.buscar, mode: 'insensitive' } } },
+        { caso: { dni: { contains: filtros.buscar } } },
       ];
     }
     if (filtros.depositoId && !usuarioDepositoId) where.depositoId = parseInt(filtros.depositoId);

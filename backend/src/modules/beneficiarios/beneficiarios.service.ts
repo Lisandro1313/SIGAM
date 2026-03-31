@@ -169,14 +169,16 @@ export class BeneficiariosService {
 
   // ── Búsqueda global por DNI ──────────────────────────────────────────────
   async searchByDni(dni: string) {
+    // Normalizar: quitar puntos, guiones, espacios
+    const dniNorm = dni.replace(/[\.\-\s]/g, '').trim();
     const [beneficiarios, casos, integrantes] = await Promise.all([
       this.prisma.beneficiario.findMany({
-        where: { responsableDNI: dni },
+        where: { responsableDNI: { contains: dniNorm } },
         include: { programa: { select: { nombre: true, secretaria: true } } },
         orderBy: { nombre: 'asc' },
       }),
       this.prisma.caso.findMany({
-        where: { dni },
+        where: { dni: { contains: dniNorm } },
         orderBy: { createdAt: 'desc' },
         select: {
           id: true, nombreSolicitante: true, tipo: true, estado: true,
@@ -185,7 +187,7 @@ export class BeneficiariosService {
         },
       }),
       this.prisma.integranteEspacio.findMany({
-        where: { dni, activo: true },
+        where: { dni: { contains: dniNorm }, activo: true },
         include: {
           beneficiario: {
             select: { id: true, nombre: true, programa: { select: { nombre: true } } },
@@ -193,7 +195,7 @@ export class BeneficiariosService {
         },
       }),
     ]);
-    return { dni, beneficiarios, casos, integrantes };
+    return { dni: dniNorm, beneficiarios, casos, integrantes };
   }
 
   async update(id: number, updateData: any) {

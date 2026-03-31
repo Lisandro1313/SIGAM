@@ -66,9 +66,13 @@ export class ReportesController {
 
   @Get('entregas-por-localidad')
   @ApiOperation({ summary: 'Entregas agrupadas por localidad' })
-  entregasPorLocalidad(@Query('mes') mes: string, @Query('anio') anio: string, @Request() req) {
+  entregasPorLocalidad(
+    @Query('mes') mes: string, @Query('anio') anio: string,
+    @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Request() req,
+  ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.entregasPorLocalidad(m, a, getSecretaria(req));
+    return this.reportesService.entregasPorLocalidad(m, a, getSecretaria(req), fechaDesde, fechaHasta);
   }
 
   @Get('articulos-mas-distribuidos')

@@ -52,6 +52,7 @@ export default function ReportesPage() {
   const [benefPorProg, setBenefPorProg]               = useState<any[]>([]);
   const [remitosDetalle, setRemitosDetalle]           = useState<any[]>([]);
   const [resumenEntregas, setResumenEntregas]         = useState<any>(null);
+  const [entregasPorLocalidad, setEntregasPorLocalidad] = useState<any[]>([]);
   const [crucesMasivos, setCrucesMasivos]             = useState<any[] | null>(null);
   const [loadingCruces, setLoadingCruces]             = useState(false);
   const [sinEntrega, setSinEntrega]                   = useState<any | null>(null);
@@ -99,18 +100,20 @@ export default function ReportesPage() {
       const params = modoFiltro === 'rango' ? paramsRango : paramsMes;
       const pId = programaId ? `&programaId=${programaId}` : '';
 
-      const [kilosRes, artRes, progRes, remRes, entRes] = await Promise.all([
+      const [kilosRes, artRes, progRes, remRes, entRes, locRes] = await Promise.all([
         api.get(`/reportes/kilos-por-mes?${modoFiltro === 'mes' ? paramsMes : ''}`),
         api.get(`/reportes/articulos-mas-distribuidos?${params}`),
         api.get(`/reportes/entregas-por-programa?${params}`),
         api.get(`/reportes/remitos-detalle?${params}${pId}`),
         api.get(`/reportes/resumen-entregas-mes?${params}`),
+        api.get(`/reportes/entregas-por-localidad?${params}`),
       ]);
       setKilosPorMes(kilosRes.data);
       setTopArticulos(artRes.data.slice(0, 15));
       setEntregasPorPrograma(progRes.data);
       setRemitosDetalle(remRes.data);
       setResumenEntregas(entRes.data);
+      setEntregasPorLocalidad(locRes.data);
     } catch { /* silent */ }
     finally { setLoading(false); }
   }, [mes, anio, fechaDesde, fechaHasta, modoFiltro, programaId]);
@@ -219,14 +222,14 @@ export default function ReportesPage() {
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Tabs value={tabIdx} onChange={(_, v) => {
           setTabIdx(v);
-          if (v === 6 && crucesMasivos === null) {
+          if (v === 7 && crucesMasivos === null) {
             setLoadingCruces(true);
             api.get('/reportes/cruces-masivos')
               .then(r => setCrucesMasivos(r.data))
               .catch(() => setCrucesMasivos([]))
               .finally(() => setLoadingCruces(false));
           }
-          if (v === 7 && sinEntrega === null) {
+          if (v === 8 && sinEntrega === null) {
             setLoadingSinEntrega(true);
             api.get('/reportes/sin-entrega')
               .then(r => setSinEntrega(r.data))
@@ -235,6 +238,7 @@ export default function ReportesPage() {
           }
         }} variant="scrollable" scrollButtons="auto">
           <Tab label="Distribución" />
+          <Tab label="Por Localidad" />
           <Tab label="Cronograma" />
           <Tab label="Beneficiarios" />
           <Tab label="Artículos" />
@@ -313,8 +317,128 @@ export default function ReportesPage() {
         </Grid>
       )}
 
-      {/* ── Tab 1: Cronograma del mes ── */}
+      {/* ── Tab 1: Por Localidad ── */}
       {tabIdx === 1 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={5}>
+            <Paper elevation={2} sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>Kg por localidad — {labelPeriodo}</Typography>
+              {entregasPorLocalidad.length === 0
+                ? <Typography color="text.secondary">Sin datos para el período</Typography>
+                : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie
+                        data={entregasPorLocalidad.slice(0, 10)}
+                        dataKey="totalKilos"
+                        nameKey="localidad"
+                        cx="50%" cy="50%"
+                        outerRadius={100}
+                        label={({ name, percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
+                        labelLine={false}
+                      >
+                        {entregasPorLocalidad.slice(0, 10).map((_: any, i: number) => (
+                          <Cell key={i} fill={COLORES_PIE[i % COLORES_PIE.length]} />
+                        ))}
+                      </Pie>
+                      <RTooltip formatter={(v: any, name: any) => [`${Number(v).toFixed(0)} kg`, name]} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={7}>
+            <Paper elevation={2} sx={{ p: 3 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6">Detalle por localidad</Typography>
+                <ExportExcelButton
+                  data={entregasPorLocalidad.map((l: any) => ({
+                    Localidad: l.localidad,
+                    Remitos: l.cantidadRemitos,
+                    KilosTotales: l.totalKilos.toFixed(1),
+                  }))}
+                  fileName={`localidad-${labelPeriodo.replace(/ /g,'_')}`}
+                  sheetName="Localidades"
+                  label="Exportar"
+                />
+              </Box>
+              {entregasPorLocalidad.length === 0
+                ? <Typography color="text.secondary">Sin datos para el período</Typography>
+                : (
+                  <>
+                    {/* Totales */}
+                    <Box display="flex" gap={3} mb={2} flexWrap="wrap">
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">TOTAL KG</Typography>
+                        <Typography variant="h5" fontWeight="bold" color="primary.main">
+                          {entregasPorLocalidad.reduce((s: number, l: any) => s + l.totalKilos, 0).toFixed(0)}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">TOTAL ASISTENCIAS</Typography>
+                        <Typography variant="h5" fontWeight="bold" color="success.main">
+                          {entregasPorLocalidad.reduce((s: number, l: any) => s + l.cantidadRemitos, 0)}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">LOCALIDADES</Typography>
+                        <Typography variant="h5" fontWeight="bold" color="text.primary">
+                          {entregasPorLocalidad.length}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                            <TableCell>Localidad</TableCell>
+                            <TableCell align="right">Asistencias</TableCell>
+                            <TableCell align="right">Kg totales</TableCell>
+                            <TableCell align="right">Kg promedio</TableCell>
+                            <TableCell sx={{ width: 100 }}>% del total</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {entregasPorLocalidad.map((loc: any, i: number) => {
+                            const totalKg = entregasPorLocalidad.reduce((s: number, l: any) => s + l.totalKilos, 0);
+                            const pct = totalKg > 0 ? (loc.totalKilos / totalKg) * 100 : 0;
+                            return (
+                              <TableRow key={loc.localidad} hover>
+                                <TableCell>
+                                  <Box display="flex" alignItems="center" gap={1}>
+                                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: COLORES_PIE[i % COLORES_PIE.length], flexShrink: 0 }} />
+                                    <strong>{loc.localidad}</strong>
+                                  </Box>
+                                </TableCell>
+                                <TableCell align="right">{loc.cantidadRemitos}</TableCell>
+                                <TableCell align="right"><strong>{loc.totalKilos.toFixed(0)}</strong></TableCell>
+                                <TableCell align="right">{loc.cantidadRemitos > 0 ? (loc.totalKilos / loc.cantidadRemitos).toFixed(0) : '—'}</TableCell>
+                                <TableCell>
+                                  <Box display="flex" alignItems="center" gap={0.5}>
+                                    <Box sx={{ flex: 1, height: 6, bgcolor: 'grey.200', borderRadius: 1, overflow: 'hidden' }}>
+                                      <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: COLORES_PIE[i % COLORES_PIE.length], borderRadius: 1 }} />
+                                    </Box>
+                                    <Typography variant="caption" color="text.secondary" sx={{ width: 32, textAlign: 'right' }}>
+                                      {pct.toFixed(0)}%
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </>
+                )}
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* ── Tab 2: Cronograma del mes ── */}
+      {tabIdx === 2 && (
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper elevation={2} sx={{ p: 3 }}>
@@ -376,8 +500,8 @@ export default function ReportesPage() {
         </Grid>
       )}
 
-      {/* ── Tab 2: Beneficiarios ── */}
-      {tabIdx === 2 && (
+      {/* ── Tab 3: Beneficiarios ── */}
+      {tabIdx === 3 && (
         <Paper elevation={2} sx={{ p: 3 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6">Beneficiarios activos por programa</Typography>
@@ -418,8 +542,8 @@ export default function ReportesPage() {
         </Paper>
       )}
 
-      {/* ── Tab 3: Artículos ── */}
-      {tabIdx === 3 && (
+      {/* ── Tab 4: Artículos ── */}
+      {tabIdx === 4 && (
         <Grid container spacing={3}>
           <Grid item xs={12} md={7}>
             <Paper elevation={2} sx={{ p: 3 }}>
@@ -468,8 +592,8 @@ export default function ReportesPage() {
         </Grid>
       )}
 
-      {/* ── Tab 4: Remitos ── */}
-      {tabIdx === 4 && (
+      {/* ── Tab 5: Remitos ── */}
+      {tabIdx === 5 && (
         <Paper elevation={2} sx={{ p: 3 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6">
@@ -528,8 +652,8 @@ export default function ReportesPage() {
         </Paper>
       )}
 
-      {/* ── Tab 5: Stock ── */}
-      {tabIdx === 5 && (
+      {/* ── Tab 6: Stock ── */}
+      {tabIdx === 6 && (
         <Paper elevation={2} sx={{ p: 3 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6" color="warning.main">Artículos con stock bajo</Typography>
@@ -572,8 +696,8 @@ export default function ReportesPage() {
           )}
         </Paper>
       )}
-      {/* ── Tab 6: Cruces DNI ── */}
-      {tabIdx === 6 && (
+      {/* ── Tab 7: Cruces DNI ── */}
+      {tabIdx === 7 && (
         <Paper elevation={2} sx={{ p: 3 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Box>
@@ -653,8 +777,8 @@ export default function ReportesPage() {
           )}
         </Paper>
       )}
-      {/* ── Tab 7: Sin Entrega ── */}
-      {tabIdx === 7 && (
+      {/* ── Tab 8: Sin Entrega ── */}
+      {tabIdx === 8 && (
         <Paper elevation={2} sx={{ p: 3 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={1}>
             <Box>
@@ -767,8 +891,8 @@ export default function ReportesPage() {
           )}
         </Paper>
       )}
-      {/* ── Tab 8: Rendición ANEXO VI ── */}
-      {tabIdx === 8 && (
+      {/* ── Tab 9: Rendición ANEXO VI ── */}
+      {tabIdx === 9 && (
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="h6" fontWeight="bold" mb={2}>Rendición — ANEXO VI</Typography>
 

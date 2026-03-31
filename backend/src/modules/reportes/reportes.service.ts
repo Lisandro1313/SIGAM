@@ -30,7 +30,7 @@ export class ReportesService {
       const fecha = new Date(anio, mes - 1, 1);
       const inicio = startOfMonth(fecha);
       const fin = endOfMonth(fecha);
-      const where: any = { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
+      const where: any = { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] } };
       if (secretaria) where.secretaria = secretaria;
       const remitos = await this.prisma.remito.findMany({
         where,
@@ -45,7 +45,7 @@ export class ReportesService {
     const hoy = new Date();
     const inicio6 = startOfMonth(new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1));
     const fin6    = endOfMonth(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
-    const where6: any = { fecha: { gte: inicio6, lte: fin6 }, estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
+    const where6: any = { fecha: { gte: inicio6, lte: fin6 }, estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] } };
     if (secretaria) where6.secretaria = secretaria;
     const todosRemitos = await this.prisma.remito.findMany({ where: where6, select: { fecha: true, totalKg: true } });
 
@@ -75,14 +75,17 @@ export class ReportesService {
   }
 
   // Reporte: Entregas por localidad
-  async entregasPorLocalidad(mes?: number, anio?: number, secretaria?: string | null) {
+  async entregasPorLocalidad(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
     const where: any = {
       estado: {
-        in: ['CONFIRMADO', 'ENVIADO'],
+        in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'],
       },
     };
 
-    if (mes && anio) {
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
+    if (rango) {
+      where.fecha = { gte: rango.inicio, lte: rango.fin };
+    } else if (mes && anio) {
       const fecha = new Date(anio, mes - 1, 1);
       where.fecha = {
         gte: startOfMonth(fecha),
@@ -172,7 +175,7 @@ export class ReportesService {
 
   // Reporte: Entregas por programa
   async entregasPorPrograma(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
-    const where: any = { estado: { in: ['CONFIRMADO', 'ENVIADO'] } };
+    const where: any = { estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] } };
     const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
     if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
     if (secretaria) where.secretaria = secretaria;
@@ -709,12 +712,12 @@ export class ReportesService {
         this.prisma.remito.findMany({
           where: { fecha: { lt: hoy }, ...secFilter },
           include: {
-            beneficiario: { select: { nombre: true } },
+            beneficiario: { select: { nombre: true, responsableDNI: true, localidad: true } },
             programa: { select: { nombre: true } },
             deposito: { select: { nombre: true } },
           },
           orderBy: { fecha: 'desc' },
-          take: 10,
+          take: 50,
         }),
         this.prisma.entregaProgramada.findMany({
           where: {
@@ -787,6 +790,24 @@ export class ReportesService {
       });
     }
 
+    // Kg por localidad del mes actual
+    const remitosLocalidad = await this.prisma.remito.findMany({
+      where: {
+        fecha: { gte: inicioMes, lte: finMes },
+        estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] },
+        ...secFilter,
+      },
+      select: { totalKg: true, beneficiario: { select: { localidad: true } } },
+    });
+    const mapaLocalidad: Record<string, { localidad: string; totalKilos: number; cantidadRemitos: number }> = {};
+    for (const r of remitosLocalidad) {
+      const loc = r.beneficiario?.localidad || 'Sin localidad';
+      if (!mapaLocalidad[loc]) mapaLocalidad[loc] = { localidad: loc, totalKilos: 0, cantidadRemitos: 0 };
+      mapaLocalidad[loc].totalKilos += r.totalKg || 0;
+      mapaLocalidad[loc].cantidadRemitos++;
+    }
+    const kgPorLocalidad = Object.values(mapaLocalidad).sort((a, b) => b.totalKilos - a.totalKilos);
+
     // Beneficiarios activos sin entrega en los últimos 30 días
     const beneficiariosConEntregaReciente = await this.prisma.remito.findMany({
       where: {
@@ -845,11 +866,14 @@ export class ReportesService {
         totalKg: r.totalKg || 0,
         estado: r.estado,
       })),
+      kgPorLocalidad,
       remitosRecientes: remitosRecientes.map(r => ({
         id: r.id,
         numero: r.numero,
         fecha: r.fecha,
         beneficiario: r.beneficiario?.nombre || 'N/A',
+        beneficiarioDNI: r.beneficiario?.responsableDNI || '',
+        localidad: r.beneficiario?.localidad || '',
         programa: r.programa?.nombre || 'Sin programa',
         deposito: r.deposito?.nombre || '',
         totalKg: r.totalKg || 0,
