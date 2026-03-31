@@ -145,10 +145,10 @@ export class BackupService {
       subject: `[SIGAM] Backup semanal — ${fechaStr}`,
       textContent: resumen,
       attachment: [
-        { name: `beneficiarios_${semana}.csv`, content: Buffer.from(csvBenef).toString('base64') },
-        { name: `remitos_${semana}.csv`,       content: Buffer.from(csvRemitos).toString('base64') },
-        { name: `casos_${semana}.csv`,         content: Buffer.from(csvCasos).toString('base64') },
-        { name: `stock_${semana}.csv`,         content: Buffer.from(csvStock).toString('base64') },
+        { name: `beneficiarios_${semana}.csv`, content: Buffer.from(csvBenef || 'sin datos').toString('base64') },
+        { name: `remitos_${semana}.csv`,       content: Buffer.from(csvRemitos || 'sin datos').toString('base64') },
+        { name: `casos_${semana}.csv`,         content: Buffer.from(csvCasos || 'sin datos').toString('base64') },
+        { name: `stock_${semana}.csv`,         content: Buffer.from(csvStock || 'sin datos').toString('base64') },
       ],
     });
 
