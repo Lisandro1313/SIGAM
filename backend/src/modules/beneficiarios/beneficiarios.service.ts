@@ -171,7 +171,7 @@ export class BeneficiariosService {
   async searchByDni(dni: string) {
     // Normalizar: quitar puntos, guiones, espacios
     const dniNorm = dni.replace(/[\.\-\s]/g, '').trim();
-    const [beneficiarios, casos, integrantes] = await Promise.all([
+    const [beneficiarios, casos] = await Promise.all([
       this.prisma.beneficiario.findMany({
         where: { responsableDNI: { contains: dniNorm } },
         include: { programa: { select: { nombre: true, secretaria: true } } },
@@ -186,15 +186,19 @@ export class BeneficiariosService {
           remito: { select: { numero: true, totalKg: true } },
         },
       }),
-      this.prisma.integranteEspacio.findMany({
+    ]);
+    // IntegranteEspacio puede no existir en todas las instancias
+    let integrantes: any[] = [];
+    try {
+      integrantes = await (this.prisma as any).integranteEspacio.findMany({
         where: { dni: { contains: dniNorm }, activo: true },
         include: {
           beneficiario: {
             select: { id: true, nombre: true, programa: { select: { nombre: true } } },
           },
         },
-      }),
-    ]);
+      });
+    } catch { /* tabla no existe en esta instancia */ }
     return { dni: dniNorm, beneficiarios, casos, integrantes };
   }
 

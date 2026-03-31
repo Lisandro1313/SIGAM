@@ -13,6 +13,12 @@ import {
 } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+function resolveUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  return url.startsWith('http') ? url : `${API_BASE}/${url.replace(/^\//, '')}`;
+}
 import { format, differenceInDays, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -155,7 +161,7 @@ export default function ArticuloForm({
               {fotoUrl ? (
                 <Box
                   component="img"
-                  src={fotoUrl}
+                  src={resolveUrl(fotoUrl)}
                   alt={articulo.nombre}
                   sx={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 1, border: '1px solid #eee' }}
                 />

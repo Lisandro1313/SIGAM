@@ -19,6 +19,12 @@ import {
 import { Add as AddIcon, Edit as EditIcon, VisibilityOutlined as ViewIcon, Warning as WarnIcon, PhotoCamera as FotoIcon } from '@mui/icons-material';
 import { differenceInDays, isPast } from 'date-fns';
 import api from '../services/api';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+function resolveUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  return url.startsWith('http') ? url : `${API_BASE}/${url.replace(/^\//, '')}`;
+}
 import ArticuloForm from '../components/ArticuloForm';
 import SearchBar from '../components/SearchBar';
 import ExportExcelButton from '../components/ExportExcelButton';
@@ -141,7 +147,7 @@ export default function ArticulosPage() {
                     <TableCell>
                       <Box display="flex" alignItems="center" gap={1}>
                         {articulo.fotoUrl ? (
-                          <Box component="img" src={articulo.fotoUrl} alt={articulo.nombre}
+                          <Box component="img" src={resolveUrl(articulo.fotoUrl)} alt={articulo.nombre}
                             sx={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 0.5, border: '1px solid #eee', flexShrink: 0 }} />
                         ) : (
                           <Box sx={{ width: 36, height: 36, bgcolor: 'grey.100', borderRadius: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
