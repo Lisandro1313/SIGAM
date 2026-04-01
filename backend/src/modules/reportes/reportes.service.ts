@@ -691,6 +691,8 @@ export class ReportesService {
     en7dias.setDate(en7dias.getDate() + 7);
     const hace30dias = new Date(hoy);
     hace30dias.setDate(hace30dias.getDate() - 30);
+    const hace14dias = new Date(hoy);
+    hace14dias.setDate(hace14dias.getDate() - 14);
     const inicioMes = startOfMonth(new Date());
     const finMes = endOfMonth(new Date());
     const inicioMesAnterior = startOfMonth(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1));
@@ -722,7 +724,9 @@ export class ReportesService {
         this.prisma.entregaProgramada.findMany({
           where: {
             estado: { in: ['PENDIENTE', 'GENERADA'] },
-            fechaProgramada: { gte: hoy, lte: en7dias },
+            // Incluye hasta 14 días atrás (entregas pendientes que no se entregaron)
+            // y hasta 7 días adelante
+            fechaProgramada: { gte: hace14dias, lte: en7dias },
             ...(secretaria ? { secretaria } : {}),
           },
           include: {
@@ -730,6 +734,7 @@ export class ReportesService {
             programa: { select: { nombre: true } },
           },
           orderBy: { fechaProgramada: 'asc' },
+          take: 50,
         }),
         this.prisma.remito.count({
           where: { fecha: { gte: inicioMes, lte: finMes }, ...secFilter },

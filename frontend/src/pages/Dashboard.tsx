@@ -92,6 +92,7 @@ export default function Dashboard() {
   const [data, setData] = useState<any>(null);
   const [stockAlertas, setStockAlertas] = useState<any[]>([]);
   const [tabDashPrograma, setTabDashPrograma] = useState<string>('todos');
+  const [tabCronograma, setTabCronograma] = useState<string>('todos');
   const [paginaRemitos, setPaginaRemitos] = useState(0);
   const [buscarRecientes, setBuscarRecientes] = useState('');
   const cargarDashboard = () => {
@@ -144,6 +145,12 @@ export default function Dashboard() {
         r.programa?.toLowerCase().includes(buscarQ)
       )
     : (data?.remitosRecientes ?? []);
+
+  // Pestañas cronograma
+  const programasCrono = ['todos', ...Array.from(new Set<string>((data?.proximasEntregas ?? []).map((e: any) => e.programa?.nombre as string).filter(Boolean))).sort()];
+  const cronoFiltradas = tabCronograma === 'todos'
+    ? (data?.proximasEntregas ?? [])
+    : (data?.proximasEntregas ?? []).filter((e: any) => e.programa?.nombre === tabCronograma);
 
   // Kg por localidad
   const kgLocalidad: any[] = data?.kgPorLocalidad ?? [];
@@ -230,7 +237,7 @@ export default function Dashboard() {
                   <Typography variant="h4" fontWeight="bold">
                     {data?.proximasEntregas?.length ?? 0}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">próximos 7 días</Typography>
+                  <Typography variant="caption" color="text.secondary">pendientes / próx. 7 días</Typography>
                 </Box>
                 <CronogramaIcon sx={{ fontSize: 36, color: 'info.main' }} />
               </Box>
@@ -321,54 +328,75 @@ export default function Dashboard() {
         {/* Cronograma próximos 7 días */}
         <Grid item xs={12} md={5}>
           <Paper elevation={2} sx={{ p: 2 }}>
-            <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <Box display="flex" alignItems="center" gap={1} mb={1}>
               <CronogramaIcon color="info" />
-              <Typography variant="h6" fontWeight="bold">Cronograma — próximos 7 días</Typography>
+              <Typography variant="h6" fontWeight="bold">Cronograma — entregas pendientes</Typography>
+              {cronoFiltradas.length > 0 && (
+                <Typography variant="caption" color="text.secondary" ml="auto">
+                  {cronoFiltradas.length} entrega{cronoFiltradas.length !== 1 ? 's' : ''}
+                </Typography>
+              )}
             </Box>
-            <Divider sx={{ mb: 1 }} />
             {(!data?.proximasEntregas || data.proximasEntregas.length === 0) ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
-                No hay entregas programadas
-              </Typography>
+              <>
+                <Divider sx={{ mb: 1 }} />
+                <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+                  No hay entregas pendientes
+                </Typography>
+              </>
             ) : (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Fecha</TableCell>
-                      <TableCell>Beneficiario</TableCell>
-                      <TableCell align="right">Kg est.</TableCell>
-                      <TableCell align="center">Estado</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {data.proximasEntregas.map((e: any) => (
-                      <TableRow key={e.id} hover>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          <Typography variant="body2" fontWeight="bold">
-                            {format(new Date(e.fechaProgramada), 'dd/MM', { locale: es })}
-                          </Typography>
-                          {e.hora && (
-                            <Typography variant="caption" color="text.secondary">{e.hora}</Typography>
-                          )}
-                        </TableCell>
-                        <TableCell sx={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {e.beneficiario}
-                          {e.localidad && (
-                            <Typography variant="caption" color="text.secondary" display="block">{e.localidad}</Typography>
-                          )}
-                        </TableCell>
-                        <TableCell align="right">
-                          {e.kilos ? e.kilos.toFixed(0) : '—'}
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip label={e.estado} size="small" color={ESTADO_COLOR[e.estado] || 'default'} />
-                        </TableCell>
+              <>
+                <Tabs
+                  value={programasCrono.includes(tabCronograma) ? tabCronograma : 'todos'}
+                  onChange={(_e, v) => setTabCronograma(v)}
+                  variant="scrollable"
+                  scrollButtons="auto"
+                  sx={{ mb: 1, minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5, fontSize: '0.75rem' } }}
+                >
+                  {programasCrono.map(p => (
+                    <Tab key={p} label={p === 'todos' ? 'Todos' : p} value={p} />
+                  ))}
+                </Tabs>
+                <Divider sx={{ mb: 1 }} />
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Fecha</TableCell>
+                        <TableCell>Beneficiario</TableCell>
+                        <TableCell align="right">Kg est.</TableCell>
+                        <TableCell align="center">Estado</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {cronoFiltradas.map((e: any) => (
+                        <TableRow key={e.id} hover>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                            <Typography variant="body2" fontWeight="bold">
+                              {format(new Date(e.fechaProgramada), 'dd/MM', { locale: es })}
+                            </Typography>
+                            {e.hora && (
+                              <Typography variant="caption" color="text.secondary">{e.hora}</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {e.beneficiario?.nombre ?? e.beneficiario}
+                            {e.localidad && (
+                              <Typography variant="caption" color="text.secondary" display="block">{e.localidad}</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell align="right">
+                            {e.kilos ? e.kilos.toFixed(0) : '—'}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Chip label={e.estado} size="small" color={ESTADO_COLOR[e.estado] || 'default'} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
             )}
           </Paper>
         </Grid>

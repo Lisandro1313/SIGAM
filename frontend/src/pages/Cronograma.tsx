@@ -314,11 +314,6 @@ export default function CronogramaPage() {
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={1} flexWrap="wrap" gap={1}>
         <Typography variant="h4" fontWeight="bold">Cronograma</Typography>
         <Box display="flex" alignItems="center" gap={1}>
-          <FormControl size="small">
-            <Select value={depDefault} onChange={e=>setDepDefault(Number(e.target.value))} sx={{minWidth:140,fontSize:13}}>
-              {depositos.map(d=><MenuItem key={d.id} value={d.id}>{d.codigo}</MenuItem>)}
-            </Select>
-          </FormControl>
           <Tooltip title="Semana anterior"><IconButton onClick={()=>setSemanaInicio(p=>addDays(p,-7))}><ChevronLeft/></IconButton></Tooltip>
           <Typography variant="body1" fontWeight="bold" minWidth={230} textAlign="center">{semanaLabel}</Typography>
           <Tooltip title="Semana siguiente"><IconButton onClick={()=>setSemanaInicio(p=>addDays(p,7))}><ChevronRight/></IconButton></Tooltip>
@@ -535,9 +530,12 @@ export default function CronogramaPage() {
           <Typography variant="body2" color="text.secondary" mb={2}>
             Semana: <strong>{semanaLabel}</strong>
           </Typography>
-          <Typography variant="body2" color="text.secondary" mb={2}>
-            Depósito: <strong>{depositos.find(d=>d.id===depDefault)?.nombre ?? depDefault}</strong>
-          </Typography>
+          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+            <Typography variant="caption" color="text.secondary" mb={0.5} display="block">Depósito para los remitos</Typography>
+            <Select value={depDefault} onChange={e => setDepDefault(Number(e.target.value))}>
+              {depositos.map(d => <MenuItem key={d.id} value={d.id}>{d.nombre} ({d.codigo})</MenuItem>)}
+            </Select>
+          </FormControl>
           {semanaGenLoading && <Box display="flex" justifyContent="center" my={2}><CircularProgress size={24}/></Box>}
           {semanaPreview && !semanaGenLoading && (
             <Alert severity={semanaPreview.pendientes === 0 ? 'info' : 'success'} sx={{mb:1}}>

@@ -64,6 +64,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { puedeAcceder, ROL_LABELS, Rol } from '../utils/permisos';
 import api from '../services/api';
+import NewsTicker from './NewsTicker';
 
 const drawerWidth = 260;
 
@@ -552,8 +553,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </Drawer>
       </Box>
 
-      <Box component="main" sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - ${drawerWidth}px)` }, mt: 8 }}>
-        {children}
+      <Box component="main" sx={{ flexGrow: 1, width: { sm: `calc(100% - ${drawerWidth}px)` }, mt: 8, display: 'flex', flexDirection: 'column' }}>
+        <NewsTicker />
+        <Box sx={{ p: 3, flex: 1 }}>
+          {children}
+        </Box>
       </Box>
 
       {/* ── Diálogo de búsqueda global ── */}

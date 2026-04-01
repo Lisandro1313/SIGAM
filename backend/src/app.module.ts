@@ -22,6 +22,7 @@ import { TareasModule } from './modules/tareas/tareas.module';
 import { CasosModule } from './modules/casos/casos.module';
 import { EventsModule } from './modules/events/events.module';
 import { BackupModule } from './modules/backup/backup.module';
+import { NoticiasModule } from './modules/noticias/noticias.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { BackupModule } from './modules/backup/backup.module';
     CasosModule,
     EventsModule,
     BackupModule,
+    NoticiasModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente
