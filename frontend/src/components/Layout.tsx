@@ -213,7 +213,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
 
         // 2. Abrir SSE con el ticket de un solo uso
-        es = new EventSource(`${API_BASE}/events/stream?ticket=${encodeURIComponent(data.ticket)}`);
+        es = new EventSource(`${API_BASE}/api/events/stream?ticket=${encodeURIComponent(data.ticket)}`);
 
         es.onmessage = (e) => {
           try {

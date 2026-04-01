@@ -33,8 +33,8 @@ export default function NewsTicker() {
   const items = [...noticias, ...noticias];
   const texto = items.map(n => `${n.categoria.toUpperCase()}: ${n.titulo}  ·  `).join('');
 
-  // Velocidad proporcional al contenido: ~80px por carácter base
-  const durationSec = Math.max(10, noticias.length * 3);
+  // Velocidad proporcional al contenido: ~7px por carácter, 120px/s de velocidad
+  const durationSec = Math.max(20, Math.round((texto.length * 7 + 1200) / 120));
 
   return (
     <Box
@@ -69,18 +69,16 @@ export default function NewsTicker() {
       </Box>
 
       {/* Texto animado */}
-      <Box sx={{ overflow: 'hidden', flex: 1, height: '100%', position: 'relative' }}>
+      <Box sx={{ overflow: 'hidden', flex: 1, height: '100%', display: 'flex', alignItems: 'center' }}>
         <Box
           sx={{
             display: 'inline-block',
             whiteSpace: 'nowrap',
             animation: `ticker-scroll ${durationSec}s linear infinite`,
-            position: 'absolute',
-            top: '50%',
-            transform: 'translateY(-50%)',
+            willChange: 'transform',
             '@keyframes ticker-scroll': {
-              '0%': { left: '100%' },
-              '100%': { left: '-100%' },
+              '0%': { transform: 'translateX(100vw)' },
+              '100%': { transform: 'translateX(-100%)' },
             },
           }}
         >

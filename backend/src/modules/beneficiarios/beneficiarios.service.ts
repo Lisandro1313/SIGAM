@@ -235,13 +235,19 @@ export class BeneficiariosService {
   }
 
   async bulkIntegrantes(beneficiarioId: number, integrantes: { nombre: string; dni?: string; direccion?: string }[]) {
-    const created = await this.prisma.$transaction(
-      integrantes.map((i) =>
-        this.prisma.integranteEspacio.create({
-          data: { beneficiarioId, nombre: i.nombre, dni: i.dni || null, direccion: i.direccion || null },
-        }),
-      ),
-    );
+    await this.prisma.integranteEspacio.createMany({
+      data: integrantes.map((i) => ({
+        beneficiarioId,
+        nombre: i.nombre,
+        dni: i.dni || null,
+        direccion: i.direccion || null,
+      })),
+    });
+    const created = await this.prisma.integranteEspacio.findMany({
+      where: { beneficiarioId, activo: true },
+      orderBy: { createdAt: 'desc' },
+      take: integrantes.length,
+    });
     return { count: created.length, integrantes: created };
   }
 

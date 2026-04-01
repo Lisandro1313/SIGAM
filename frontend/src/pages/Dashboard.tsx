@@ -86,6 +86,7 @@ const PRIORIDAD_COLOR: Record<string, any> = {
 const COLORES_PIE = ['#1565C0','#2E7D32','#6A1B9A','#00695C','#E65100','#AD1457','#283593','#00838F','#4527A0','#558B2F','#00838F'];
 
 const REMITOS_POR_PAGINA = 10;
+const CRONO_POR_PAGINA = 10;
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -94,6 +95,7 @@ export default function Dashboard() {
   const [tabDashPrograma, setTabDashPrograma] = useState<string>('todos');
   const [tabCronograma, setTabCronograma] = useState<string>('todos');
   const [paginaRemitos, setPaginaRemitos] = useState(0);
+  const [paginaCrono, setPaginaCrono] = useState(0);
   const [buscarRecientes, setBuscarRecientes] = useState('');
   const cargarDashboard = () => {
     api.get('/reportes/dashboard').then(r => setData(r.data)).catch(e => console.error(e)).finally(() => setLoading(false));
@@ -151,6 +153,8 @@ export default function Dashboard() {
   const cronoFiltradas = tabCronograma === 'todos'
     ? (data?.proximasEntregas ?? [])
     : (data?.proximasEntregas ?? []).filter((e: any) => e.programa?.nombre === tabCronograma);
+  const totalPaginasCrono = Math.ceil(cronoFiltradas.length / CRONO_POR_PAGINA);
+  const cronoPagina = cronoFiltradas.slice(paginaCrono * CRONO_POR_PAGINA, (paginaCrono + 1) * CRONO_POR_PAGINA);
 
   // Kg por localidad
   const kgLocalidad: any[] = data?.kgPorLocalidad ?? [];
@@ -348,7 +352,7 @@ export default function Dashboard() {
               <>
                 <Tabs
                   value={programasCrono.includes(tabCronograma) ? tabCronograma : 'todos'}
-                  onChange={(_e, v) => setTabCronograma(v)}
+                  onChange={(_e, v) => { setTabCronograma(v); setPaginaCrono(0); }}
                   variant="scrollable"
                   scrollButtons="auto"
                   sx={{ mb: 1, minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5, fontSize: '0.75rem' } }}
@@ -369,7 +373,7 @@ export default function Dashboard() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {cronoFiltradas.map((e: any) => (
+                      {cronoPagina.map((e: any) => (
                         <TableRow key={e.id} hover>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>
                             <Typography variant="body2" fontWeight="bold">
@@ -396,6 +400,19 @@ export default function Dashboard() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+                {totalPaginasCrono > 1 && (
+                  <Box display="flex" alignItems="center" justifyContent="flex-end" mt={1} gap={0.5}>
+                    <IconButton size="small" onClick={() => setPaginaCrono(p => Math.max(0, p - 1))} disabled={paginaCrono === 0}>
+                      <PrevIcon fontSize="small" />
+                    </IconButton>
+                    <Typography variant="caption" color="text.secondary">
+                      {paginaCrono + 1} / {totalPaginasCrono}
+                    </Typography>
+                    <IconButton size="small" onClick={() => setPaginaCrono(p => Math.min(totalPaginasCrono - 1, p + 1))} disabled={paginaCrono >= totalPaginasCrono - 1}>
+                      <NextIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                )}
               </>
             )}
           </Paper>
