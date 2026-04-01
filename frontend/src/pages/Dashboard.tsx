@@ -527,14 +527,14 @@ export default function Dashboard() {
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={5}>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
                     data={kgLocalidad.slice(0, 10)}
                     dataKey="totalKilos"
                     nameKey="localidad"
                     cx="50%"
-                    cy="50%"
+                    cy="42%"
                     outerRadius={85}
                     label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
                     labelLine={false}
@@ -544,7 +544,7 @@ export default function Dashboard() {
                     ))}
                   </Pie>
                   <ReTooltip formatter={(v: any, name: any) => [`${Number(v).toFixed(0)} kg`, name]} />
-                  <Legend />
+                  <Legend verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: 12, fontSize: '0.75rem' }} />
                 </PieChart>
               </ResponsiveContainer>
             </Grid>
