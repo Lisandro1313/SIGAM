@@ -10,14 +10,17 @@ interface NoticiaItem {
 }
 
 const FEEDS: { url: string; categoria: string; fuente: string }[] = [
-  { url: 'https://www.clarin.com/rss/economia/', categoria: 'Economía', fuente: 'Clarín' },
-  { url: 'https://www.clarin.com/rss/deportes/', categoria: 'Deportes', fuente: 'Clarín' },
-  { url: 'https://www.clarin.com/rss/politica/', categoria: 'Política', fuente: 'Clarín' },
-  { url: 'https://www.ambito.com/rss/pages/economia.xml', categoria: 'Economía', fuente: 'Ámbito' },
+  { url: 'https://www.clarin.com/rss/deportes/',      categoria: 'Deportes',       fuente: 'Clarín' },
+  { url: 'https://www.clarin.com/rss/economia/',      categoria: 'Economía',       fuente: 'Clarín' },
+  { url: 'https://www.clarin.com/rss/politica/',      categoria: 'Política',       fuente: 'Clarín' },
+  { url: 'https://www.clarin.com/rss/espectaculos/',  categoria: 'Espectáculos',   fuente: 'Clarín' },
+  { url: 'https://www.clarin.com/rss/mundo/',         categoria: 'El Mundo',       fuente: 'Clarín' },
+  { url: 'https://www.clarin.com/rss/sociedad/',      categoria: 'Sociedad',       fuente: 'Clarín' },
+  { url: 'https://www.ambito.com/rss/pages/economia.xml', categoria: 'Economía',  fuente: 'Ámbito' },
 ];
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos
-const ITEMS_PER_FEED = 4;
+const ITEMS_PER_FEED = 5;
 
 @Injectable()
 export class NoticiasService implements OnModuleInit {
