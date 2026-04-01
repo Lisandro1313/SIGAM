@@ -350,9 +350,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
-            Sistema de Gestión Alimentaria
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
+            <Box
+              component="img"
+              src="/pwa-192.svg"
+              alt="SIGAM"
+              sx={{ width: 28, height: 28, borderRadius: 1, flexShrink: 0 }}
+            />
+            <Typography variant="h6" noWrap>
+              Sistema de Gestión Alimentaria
+            </Typography>
+          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Chip
               label={rolLabel}
