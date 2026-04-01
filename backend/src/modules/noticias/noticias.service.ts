@@ -10,10 +10,10 @@ interface NoticiaItem {
 }
 
 const FEEDS: { url: string; categoria: string; fuente: string }[] = [
-  { url: 'https://www.infobae.com/feeds/rss/', categoria: 'General', fuente: 'Infobae' },
-  { url: 'https://www.infobae.com/economia/feeds/rss/', categoria: 'Economía', fuente: 'Infobae' },
-  { url: 'https://www.infobae.com/deportes/feeds/rss/', categoria: 'Deportes', fuente: 'Infobae' },
-  { url: 'https://www.lanacion.com.ar/economia/rss/', categoria: 'Economía', fuente: 'La Nación' },
+  { url: 'https://www.clarin.com/rss/economia/', categoria: 'Economía', fuente: 'Clarín' },
+  { url: 'https://www.clarin.com/rss/deportes/', categoria: 'Deportes', fuente: 'Clarín' },
+  { url: 'https://www.clarin.com/rss/politica/', categoria: 'Política', fuente: 'Clarín' },
+  { url: 'https://www.ambito.com/rss/pages/economia.xml', categoria: 'Economía', fuente: 'Ámbito' },
 ];
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos
