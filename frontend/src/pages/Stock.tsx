@@ -15,6 +15,8 @@ import {
   Delete as DeleteIcon,
   Lock as LockIcon,
   LockOpen as LockOpenIcon,
+  OpenInNew as OpenIcon,
+  FolderOpen as FolderIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -97,7 +99,7 @@ export default function StockPage() {
   const [depositos, setDepositos] = useState<any[]>([]);
   const [articulos, setArticulos] = useState<any[]>([]);
   const [selectedDeposito, setSelectedDeposito] = useState(0);
-  const [vistaTab, setVistaTab] = useState(0); // 0=stock, 1=movimientos, 2=lotes
+  const [vistaTab, setVistaTab] = useState(0); // 0=stock, 1=movimientos, 2=lotes, 3=documentos
   const [loading, setLoading] = useState(true);
   const [loadingMov, setLoadingMov] = useState(false);
   const [stockBajo, setStockBajo] = useState<any[]>([]);
@@ -157,7 +159,7 @@ export default function StockPage() {
   }, [selectedDeposito, depositos]);
 
   useEffect(() => {
-    if (vistaTab === 1) loadMovimientos();
+    if (vistaTab === 1 || vistaTab === 3) loadMovimientos();
     if (vistaTab === 2 && depositos.length > 0) loadLotes(depositos[selectedDeposito]?.id);
   }, [vistaTab]);
 
@@ -337,6 +339,7 @@ export default function StockPage() {
           <Tab label="Stock actual" />
           <Tab label="Historial de movimientos" />
           <Tab label="Lotes / Vencimientos" />
+          <Tab label="Documentos" icon={<FolderIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
         </Tabs>
       </Paper>
 
@@ -556,6 +559,72 @@ export default function StockPage() {
               </Table>
             </TableContainer>
           )}
+        </>
+      )}
+
+      {/* ── Tab 3: Documentos ── */}
+      {vistaTab === 3 && (
+        <>
+          {loadingMov ? (
+            <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>
+          ) : (() => {
+            const docs = movimientos.filter(m => m.documentoUrl);
+            return docs.length === 0 ? (
+              <Paper elevation={2} sx={{ p: 4, textAlign: 'center' }}>
+                <FolderIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+                <Typography variant="body2" color="text.secondary">
+                  No hay documentos adjuntos en los movimientos registrados.
+                </Typography>
+              </Paper>
+            ) : (
+              <TableContainer component={Paper} elevation={2}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'grey.50' }}>
+                      <TableCell>Fecha</TableCell>
+                      <TableCell>Tipo</TableCell>
+                      <TableCell>Artículo</TableCell>
+                      <TableCell align="right">Cantidad</TableCell>
+                      <TableCell>Depósito</TableCell>
+                      <TableCell>Observaciones</TableCell>
+                      <TableCell align="center">Documento</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {docs.map((m) => (
+                      <TableRow key={m.id} hover>
+                        <TableCell sx={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                          {format(new Date(m.fecha), 'dd/MM/yy HH:mm', { locale: es })}
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={TIPO_LABEL[m.tipo] ?? m.tipo} size="small" color={TIPO_COLOR[m.tipo] ?? 'default'} />
+                        </TableCell>
+                        <TableCell><strong>{m.articulo?.nombre}</strong></TableCell>
+                        <TableCell align="right">{m.cantidad}</TableCell>
+                        <TableCell sx={{ fontSize: '0.8rem' }}>
+                          {m.depositoHacia?.nombre || m.depositoDesde?.nombre || '—'}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.8rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.observaciones || '—'}
+                        </TableCell>
+                        <TableCell align="center">
+                          <Tooltip title="Abrir documento">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => window.open(m.documentoUrl, '_blank', 'noopener,noreferrer')}
+                            >
+                              <OpenIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            );
+          })()}
         </>
       )}
 

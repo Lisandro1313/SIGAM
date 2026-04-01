@@ -153,7 +153,7 @@ export default function StockTransferForm({
             <MenuItem value={0}>Seleccionar artículo</MenuItem>
             {stock.map((item) => (
               <MenuItem key={item.articulo.id} value={item.articulo.id}>
-                {item.articulo.codigo} - {item.articulo.descripcion} (Stock: {item.cantidad})
+                {item.articulo.nombre} (Stock: {item.cantidad})
               </MenuItem>
             ))}
           </TextField>
