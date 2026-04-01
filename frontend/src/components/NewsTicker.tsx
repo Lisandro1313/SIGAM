@@ -34,7 +34,7 @@ export default function NewsTicker() {
   const texto = items.map(n => `${n.categoria.toUpperCase()}: ${n.titulo}  ·  `).join('');
 
   // Velocidad proporcional al contenido: ~80px por carácter base
-  const durationSec = Math.max(40, noticias.length * 12);
+  const durationSec = Math.max(20, noticias.length * 6);
 
   return (
     <Box
