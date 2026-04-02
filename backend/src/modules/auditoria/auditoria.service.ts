@@ -22,6 +22,8 @@ export class AuditoriaService {
     hasta?: string;
     metodo?: string;
     buscar?: string;
+    page?: number;
+    pageSize?: number;
   }) {
     const where: any = {};
     if (filtros.usuarioId) where.usuarioId = filtros.usuarioId;
@@ -43,11 +45,21 @@ export class AuditoriaService {
       }
     }
 
-    return this.prisma.auditoriaLog.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 500,
-    });
+    const page = filtros.page ?? 1;
+    const pageSize = Math.min(filtros.pageSize ?? 25, 100);
+    const skip = (page - 1) * pageSize;
+
+    const [data, total] = await Promise.all([
+      this.prisma.auditoriaLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: pageSize,
+        skip,
+      }),
+      this.prisma.auditoriaLog.count({ where }),
+    ]);
+
+    return { data, total, page, pageSize };
   }
 
   async findByRuta(rutaContiene: string, limit = 100) {

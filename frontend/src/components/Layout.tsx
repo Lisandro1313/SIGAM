@@ -110,6 +110,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [bellTab, setBellTab] = useState(0);
   const [notifs, setNotifs] = useState<any[]>([]);
   const [entregas, setEntregas] = useState<any[]>([]);
+  const [tareasPendientes, setTareasPendientes] = useState<any[]>([]);
   const [leidasIds, setLeidasIds] = useState<Set<number>>(new Set());
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -253,6 +254,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           .then(r => setEntregas(r.data ?? []))
           .catch(() => {});
       }
+      api.get('/tareas', { params: { estado: 'PENDIENTE,EN_PROGRESO' } })
+        .then(r => setTareasPendientes(r.data ?? []))
+        .catch(() => {});
     };
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 2 * 60 * 1000);
@@ -365,7 +369,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </IconButton>
             </Tooltip>
             <IconButton color="inherit" size="small" onClick={(e) => setBellAnchor(e.currentTarget)}>
-              <Badge badgeContent={(notifs.length + entregasNoLeidas.length) || null} color="error" max={9}>
+              <Badge badgeContent={(notifs.length + entregasNoLeidas.length + tareasPendientes.length) || null} color="error" max={9}>
                 <BellIcon />
               </Badge>
             </IconButton>
@@ -430,6 +434,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     Entregas
                     {entregasNoLeidas.length > 0 && (
                       <Chip label={entregasNoLeidas.length} size="small" color="success" sx={{ height: 16, fontSize: '0.6rem' }} />
+                    )}
+                  </Box>
+                }
+                sx={{ minHeight: 36, py: 0, fontSize: '0.8rem' }}
+              />
+              <Tab
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    Tareas
+                    {tareasPendientes.length > 0 && (
+                      <Chip label={tareasPendientes.length} size="small" color="warning" sx={{ height: 16, fontSize: '0.6rem' }} />
                     )}
                   </Box>
                 }
@@ -518,9 +533,79 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </List>
               )
             )}
+
+            {/* ── Tab Tareas pendientes ── */}
+            {bellTab === 2 && (
+              tareasPendientes.length === 0 ? (
+                <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">No hay tareas pendientes</Typography>
+                </Box>
+              ) : (
+                <List disablePadding>
+                  {tareasPendientes.map((t: any) => {
+                    const prioridadColor: Record<string, string> = { ALTA: '#e53935', MEDIA: '#fb8c00', BAJA: '#43a047' };
+                    const estadoLabel: Record<string, string> = { PENDIENTE: 'Pendiente', EN_PROGRESO: 'En progreso' };
+                    const vencida = t.vencimiento && new Date(t.vencimiento) < new Date();
+                    return (
+                      <ListItem
+                        key={t.id}
+                        divider
+                        onClick={() => { setBellAnchor(null); navigate('/tareas'); }}
+                        sx={{
+                          alignItems: 'flex-start', py: 1.5, cursor: 'pointer',
+                          borderLeft: `3px solid ${prioridadColor[t.prioridad] ?? '#fb8c00'}`,
+                          '&:hover': { bgcolor: 'action.hover' },
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                          <TareasIcon sx={{ color: t.estado === 'EN_PROGRESO' ? '#1e88e5' : '#fb8c00' }} fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={
+                            <Typography variant="body2" fontWeight="bold">
+                              {t.titulo}
+                            </Typography>
+                          }
+                          secondary={
+                            <Box>
+                              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.3 }}>
+                                <Chip
+                                  label={estadoLabel[t.estado] ?? t.estado}
+                                  size="small"
+                                  sx={{ height: 18, fontSize: '0.65rem', bgcolor: t.estado === 'EN_PROGRESO' ? '#e3f2fd' : '#fff3e0', color: t.estado === 'EN_PROGRESO' ? '#1565c0' : '#e65100' }}
+                                />
+                                <Chip
+                                  label={t.prioridad}
+                                  size="small"
+                                  sx={{ height: 18, fontSize: '0.65rem', bgcolor: prioridadColor[t.prioridad] ?? '#fb8c00', color: 'white' }}
+                                />
+                                {t.programa?.nombre && (
+                                  <Chip label={t.programa.nombre} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
+                                )}
+                              </Box>
+                              {t.asignadoA && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.3 }}>
+                                  Asignado a: {t.asignadoA}
+                                </Typography>
+                              )}
+                              {t.vencimiento && (
+                                <Typography variant="caption" sx={{ display: 'block', mt: 0.2, color: vencida ? 'error.main' : 'text.disabled', fontWeight: vencida ? 'bold' : 'normal' }}>
+                                  {vencida ? 'Vencida: ' : 'Vence: '}
+                                  {new Date(t.vencimiento).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    );
+                  })}
+                </List>
+              )
+            )}
           </Box>
 
-          {/* Footer — historial */}
+          {/* Footer — historial / tareas */}
           {bellTab === 1 && (
             <Box sx={{ borderTop: '1px solid', borderColor: 'divider', p: 1 }}>
               <Button
@@ -528,6 +613,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 onClick={() => { setBellAnchor(null); navigate('/historial-entregas'); }}
               >
                 Ver historial completo de entregas
+              </Button>
+            </Box>
+          )}
+          {bellTab === 2 && (
+            <Box sx={{ borderTop: '1px solid', borderColor: 'divider', p: 1 }}>
+              <Button
+                fullWidth size="small" startIcon={<TareasIcon />}
+                onClick={() => { setBellAnchor(null); navigate('/tareas'); }}
+              >
+                Ver todas las tareas
               </Button>
             </Box>
           )}

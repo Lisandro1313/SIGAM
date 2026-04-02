@@ -62,6 +62,15 @@ const DESCRIPCIONES: Array<{ pattern: RegExp; metodo: string; desc: string }> = 
   { pattern: /^\/casos\/\d+\/generar-remito$/, metodo: 'POST', desc: 'Generó remito desde caso particular' },
   { pattern: /^\/casos\/\d+\/documentos$/, metodo: 'POST', desc: 'Subió documento de caso' },
   { pattern: /^\/casos\/\d+\/documentos\/\d+$/, metodo: 'DELETE', desc: 'Eliminó documento de caso' },
+  // Plantillas
+  { pattern: /^\/plantillas$/, metodo: 'POST', desc: 'Creó plantilla de entrega' },
+  { pattern: /^\/plantillas\/\d+$/, metodo: 'PATCH', desc: 'Editó plantilla de entrega' },
+  { pattern: /^\/plantillas\/\d+$/, metodo: 'DELETE', desc: 'Eliminó plantilla de entrega' },
+  // Backup
+  { pattern: /^\/backup/, metodo: 'POST', desc: 'Ejecutó backup manual' },
+  // Emails masivos
+  { pattern: /^\/beneficiarios\/email-masivo$/, metodo: 'POST', desc: 'Envió email masivo a beneficiarios' },
+  { pattern: /^\/remitos\/\d+\/email$/, metodo: 'POST', desc: 'Envió remito por email' },
 ];
 
 function normalizePath(path: string): string {
@@ -158,9 +167,10 @@ export class AuditoriaInterceptor implements NestInterceptor {
     const req = context.switchToHttp().getRequest();
     const { method, url, user, body } = req;
 
-    // Solo mutaciones, omitir auth
+    // Solo mutaciones, omitir auth y endpoints internos (SSE tickets, etc.)
     if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return next.handle();
     if (url.includes('/auth/')) return next.handle();
+    if (url.includes('/events/')) return next.handle();
 
     const descripcionBase = buildDescripcion(method, url);
     const datos = sanitizarBody(body);

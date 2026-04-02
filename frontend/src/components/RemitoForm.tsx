@@ -27,8 +27,9 @@ import {
   CircularProgress,
   Tooltip,
   Alert,
+  Chip,
 } from '@mui/material';
-import { Delete as DeleteIcon, Add as AddIcon, PlaylistAdd as PlantillaIcon, PersonAdd as PersonAddIcon, Warning as WarningIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Add as AddIcon, PlaylistAdd as PlantillaIcon, PersonAdd as PersonAddIcon, Warning as WarningIcon, Info as InfoIcon } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
 import { useAuthStore } from '../stores/authStore';
@@ -79,6 +80,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
 
   const [openNuevoBeneficiario, setOpenNuevoBeneficiario] = useState(false);
   const [ultimaEntrega, setUltimaEntrega] = useState<string | null | 'loading'>('loading');
+  const [cruceDatos, setCruceDatos] = useState<any>(null);
 
   // Step 2: Items
   const [articulos, setArticulos] = useState<any[]>([]);
@@ -295,6 +297,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                 onChange={async (_e, b: any) => {
                   const val = b ? String(b.id) : '';
                   setBeneficiarioId(val);
+                  setCruceDatos(null);
                   if (b?.programaId) setProgramaId(String(b.programaId));
                   if (val) {
                     setUltimaEntrega('loading');
@@ -312,6 +315,10 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                     } catch {
                       setUltimaEntrega(null);
                     }
+                    // Cruce de datos por DNI
+                    api.get(`/beneficiarios/${val}/cruce-programas`)
+                      .then(r => setCruceDatos(r.data))
+                      .catch(() => {});
                   } else {
                     setUltimaEntrega('loading');
                   }
@@ -358,6 +365,64 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                   Primera entrega para este beneficiario
                 </Alert>
               )
+            )}
+
+            {/* Cruce de datos por DNI */}
+            {beneficiarioId && cruceDatos && (cruceDatos.integrantes?.length > 0 || cruceDatos.beneficiarios?.length > 0 || cruceDatos.casos?.length > 0) && (
+              <Alert
+                severity="warning"
+                icon={<InfoIcon />}
+                sx={{ py: 1, '& .MuiAlert-message': { width: '100%' } }}
+              >
+                <Typography variant="body2" fontWeight="bold" sx={{ mb: 0.5 }}>
+                  Cruce de datos (DNI: {cruceDatos.dni})
+                </Typography>
+
+                {/* Integrante de espacios */}
+                {cruceDatos.integrantes?.length > 0 && (
+                  <Box sx={{ mb: 0.5 }}>
+                    {cruceDatos.integrantes.map((int: any, i: number) => (
+                      <Typography key={i} variant="caption" sx={{ display: 'block' }}>
+                        Es integrante de <strong>{int.beneficiario?.nombre}</strong>
+                        {int.beneficiario?.programa?.nombre ? ` (${int.beneficiario.programa.nombre})` : ''}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+
+                {/* Otros beneficiarios con mismo DNI */}
+                {cruceDatos.beneficiarios?.length > 0 && (
+                  <Box sx={{ mb: 0.5 }}>
+                    {cruceDatos.beneficiarios.map((b: any) => (
+                      <Typography key={b.id} variant="caption" sx={{ display: 'block' }}>
+                        También recibe como <strong>{b.nombre}</strong>
+                        {b.programa?.nombre ? ` (${b.programa.nombre})` : ''}
+                        {b.ultimaEntrega
+                          ? ` — última entrega: ${new Date(b.ultimaEntrega).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                          : ''}
+                        {!b.activo ? ' [INACTIVO]' : ''}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+
+                {/* Casos particulares */}
+                {cruceDatos.casos?.length > 0 && (
+                  <Box>
+                    {cruceDatos.casos.map((c: any) => (
+                      <Typography key={c.id} variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        Caso particular: <strong>{c.nombreSolicitante}</strong>
+                        <Chip
+                          label={c.estado}
+                          size="small"
+                          sx={{ height: 16, fontSize: '0.6rem', ml: 0.5 }}
+                          color={c.estado === 'APROBADO' || c.estado === 'RESUELTO' ? 'success' : c.estado === 'PENDIENTE' ? 'warning' : 'default'}
+                        />
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+              </Alert>
             )}
 
             <FormControl fullWidth required>

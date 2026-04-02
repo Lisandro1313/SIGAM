@@ -164,7 +164,20 @@ export class BeneficiariosService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return { dni, beneficiarios, casos };
+    // 4. IntegranteEspacio: buscar si este DNI aparece como integrante de algún espacio
+    let integrantes: any[] = [];
+    try {
+      integrantes = await this.prisma.integranteEspacio.findMany({
+        where: { dni, activo: true, beneficiarioId: { not: id } },
+        include: {
+          beneficiario: {
+            select: { id: true, nombre: true, tipo: true, programa: { select: { nombre: true } } },
+          },
+        },
+      });
+    } catch { /* tabla puede no existir aún */ }
+
+    return { dni, beneficiarios, casos, integrantes };
   }
 
   // ── Búsqueda global por DNI ──────────────────────────────────────────────

@@ -14,13 +14,15 @@ export class AuditoriaController {
   constructor(private readonly auditoriaService: AuditoriaService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Obtener logs de auditoría' })
+  @ApiOperation({ summary: 'Obtener logs de auditoría (paginado)' })
   findAll(
     @Query('usuarioId') usuarioId?: string,
     @Query('metodo') metodo?: string,
     @Query('desde') desde?: string,
     @Query('hasta') hasta?: string,
     @Query('buscar') buscar?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     return this.auditoriaService.findAll({
       usuarioId: usuarioId ? parseInt(usuarioId) : undefined,
@@ -28,6 +30,8 @@ export class AuditoriaController {
       desde,
       hasta,
       buscar,
+      page: page ? parseInt(page) : undefined,
+      pageSize: pageSize ? parseInt(pageSize) : undefined,
     });
   }
 

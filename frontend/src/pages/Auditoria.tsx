@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Box, Typography, Paper, TextField, Button, FormControl, InputLabel, Select,
   MenuItem, Chip, CircularProgress, Alert, Avatar, Stack, Divider,
-  Collapse, IconButton, Tooltip, Grid, Card, CardContent,
+  Collapse, Tooltip, Grid, Card, CardContent, TablePagination,
 } from '@mui/material';
 import {
   FilterAlt as FilterIcon, Security as AuditIcon,
@@ -10,13 +10,14 @@ import {
   PersonAdd as PersonAddIcon, ExpandMore as ExpandIcon, ExpandLess as CollapseIcon,
   People as BenefIcon, Receipt as RemitoIcon, Inventory as StockIcon,
   Category as ProgramaIcon, Assignment as ArticuloIcon,
+  CalendarToday as CalendarIcon, AccessTime as TimeIcon,
 } from '@mui/icons-material';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import api from '../services/api';
 
-// Mapeo método HTTP → tipo legible
+/* ─── Mapeo método HTTP → tipo legible ─── */
 const TIPO_MAP: Record<string, { label: string; icon: typeof CreateIcon; color: string; bg: string }> = {
   POST:   { label: 'Creación',      icon: CreateIcon,    color: '#2e7d32', bg: '#e8f5e9' },
   PUT:    { label: 'Modificación',  icon: EditIcon,      color: '#1565c0', bg: '#e3f2fd' },
@@ -31,7 +32,6 @@ const TIPOS_FILTRO = [
   { label: 'Eliminaciones', value: 'DELETE' },
 ];
 
-// Módulos derivables de la ruta
 const MODULOS = [
   { label: 'Todos', value: '' },
   { label: 'Beneficiarios', value: '/beneficiarios', icon: <BenefIcon fontSize="small" /> },
@@ -43,27 +43,28 @@ const MODULOS = [
   { label: 'Casos', value: '/casos', icon: <EditIcon fontSize="small" /> },
 ];
 
-// Convierte la ruta en algo legible: /beneficiarios/42 → "Beneficiario #42"
+/* ─── Convierte la ruta en algo legible ─── */
 function rutaAmigable(ruta: string): string {
   const map: Record<string, string> = {
-    beneficiarios: 'Beneficiario',
-    remitos: 'Remito',
+    beneficiarios: 'Beneficiarios',
+    remitos: 'Remitos',
     stock: 'Stock',
-    programas: 'Programa',
-    articulos: 'Artículo',
-    usuarios: 'Usuario',
-    casos: 'Caso',
-    plantillas: 'Plantilla',
-    depositos: 'Depósito',
+    programas: 'Programas',
+    articulos: 'Artículos',
+    usuarios: 'Usuarios',
+    casos: 'Casos',
+    plantillas: 'Plantillas',
+    depositos: 'Depósitos',
+    cronograma: 'Cronograma',
+    zonas: 'Zonas',
+    tareas: 'Tareas',
+    backup: 'Backup',
   };
   const parts = ruta.replace(/^\//, '').split('/');
-  const modulo = map[parts[0]] ?? parts[0];
-  const id = parts[1] && /^\d+$/.test(parts[1]) ? ` #${parts[1]}` : '';
-  const sub = parts[2] ? ` › ${parts[2]}` : '';
-  return `${modulo}${id}${sub}`;
+  return map[parts[0]] ?? parts[0];
 }
 
-// Nombres legibles para los campos
+/* ─── Nombres legibles para los campos ─── */
 const CAMPO_LABELS: Record<string, string> = {
   nombre: 'Nombre',
   tipo: 'Tipo',
@@ -123,7 +124,7 @@ function DatosLegibles({ datos }: { datos: string }) {
   if (entries.length === 0) return null;
 
   return (
-    <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+    <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
       {entries.map(([key, val]) => (
         <Box key={key} sx={{ bgcolor: 'grey.100', borderRadius: 1, px: 1, py: 0.25 }}>
           <Typography component="span" variant="caption" color="text.secondary">
@@ -138,13 +139,35 @@ function DatosLegibles({ datos }: { datos: string }) {
   );
 }
 
+/* ─── Color del módulo ─── */
+function moduloColor(ruta: string): string {
+  const seg = ruta.replace(/^\//, '').split('/')[0];
+  const colors: Record<string, string> = {
+    beneficiarios: '#1976d2',
+    remitos: '#2e7d32',
+    stock: '#ed6c02',
+    programas: '#9c27b0',
+    articulos: '#0288d1',
+    usuarios: '#d32f2f',
+    casos: '#f57c00',
+    cronograma: '#00796b',
+    tareas: '#5c6bc0',
+    zonas: '#689f38',
+    plantillas: '#7b1fa2',
+    backup: '#455a64',
+  };
+  return colors[seg] ?? '#757575';
+}
+
 export default function Auditoria() {
   const [logs, setLogs]           = useState<any[]>([]);
+  const [total, setTotal]         = useState(0);
   const [usuarios, setUsuarios]   = useState<any[]>([]);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
   const [expanded, setExpanded]   = useState<Record<number, boolean>>({});
 
+  // Filtros
   const [usuarioId, setUsuarioId] = useState('');
   const [metodo, setMetodo]       = useState('');
   const [modulo, setModulo]       = useState('');
@@ -152,33 +175,47 @@ export default function Auditoria() {
   const [hasta, setHasta]         = useState(format(new Date(), 'yyyy-MM-dd'));
   const [buscar, setBuscar]       = useState('');
 
+  // Paginación
+  const [page, setPage]           = useState(0); // MUI es 0-based
+  const [pageSize, setPageSize]   = useState(25);
+
   useEffect(() => {
     api.get('/auditoria/usuarios').then((r) => setUsuarios(r.data)).catch(() => {});
-    buscarLogs();
   }, []);
 
-  const buscarLogs = async () => {
+  const buscarLogs = useCallback(async (pageOverride?: number) => {
     setLoading(true);
     setError('');
     setExpanded({});
+    const currentPage = pageOverride ?? page;
     try {
-      const params: any = { desde, hasta };
+      const params: any = { desde, hasta, page: currentPage + 1, pageSize };
       if (usuarioId) params.usuarioId = usuarioId;
       if (metodo)    params.metodo    = metodo;
       if (buscar.trim()) params.buscar = buscar.trim();
       else if (modulo) params.buscar  = modulo;
       const res = await api.get('/auditoria', { params });
+      let data = res.data.data ?? res.data;
       // Si hay filtro de módulo pero no de buscar, filtrar en frontend también
-      const data = modulo && !buscar.trim()
-        ? res.data.filter((l: any) => l.ruta?.includes(modulo))
-        : res.data;
+      if (modulo && !buscar.trim()) {
+        data = data.filter((l: any) => l.ruta?.includes(modulo));
+      }
       setLogs(data);
+      setTotal(res.data.total ?? data.length);
     } catch {
       setError('No se pudo cargar el registro de auditoría.');
       setLogs([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
+  }, [desde, hasta, page, pageSize, usuarioId, metodo, modulo, buscar]);
+
+  useEffect(() => { buscarLogs(); }, [page, pageSize]);
+
+  const handleBuscar = () => {
+    setPage(0);
+    buscarLogs(0);
   };
 
   // Estadísticas resumen
@@ -193,8 +230,13 @@ export default function Auditoria() {
     <Box>
       {/* Header */}
       <Box display="flex" alignItems="center" gap={1.5} mb={3}>
-        <AuditIcon color="primary" />
-        <Typography variant="h4" fontWeight="bold">Registro de Actividad</Typography>
+        <AuditIcon color="primary" sx={{ fontSize: 32 }} />
+        <Box>
+          <Typography variant="h4" fontWeight="bold">Registro de Actividad</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Historial completo de acciones en el sistema
+          </Typography>
+        </Box>
       </Box>
 
       {/* Filtros */}
@@ -249,12 +291,12 @@ export default function Auditoria() {
             <TextField
               label="Buscar" size="small" fullWidth value={buscar}
               onChange={(e) => setBuscar(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') buscarLogs(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleBuscar(); }}
               placeholder="Descripción..."
             />
           </Grid>
           <Grid item xs={12} sm="auto">
-            <Button variant="contained" startIcon={<FilterIcon />} onClick={buscarLogs} disabled={loading} fullWidth>
+            <Button variant="contained" startIcon={<FilterIcon />} onClick={handleBuscar} disabled={loading} fullWidth>
               Buscar
             </Button>
           </Grid>
@@ -298,10 +340,11 @@ export default function Auditoria() {
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
+      {/* Resumen estadísticas */}
       {!loading && logs.length > 0 && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
           {[
-            { label: 'Total', value: logs.length, color: 'text.primary' },
+            { label: 'Total (página)', value: `${logs.length} de ${total}`, color: 'text.primary' },
             { label: 'Creaciones', value: stats.creaciones, color: 'success.main' },
             { label: 'Modificaciones', value: stats.modificaciones, color: 'primary.main' },
             { label: 'Eliminaciones', value: stats.eliminaciones, color: 'error.main' },
@@ -324,96 +367,169 @@ export default function Auditoria() {
       ) : logs.length === 0 ? (
         <Alert severity="info">No hay actividad registrada en el período seleccionado.</Alert>
       ) : (
-        <Stack spacing={0.5}>
-          {logs.map((log, index) => {
-            const tipo = TIPO_MAP[log.metodo] ?? { label: log.metodo, icon: PersonAddIcon, color: '#555', bg: '#f5f5f5' };
-            const IconComponent = tipo.icon;
-            const fecha = new Date(log.createdAt);
-            const esNuevoDia = index === 0 ||
-              format(fecha, 'dd/MM/yyyy') !== format(new Date(logs[index - 1].createdAt), 'dd/MM/yyyy');
-            const tieneData = log.datos && log.datos !== '{}' && log.datos !== 'null';
-            const estaExpandido = expanded[log.id];
+        <>
+          {/* Paginación superior */}
+          <Paper variant="outlined" sx={{ mb: 1 }}>
+            <TablePagination
+              component="div"
+              count={total}
+              page={page}
+              onPageChange={(_, p) => setPage(p)}
+              rowsPerPage={pageSize}
+              onRowsPerPageChange={(e) => { setPageSize(parseInt(e.target.value)); setPage(0); }}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+              labelRowsPerPage="Por página:"
+              labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+            />
+          </Paper>
 
-            return (
-              <Box key={log.id}>
-                {esNuevoDia && (
-                  <Box display="flex" alignItems="center" gap={1} my={2}>
-                    <Divider sx={{ flex: 1 }} />
-                    <Chip
-                      label={format(fecha, "EEEE d 'de' MMMM", { locale: es })}
-                      size="small" variant="outlined"
-                      sx={{ fontSize: 11, color: 'text.secondary' }}
-                    />
-                    <Divider sx={{ flex: 1 }} />
-                  </Box>
-                )}
+          {/* Lista de eventos */}
+          <Stack spacing={0}>
+            {logs.map((log, index) => {
+              const tipo = TIPO_MAP[log.metodo] ?? { label: log.metodo, icon: PersonAddIcon, color: '#555', bg: '#f5f5f5' };
+              const IconComponent = tipo.icon;
+              const fecha = new Date(log.createdAt);
+              const esNuevoDia = index === 0 ||
+                format(fecha, 'yyyy-MM-dd') !== format(new Date(logs[index - 1].createdAt), 'yyyy-MM-dd');
+              const tieneData = log.datos && log.datos !== '{}' && log.datos !== 'null';
+              const estaExpandido = expanded[log.id];
+              const moduloNombre = rutaAmigable(log.ruta ?? '');
+              const mColor = moduloColor(log.ruta ?? '');
 
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    p: 1.5,
-                    borderLeft: `4px solid ${tipo.color}`,
-                    '&:hover': { bgcolor: 'grey.50' },
-                  }}
-                >
-                  <Box display="flex" alignItems="flex-start" gap={1.5}>
-                    <Avatar sx={{ bgcolor: tipo.bg, width: 34, height: 34, flexShrink: 0, mt: 0.3 }}>
-                      <IconComponent sx={{ fontSize: 17, color: tipo.color }} />
-                    </Avatar>
+              return (
+                <Box key={log.id}>
+                  {esNuevoDia && (
+                    <Box display="flex" alignItems="center" gap={1} mt={index === 0 ? 0 : 2.5} mb={1}>
+                      <CalendarIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                      <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
+                        {format(fecha, "EEEE d 'de' MMMM yyyy", { locale: es })}
+                      </Typography>
+                      <Divider sx={{ flex: 1 }} />
+                    </Box>
+                  )}
 
-                    <Box flex={1} minWidth={0}>
-                      <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-                        <Typography variant="body2" fontWeight="bold">
-                          {log.usuarioNombre || 'Sistema'}
-                        </Typography>
-                        <Chip
-                          label={tipo.label}
-                          size="small"
-                          sx={{ bgcolor: tipo.bg, color: tipo.color, fontWeight: 600, fontSize: 10, height: 18 }}
-                        />
-                        <Chip
-                          label={rutaAmigable(log.ruta ?? '')}
-                          size="small"
-                          variant="outlined"
-                          sx={{ fontSize: 10, height: 18, color: 'text.secondary' }}
-                        />
-                        <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
-                          {format(fecha, 'HH:mm', { locale: es })}
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 0,
+                      mb: 0.5,
+                      borderLeft: `4px solid ${tipo.color}`,
+                      overflow: 'hidden',
+                      transition: 'box-shadow 0.15s',
+                      '&:hover': { boxShadow: 2 },
+                    }}
+                  >
+                    <Box display="flex" alignItems="stretch">
+                      {/* Columna izquierda: hora */}
+                      <Box
+                        sx={{
+                          width: 72,
+                          minWidth: 72,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'grey.50',
+                          borderRight: '1px solid',
+                          borderColor: 'divider',
+                          py: 1.5,
+                        }}
+                      >
+                        <TimeIcon sx={{ fontSize: 14, color: 'text.disabled', mb: 0.25 }} />
+                        <Typography variant="body2" fontWeight="bold" color="text.primary">
+                          {format(fecha, 'HH:mm')}
                         </Typography>
                       </Box>
-                      {log.descripcion && (
-                        <Typography variant="body2" color="text.secondary" mt={0.3} sx={{ whiteSpace: 'pre-wrap' }}>
-                          {log.descripcion}
-                        </Typography>
-                      )}
 
-                      {/* Datos expandibles */}
-                      {tieneData && (
-                        <>
-                          <Box display="flex" alignItems="center" gap={0.5} mt={0.5}>
+                      {/* Contenido principal */}
+                      <Box flex={1} p={1.5} minWidth={0}>
+                        <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" mb={0.5}>
+                          {/* Icono de acción */}
+                          <Avatar sx={{ bgcolor: tipo.bg, width: 28, height: 28 }}>
+                            <IconComponent sx={{ fontSize: 15, color: tipo.color }} />
+                          </Avatar>
+
+                          {/* Descripción — prominente */}
+                          <Typography variant="body2" fontWeight="bold" sx={{ flex: 1, minWidth: 0 }}>
+                            {log.descripcion || `${tipo.label} en ${moduloNombre}`}
+                          </Typography>
+
+                          {/* Badges */}
+                          <Chip
+                            label={tipo.label}
+                            size="small"
+                            sx={{
+                              bgcolor: tipo.bg,
+                              color: tipo.color,
+                              fontWeight: 600,
+                              fontSize: 11,
+                              height: 22,
+                            }}
+                          />
+                          <Chip
+                            label={moduloNombre}
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                              fontSize: 11,
+                              height: 22,
+                              borderColor: mColor,
+                              color: mColor,
+                              fontWeight: 500,
+                            }}
+                          />
+                        </Box>
+
+                        {/* Fila secundaria: usuario */}
+                        <Box display="flex" alignItems="center" gap={0.5}>
+                          <Typography variant="caption" color="text.secondary">
+                            por <strong>{log.usuarioNombre || 'Sistema'}</strong>
+                          </Typography>
+
+                          {/* Botón expandir datos */}
+                          {tieneData && (
                             <Tooltip title={estaExpandido ? 'Ocultar detalle' : 'Ver detalle'}>
-                              <IconButton
+                              <Chip
+                                label={estaExpandido ? 'Ocultar detalle' : 'Ver detalle'}
                                 size="small"
+                                variant="outlined"
                                 onClick={() => setExpanded(prev => ({ ...prev, [log.id]: !prev[log.id] }))}
-                                sx={{ p: 0.25 }}
-                              >
-                                {estaExpandido ? <CollapseIcon fontSize="small" /> : <ExpandIcon fontSize="small" />}
-                              </IconButton>
+                                icon={estaExpandido ? <CollapseIcon sx={{ fontSize: '14px !important' }} /> : <ExpandIcon sx={{ fontSize: '14px !important' }} />}
+                                sx={{ ml: 1, fontSize: 10, height: 20, cursor: 'pointer' }}
+                              />
                             </Tooltip>
-                            <Typography variant="caption" color="text.disabled">ver detalle</Typography>
-                          </Box>
+                          )}
+                        </Box>
+
+                        {/* Datos expandibles */}
+                        {tieneData && (
                           <Collapse in={estaExpandido}>
                             <DatosLegibles datos={log.datos} />
                           </Collapse>
-                        </>
-                      )}
+                        )}
+                      </Box>
                     </Box>
-                  </Box>
-                </Paper>
-              </Box>
-            );
-          })}
-        </Stack>
+                  </Paper>
+                </Box>
+              );
+            })}
+          </Stack>
+
+          {/* Paginación inferior */}
+          <Paper variant="outlined" sx={{ mt: 1 }}>
+            <TablePagination
+              component="div"
+              count={total}
+              page={page}
+              onPageChange={(_, p) => setPage(p)}
+              rowsPerPage={pageSize}
+              onRowsPerPageChange={(e) => { setPageSize(parseInt(e.target.value)); setPage(0); }}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+              labelRowsPerPage="Por página:"
+              labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+            />
+          </Paper>
+        </>
       )}
     </Box>
   );
