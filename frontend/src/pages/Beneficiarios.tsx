@@ -991,7 +991,7 @@ export default function BeneficiariosPage() {
                     </Typography>
                     {loadingHistorial ? (
                       <Box display="flex" justifyContent="center" py={4}><CircularProgress size={28} /></Box>
-                    ) : !historial || historial.length === 0 ? (
+                    ) : !Array.isArray(historial) || historial.length === 0 ? (
                       <Typography variant="body2" color="text.secondary" textAlign="center" py={3}>
                         Sin registros de cambios
                       </Typography>
