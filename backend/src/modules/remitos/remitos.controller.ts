@@ -104,6 +104,20 @@ export class RemitosController {
     res.status(HttpStatus.OK).send(pdf);
   }
 
+  @Get('choferes')
+  @ApiOperation({ summary: 'Listar choferes activos' })
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
+  getChoferes() {
+    return this.remitosService.getChoferes();
+  }
+
+  @Get('mis-entregas')
+  @ApiOperation({ summary: 'Remitos asignados al chofer autenticado' })
+  @Roles('CHOFER')
+  misEntregas(@Request() req) {
+    return this.remitosService.findByChofer(req.user.id);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Listar remitos con filtros' })
   findAll(@Query() query: any, @Request() req) {
@@ -204,5 +218,38 @@ export class RemitosController {
   @Roles('ADMIN', 'LOGISTICA')
   remove(@Param('id') id: string) {
     return this.remitosService.remove(+id);
+  }
+
+  @Patch(':id/asignar-domicilio')
+  @ApiOperation({ summary: 'Asignar remito a entrega a domicilio con chofer' })
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
+  asignarDomicilio(@Param('id') id: string, @Body() body: { choferId: number }) {
+    return this.remitosService.asignarDomicilio(+id, body.choferId);
+  }
+
+  @Patch(':id/quitar-domicilio')
+  @ApiOperation({ summary: 'Quitar asignación de entrega a domicilio' })
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
+  quitarDomicilio(@Param('id') id: string) {
+    return this.remitosService.quitarDomicilio(+id);
+  }
+
+  @Post(':id/retiro-deposito')
+  @ApiOperation({ summary: 'Registrar retiro del depósito por el chofer' })
+  @Roles('ADMIN', 'LOGISTICA', 'CHOFER')
+  retiroDeposito(@Param('id') id: string, @Body() body: { nota?: string }) {
+    return this.remitosService.registrarRetiroDeposito(+id, body.nota);
+  }
+
+  @Post(':id/firma-entrega')
+  @ApiOperation({ summary: 'Registrar firma del destinatario (entrega a domicilio)' })
+  @Roles('ADMIN', 'LOGISTICA', 'CHOFER')
+  firmaEntrega(@Param('id') id: string, @Body() body: {
+    nombreDestinatario: string;
+    dniDestinatario: string;
+    firmaDestinatario: string;
+    nota?: string;
+  }) {
+    return this.remitosService.firmaEntregaDomicilio(+id, body);
   }
 }

@@ -8,6 +8,7 @@
 // TRABAJADORA_SOCIAL → Solo relevamiento (observaciones) de beneficiarios
 // ASISTENCIA_CRITICA → Solo sus propios remitos (chapas, materiales, etc.)
 // VISOR              → Solo lectura: dashboard y reportes
+// CHOFER             → Reparto a domicilio - solo ve sus entregas asignadas
 // ============================================================================
 
 export type Rol =
@@ -16,7 +17,8 @@ export type Rol =
   | 'OPERADOR_PROGRAMA'
   | 'TRABAJADORA_SOCIAL'
   | 'ASISTENCIA_CRITICA'
-  | 'VISOR';
+  | 'VISOR'
+  | 'CHOFER';
 
 // Etiquetas para mostrar en UI
 export const ROL_LABELS: Record<Rol, string> = {
@@ -26,6 +28,7 @@ export const ROL_LABELS: Record<Rol, string> = {
   TRABAJADORA_SOCIAL: 'Trabajadora Social',
   ASISTENCIA_CRITICA: 'Asistencia Crítica',
   VISOR: 'Visor',
+  CHOFER: 'Chofer',
 };
 
 // Definición de qué secciones puede ver cada rol en el menú lateral
@@ -98,6 +101,9 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'reportes',
     'busqueda-dni',
   ],
+  CHOFER: [
+    'mis-entregas',
+  ],
 };
 
 // ¿Puede este rol acceder a una sección?
@@ -138,6 +144,9 @@ export const ACCIONES: Record<string, Rol[]> = {
 
   // Usuarios
   'usuarios.gestionar': ['ADMIN'],
+
+  // Entrega a domicilio
+  'remitos.asignarDomicilio': ['ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA'],
 };
 
 export function puedeHacer(rol: string | undefined, accion: string): boolean {

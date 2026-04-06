@@ -46,6 +46,7 @@ import {
   DoneAll as ConfirmarTodosIcon,
   FileDownload as ExportarIcon,
   WhatsApp as WhatsAppIcon,
+  HomeWork as DomicilioIcon,
 } from '@mui/icons-material';
 import TableSortLabel from '@mui/material/TableSortLabel';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -276,6 +277,52 @@ export default function RemitosPage() {
       setBulkProgress(p => p ? { ...p, done: p.done + 1 } : null);
     }
     setBulkProgress(null);
+  };
+
+  // Estado diálogo asignar domicilio
+  const [domicilioDialog, setDomicilioDialog] = useState(false);
+  const [domicilioRemito, setDomicilioRemito] = useState<any>(null);
+  const [choferes, setChoferes] = useState<any[]>([]);
+  const [choferSeleccionado, setChoferSeleccionado] = useState('');
+  const [asignandoDomicilio, setAsignandoDomicilio] = useState(false);
+
+  const abrirDomicilio = (remito: any) => {
+    setDomicilioRemito(remito);
+    setChoferSeleccionado(remito.choferId ? String(remito.choferId) : '');
+    setDomicilioDialog(true);
+    if (choferes.length === 0) {
+      api.get('/remitos/choferes').then(r => setChoferes(r.data)).catch(() => {});
+    }
+  };
+
+  const handleAsignarDomicilio = async () => {
+    if (!domicilioRemito || !choferSeleccionado) return;
+    setAsignandoDomicilio(true);
+    try {
+      await api.patch(`/remitos/${domicilioRemito.id}/asignar-domicilio`, { choferId: parseInt(choferSeleccionado) });
+      showNotification('Remito asignado a entrega a domicilio', 'success');
+      setDomicilioDialog(false);
+      loadRemitos(busqueda);
+    } catch (e: any) {
+      showNotification(e.response?.data?.message || 'Error al asignar', 'error');
+    } finally {
+      setAsignandoDomicilio(false);
+    }
+  };
+
+  const handleQuitarDomicilio = async () => {
+    if (!domicilioRemito) return;
+    setAsignandoDomicilio(true);
+    try {
+      await api.patch(`/remitos/${domicilioRemito.id}/quitar-domicilio`);
+      showNotification('Asignación a domicilio removida', 'info');
+      setDomicilioDialog(false);
+      loadRemitos(busqueda);
+    } catch (e: any) {
+      showNotification(e.response?.data?.message || 'Error', 'error');
+    } finally {
+      setAsignandoDomicilio(false);
+    }
   };
 
   // Estado diálogo reprogramar/anular
@@ -790,6 +837,17 @@ export default function RemitosPage() {
                       </IconButton>
                     </Tooltip>
                   )}
+                  {puedeCrear && (remito.estado === 'CONFIRMADO' || remito.estado === 'ENVIADO') && (
+                    <Tooltip title={remito.esEntregaDomicilio ? `Domicilio (${remito.chofer?.nombre ?? 'sin chofer'})` : 'Asignar entrega a domicilio'}>
+                      <IconButton
+                        size="small"
+                        onClick={() => abrirDomicilio(remito)}
+                        sx={{ color: remito.esEntregaDomicilio ? '#e65100' : 'grey.500' }}
+                      >
+                        <DomicilioIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   {(remito.estado === 'CONFIRMADO' || remito.estado === 'ENVIADO' || remito.estado === 'BORRADOR') && puedeCrear && (
                     <Tooltip title="Reprogramar / Anular">
                       <IconButton size="small" color="warning" onClick={() => abrirGestion(remito)}>
@@ -1275,6 +1333,67 @@ export default function RemitosPage() {
             disabled={enviando}
           >
             Enviar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Diálogo: Asignar entrega a domicilio */}
+      <Dialog open={domicilioDialog} onClose={() => setDomicilioDialog(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DomicilioIcon sx={{ color: '#e65100' }} />
+          Entrega a Domicilio
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          {domicilioRemito && (
+            <Alert severity="info" sx={{ py: 0.5 }}>
+              <strong>{domicilioRemito.numero}</strong> — {domicilioRemito.beneficiario?.nombre}
+              {domicilioRemito.beneficiario?.direccion && (
+                <Typography variant="caption" display="block" color="text.secondary">
+                  {domicilioRemito.beneficiario.direccion}
+                  {domicilioRemito.beneficiario.localidad && `, ${domicilioRemito.beneficiario.localidad}`}
+                </Typography>
+              )}
+            </Alert>
+          )}
+          <FormControl fullWidth size="small">
+            <InputLabel>Chofer asignado</InputLabel>
+            <Select
+              value={choferSeleccionado}
+              label="Chofer asignado"
+              onChange={(e) => setChoferSeleccionado(e.target.value)}
+            >
+              <MenuItem value="">Seleccionar chofer...</MenuItem>
+              {choferes.map(c => (
+                <MenuItem key={c.id} value={c.id}>{c.nombre}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          {choferes.length === 0 && (
+            <Alert severity="warning" sx={{ py: 0.5 }}>
+              No hay choferes registrados. Crea un usuario con rol "Chofer" primero.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {domicilioRemito?.esEntregaDomicilio && (
+            <Button
+              color="error"
+              onClick={handleQuitarDomicilio}
+              disabled={asignandoDomicilio}
+            >
+              Quitar domicilio
+            </Button>
+          )}
+          <Box flex={1} />
+          <Button onClick={() => setDomicilioDialog(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            startIcon={asignandoDomicilio ? <CircularProgress size={16} /> : <DomicilioIcon />}
+            onClick={handleAsignarDomicilio}
+            disabled={asignandoDomicilio || !choferSeleccionado}
+            sx={{ bgcolor: '#e65100', '&:hover': { bgcolor: '#bf360c' } }}
+          >
+            Asignar chofer
           </Button>
         </DialogActions>
       </Dialog>

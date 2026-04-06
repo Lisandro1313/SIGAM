@@ -98,6 +98,11 @@ const menuDeposito = [
   { text: 'Mis Casos',          icon: <MisCasosIcon />,  path: '/mis-casos',          seccion: 'mis-casos' },
 ];
 
+// Menú restringido para choferes (reparto a domicilio)
+const menuChofer = [
+  { text: 'Mis Entregas',  icon: <DepositoIcon />,  path: '/mis-entregas',  seccion: 'mis-entregas' },
+];
+
 const ESTADO_CHIP: Record<string, string> = {
   PENDIENTE: '#fb8c00', EN_REVISION: '#1e88e5', APROBADO: '#43a047', RECHAZADO: '#e53935', RESUELTO: '#546e7a',
   BORRADOR: '#9e9e9e', CONFIRMADO: '#1e88e5', ENVIADO: '#00acc1', ENTREGADO: '#43a047',
@@ -288,21 +293,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // Usuarios de depósito físico: LOGISTICA con depositoId asignado
   const esDeposito = !!(user?.depositoId);
 
+  const esChofer = user?.rol === 'CHOFER';
   // Si es usuario de depósito, menú restringido; si no, filtrar por rol
-  const visibleItems = esDeposito
-    ? menuDeposito
-    : menuItems.filter((item) => puedeAcceder(user?.rol, item.seccion));
+  const visibleItems = esChofer
+    ? menuChofer
+    : esDeposito
+      ? menuDeposito
+      : menuItems.filter((item) => puedeAcceder(user?.rol, item.seccion));
 
   const drawer = (
     <div>
       <Toolbar sx={{ bgcolor: 'primary.main', color: 'white', flexDirection: 'column', alignItems: 'flex-start', py: 1.5 }}>
         <Typography variant="h6" fontWeight="bold">Gestor Municipal</Typography>
         <Typography variant="caption" sx={{ opacity: 0.8 }}>
-          {esDeposito
-            ? (user?.deposito?.nombre || 'Depósito')
-            : user?.rol === 'ASISTENCIA_CRITICA'
-              ? 'Dirección de Asistencia Crítica'
-              : 'Secretaría de Desarrollo Social'}
+          {esChofer
+            ? 'Reparto a domicilio'
+            : esDeposito
+              ? (user?.deposito?.nombre || 'Depósito')
+              : user?.rol === 'ASISTENCIA_CRITICA'
+                ? 'Dirección de Asistencia Crítica'
+                : 'Secretaría de Desarrollo Social'}
         </Typography>
       </Toolbar>
       <Divider />

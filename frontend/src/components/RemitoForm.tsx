@@ -79,7 +79,8 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
   const [horaRetiro, setHoraRetiro] = useState('11:00');
 
   const [openNuevoBeneficiario, setOpenNuevoBeneficiario] = useState(false);
-  const [ultimaEntrega, setUltimaEntrega] = useState<string | null | 'loading'>('loading');
+  const [ultimaEntrega, setUltimaEntrega] = useState<any>(null); // { fecha, programa, totalKg } | null | 'loading'
+  const [promedioKg, setPromedioKg] = useState<number | null>(null);
   const [cruceDatos, setCruceDatos] = useState<any>(null);
 
   // Step 2: Items
@@ -236,7 +237,6 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
           cantidad: item.cantidad,
         })),
       });
-      showNotification('Remito creado exitosamente', 'success');
       handleClose();
       onSuccess(res.data);
     } catch (error) {
@@ -259,6 +259,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
     setSelectedArticuloId('');
     setCantidad('');
     setUltimaEntrega('loading');
+    setPromedioKg(null);
     onClose();
   };
 
@@ -301,14 +302,23 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                   if (b?.programaId) setProgramaId(String(b.programaId));
                   if (val) {
                     setUltimaEntrega('loading');
+                    setPromedioKg(null);
                     try {
                       const res = await api.get('/remitos', { params: { beneficiarioId: val, estado: 'ENTREGADO' } });
                       const entregados = res.data.filter((r: any) => r.entregadoAt || r.fecha);
                       if (entregados.length > 0) {
-                        const ultimo = entregados.sort((a: any, b: any) =>
+                        const sorted = entregados.sort((a: any, b: any) =>
                           new Date(b.entregadoAt || b.fecha).getTime() - new Date(a.entregadoAt || a.fecha).getTime()
-                        )[0];
-                        setUltimaEntrega(ultimo.entregadoAt || ultimo.fecha);
+                        );
+                        const ultimo = sorted[0];
+                        setUltimaEntrega({
+                          fecha: ultimo.entregadoAt || ultimo.fecha,
+                          programa: ultimo.programa?.nombre || null,
+                          totalKg: ultimo.totalKg || 0,
+                        });
+                        // Promedio kg de las últimas entregas
+                        const kgs = sorted.filter((r: any) => r.totalKg > 0).map((r: any) => r.totalKg);
+                        if (kgs.length > 0) setPromedioKg(kgs.reduce((a: number, b: number) => a + b, 0) / kgs.length);
                       } else {
                         setUltimaEntrega(null);
                       }
@@ -351,14 +361,25 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
               )}
             </Box>
 
-            {/* Última entrega */}
+            {/* Última entrega + kg típicos */}
             {beneficiarioId && ultimaEntrega !== 'loading' && (
               ultimaEntrega ? (
                 <Alert severity="info" sx={{ py: 0.5 }}>
                   Última entrega:{' '}
                   <strong>
-                    {new Date(ultimaEntrega).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    {new Date(ultimaEntrega.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                   </strong>
+                  {ultimaEntrega.programa && (
+                    <> — <Chip label={ultimaEntrega.programa} size="small" sx={{ height: 20, fontSize: '0.7rem' }} /></>
+                  )}
+                  {ultimaEntrega.totalKg > 0 && (
+                    <> — {ultimaEntrega.totalKg.toFixed(1)} kg</>
+                  )}
+                  {promedioKg !== null && (
+                    <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.3 }}>
+                      Promedio por entrega: <strong>{promedioKg.toFixed(1)} kg</strong>
+                    </Typography>
+                  )}
                 </Alert>
               ) : (
                 <Alert severity="success" sx={{ py: 0.5 }}>
@@ -513,9 +534,15 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                     const stockDeposito = depositoId
                       ? a.stockItems?.find((s: any) => s.depositoId === parseInt(depositoId))?.cantidad ?? 0
                       : null;
+                    const yaAgregado = items.some(i => i.articuloId === a.id);
                     return (
-                      <MenuItem key={a.id} value={a.id}>
+                      <MenuItem key={a.id} value={a.id} sx={yaAgregado ? { bgcolor: 'success.light', '&:hover': { bgcolor: 'success.light' } } : undefined}>
                         {a.nombre}{a.categoria ? ` (${a.categoria})` : ''}
+                        {yaAgregado && (
+                          <Typography component="span" variant="caption" sx={{ ml: 1, color: 'success.dark', fontWeight: 'bold' }}>
+                            ✓ en remito
+                          </Typography>
+                        )}
                         {stockDeposito !== null && (
                           <Typography component="span" variant="caption" sx={{ ml: 1, color: stockDeposito <= (a.stockMinimo ?? 0) ? 'warning.main' : 'text.secondary' }}>
                             · Stock: {stockDeposito}
@@ -623,7 +650,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                       const sinStock = stockDisp !== null && stockDisp <= 0;
                       const stockBajo = !sinStock && stockDisp !== null && art?.stockMinimo != null && stockDisp < art.stockMinimo;
                       const cantidadExcede = stockDisp !== null && item.cantidad > stockDisp;
-                      const alertaColor = sinStock || cantidadExcede ? 'error.light' : stockBajo ? 'warning.light' : undefined;
+                      const alertaColor = sinStock || cantidadExcede ? 'error.light' : stockBajo ? 'warning.light' : 'success.light';
                       return (
                         <TableRow key={index} sx={alertaColor ? { bgcolor: alertaColor } : undefined}>
                           <TableCell>

@@ -43,6 +43,7 @@ const ROLES: Rol[] = [
   'TRABAJADORA_SOCIAL',
   'ASISTENCIA_CRITICA',
   'VISOR',
+  'CHOFER',
 ];
 
 const ROL_COLOR: Record<Rol, 'error' | 'warning' | 'primary' | 'success' | 'secondary' | 'default'> = {
@@ -52,6 +53,7 @@ const ROL_COLOR: Record<Rol, 'error' | 'warning' | 'primary' | 'success' | 'seco
   TRABAJADORA_SOCIAL: 'success',
   ASISTENCIA_CRITICA: 'secondary',
   VISOR:              'default',
+  CHOFER:             'warning',
 };
 
 const ROL_DESC: Record<Rol, string> = {
@@ -61,6 +63,7 @@ const ROL_DESC: Record<Rol, string> = {
   TRABAJADORA_SOCIAL: 'Solo puede cargar y editar el relevamiento de beneficiarios.',
   ASISTENCIA_CRITICA: 'Solo puede crear y ver sus propios remitos (chapas, materiales, etc.).',
   VISOR:              'Acceso de solo lectura al dashboard, beneficiarios y reportes.',
+  CHOFER:             'Reparto a domicilio. Solo ve y gestiona sus entregas asignadas.',
 };
 
 export default function UsuariosPage() {

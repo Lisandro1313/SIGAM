@@ -232,10 +232,25 @@ export class RemitosService {
 
       // Si está asociado a una entrega programada, marcarla como GENERADA
       // (ENTREGADA se actualiza cuando se confirma la entrega física)
-      await tx.entregaProgramada.updateMany({
+      const entregasExistentes = await tx.entregaProgramada.updateMany({
         where: { remitoId: id },
         data: { estado: 'GENERADA' },
       });
+
+      // Cronograma inverso: si el remito NO venía del cronograma, crear la fila automáticamente
+      if (entregasExistentes.count === 0) {
+        await tx.entregaProgramada.create({
+          data: {
+            beneficiarioId: remito.beneficiarioId,
+            programaId: remito.programaId,
+            fechaProgramada: remito.fecha || new Date(),
+            estado: 'GENERADA',
+            kilos: remitoConfirmado.totalKg || undefined,
+            remitoId: id,
+            secretaria: remitoConfirmado.secretaria || 'PA',
+          },
+        });
+      }
 
       this.eventsService.broadcast('remito:confirmado', {
         id: remitoConfirmado.id,
@@ -580,5 +595,121 @@ export class RemitosService {
     });
 
     return { success: true, message: 'Remito anulado y stock restaurado' };
+  }
+
+  // ── Entrega a domicilio ─────────────────────────────────────────────────
+
+  /** Marcar remito como entrega a domicilio y asignar chofer */
+  async asignarDomicilio(id: number, choferId: number) {
+    const remito = await this.prisma.remito.findUnique({ where: { id } });
+    if (!remito) throw new NotFoundException('Remito no encontrado');
+    if (remito.estado === 'BORRADOR') throw new BadRequestException('El remito debe estar confirmado');
+    return this.prisma.remito.update({
+      where: { id },
+      data: { esEntregaDomicilio: true, choferId },
+      include: { beneficiario: true, programa: true, deposito: true, chofer: { select: { id: true, nombre: true } } },
+    });
+  }
+
+  /** Quitar asignación a domicilio */
+  async quitarDomicilio(id: number) {
+    const remito = await this.prisma.remito.findUnique({ where: { id } });
+    if (!remito) throw new NotFoundException('Remito no encontrado');
+    return this.prisma.remito.update({
+      where: { id },
+      data: { esEntregaDomicilio: false, choferId: null },
+      include: { beneficiario: true, programa: true, deposito: true },
+    });
+  }
+
+  /** Registrar retiro del depósito (chofer firma que retiró los productos) */
+  async registrarRetiroDeposito(id: number, nota?: string) {
+    const remito = await this.prisma.remito.findUnique({ where: { id } });
+    if (!remito) throw new NotFoundException('Remito no encontrado');
+    if (!remito.esEntregaDomicilio) throw new BadRequestException('Este remito no es de entrega a domicilio');
+    if (remito.estado !== 'CONFIRMADO' && remito.estado !== 'ENVIADO') {
+      throw new BadRequestException('El remito debe estar confirmado para retirarlo');
+    }
+    return this.prisma.remito.update({
+      where: { id },
+      data: { retiroDepositoAt: new Date(), retiroDepositoNota: nota || null },
+      include: { beneficiario: true, programa: true, deposito: true, items: { include: { articulo: true } } },
+    });
+  }
+
+  /** Registrar firma del destinatario (entrega en domicilio) */
+  async firmaEntregaDomicilio(id: number, data: {
+    nombreDestinatario: string;
+    dniDestinatario: string;
+    firmaDestinatario: string; // base64
+    nota?: string;
+  }) {
+    const remito = await this.prisma.remito.findUnique({ where: { id } });
+    if (!remito) throw new NotFoundException('Remito no encontrado');
+    if (!remito.esEntregaDomicilio) throw new BadRequestException('Este remito no es de entrega a domicilio');
+    if (remito.estado !== 'CONFIRMADO' && remito.estado !== 'ENVIADO') {
+      throw new BadRequestException('El remito debe estar confirmado para registrar la entrega');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const remitoActualizado = await tx.remito.update({
+        where: { id },
+        data: {
+          estado: RemitoEstado.ENTREGADO,
+          entregadoAt: new Date(),
+          entregadoNota: data.nota || null,
+          nombreDestinatario: data.nombreDestinatario,
+          dniDestinatario: data.dniDestinatario,
+          firmaDestinatario: data.firmaDestinatario,
+          firmaDestinatarioAt: new Date(),
+        },
+        include: {
+          beneficiario: true,
+          programa: true,
+          deposito: true,
+          items: { include: { articulo: true } },
+        },
+      });
+
+      await tx.entregaProgramada.updateMany({
+        where: { remitoId: id },
+        data: { estado: 'ENTREGADA' },
+      });
+
+      this.eventsService.broadcast('remito:entregado', {
+        id: remitoActualizado.id,
+        numero: remitoActualizado.numero,
+        depositoId: remitoActualizado.depositoId,
+      }, remitoActualizado.secretaria as string | null);
+
+      return remitoActualizado;
+    });
+  }
+
+  /** Listar remitos asignados a un chofer */
+  async findByChofer(choferId: number) {
+    return this.prisma.remito.findMany({
+      where: {
+        choferId,
+        esEntregaDomicilio: true,
+        estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] },
+      },
+      include: {
+        beneficiario: true,
+        programa: true,
+        deposito: true,
+        items: { include: { articulo: true } },
+      },
+      orderBy: [{ estado: 'asc' }, { fecha: 'asc' }],
+    });
+  }
+
+  /** Listar choferes activos */
+  async getChoferes() {
+    return this.prisma.usuario.findMany({
+      where: { rol: 'CHOFER', activo: true },
+      select: { id: true, nombre: true, email: true },
+      orderBy: { nombre: 'asc' },
+    });
   }
 }

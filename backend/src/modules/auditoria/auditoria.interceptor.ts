@@ -62,6 +62,11 @@ const DESCRIPCIONES: Array<{ pattern: RegExp; metodo: string; desc: string }> = 
   { pattern: /^\/casos\/\d+\/generar-remito$/, metodo: 'POST', desc: 'Generó remito desde caso particular' },
   { pattern: /^\/casos\/\d+\/documentos$/, metodo: 'POST', desc: 'Subió documento de caso' },
   { pattern: /^\/casos\/\d+\/documentos\/\d+$/, metodo: 'DELETE', desc: 'Eliminó documento de caso' },
+  // Domicilio / Chofer
+  { pattern: /^\/remitos\/\d+\/asignar-domicilio$/, metodo: 'PATCH', desc: 'Asignó remito a entrega a domicilio' },
+  { pattern: /^\/remitos\/\d+\/quitar-domicilio$/, metodo: 'PATCH', desc: 'Quitó asignación de entrega a domicilio' },
+  { pattern: /^\/remitos\/\d+\/retiro-deposito$/, metodo: 'POST', desc: 'Registró retiro del depósito (chofer)' },
+  { pattern: /^\/remitos\/\d+\/firma-entrega$/, metodo: 'POST', desc: 'Registró firma de entrega a domicilio' },
   // Plantillas
   { pattern: /^\/plantillas$/, metodo: 'POST', desc: 'Creó plantilla de entrega' },
   { pattern: /^\/plantillas\/\d+$/, metodo: 'PATCH', desc: 'Editó plantilla de entrega' },
@@ -147,6 +152,62 @@ function enrichDescripcion(base: string, method: string, path: string, result: a
     const nombre = result.caso?.nombreSolicitante ?? result.beneficiario?.nombre ?? '';
     return `Generó remito ${result.numero} desde caso particular${nombre ? ` para ${nombre}` : ''}`;
   }
+  // Asignar domicilio
+  if (method === 'PATCH' && /^\/remitos\/\d+\/asignar-domicilio$/.test(cleanPath) && result.numero) {
+    const chofer = result.chofer?.nombre ?? '';
+    const beneficiario = result.beneficiario?.nombre ?? '';
+    return `Asignó remito ${result.numero}${beneficiario ? ` (${beneficiario})` : ''} a entrega a domicilio${chofer ? ` — chofer: ${chofer}` : ''}`;
+  }
+  // Quitar domicilio
+  if (method === 'PATCH' && /^\/remitos\/\d+\/quitar-domicilio$/.test(cleanPath) && result.numero) {
+    return `Quitó asignación de domicilio del remito ${result.numero}${result.beneficiario?.nombre ? ` (${result.beneficiario.nombre})` : ''}`;
+  }
+  // Retiro depósito
+  if (method === 'POST' && /^\/remitos\/\d+\/retiro-deposito$/.test(cleanPath) && result.numero) {
+    const deposito = result.deposito?.nombre ?? '';
+    return `Retiró del depósito${deposito ? ` ${deposito}` : ''} el remito ${result.numero}${result.beneficiario?.nombre ? ` (${result.beneficiario.nombre})` : ''}`;
+  }
+  // Firma entrega domicilio
+  if (method === 'POST' && /^\/remitos\/\d+\/firma-entrega$/.test(cleanPath) && result.numero) {
+    const destinatario = result.nombreDestinatario ?? '';
+    return `Entregó a domicilio remito ${result.numero}${result.beneficiario?.nombre ? ` (${result.beneficiario.nombre})` : ''}${destinatario ? ` — firmó: ${destinatario}` : ''}`;
+  }
+  // Reprogramar remito
+  if (method === 'PATCH' && /^\/remitos\/\d+\/reprogramar$/.test(cleanPath) && result.numero) {
+    const fecha = result.fecha ? new Date(result.fecha).toLocaleDateString('es-AR') : '';
+    return `Reprogramó remito ${result.numero}${fecha ? ` para el ${fecha}` : ''}${result.beneficiario?.nombre ? ` (${result.beneficiario.nombre})` : ''}`;
+  }
+  // Anular remito
+  if (method === 'DELETE' && /^\/remitos\/\d+\/anular$/.test(cleanPath)) {
+    return base; // result es {success, message}
+  }
+  // Transferencia
+  if (method === 'POST' && /^\/stock\/transferir$/.test(cleanPath) && result.articulo) {
+    const desde = result.depositoDesde?.nombre ?? '';
+    const hacia = result.depositoHacia?.nombre ?? '';
+    return `Transfirió ${result.cantidad} u. de ${result.articulo.nombre}${desde ? ` de ${desde}` : ''}${hacia ? ` a ${hacia}` : ''}`;
+  }
+  // Creó/editó usuario
+  if (method === 'POST' && /^\/usuarios$/.test(cleanPath) && result.nombre) {
+    return `Creó usuario "${result.nombre}" (${result.rol})`;
+  }
+  if (method === 'PATCH' && /^\/usuarios\/\d+$/.test(cleanPath) && result.nombre) {
+    return `Editó usuario "${result.nombre}" (${result.rol})`;
+  }
+  // Creó/editó programa
+  if (method === 'POST' && /^\/programas$/.test(cleanPath) && result.nombre) {
+    return `Creó programa "${result.nombre}"`;
+  }
+  if (method === 'PATCH' && /^\/programas\/\d+$/.test(cleanPath) && result.nombre) {
+    return `Editó programa "${result.nombre}"`;
+  }
+  // Creó/editó artículo
+  if (method === 'POST' && /^\/articulos$/.test(cleanPath) && result.nombre) {
+    return `Creó artículo "${result.nombre}"${result.categoria ? ` (${result.categoria})` : ''}`;
+  }
+  if (method === 'PATCH' && /^\/articulos\/\d+$/.test(cleanPath) && result.nombre) {
+    return `Editó artículo "${result.nombre}"`;
+  }
 
   return base;
 }
@@ -154,8 +215,9 @@ function enrichDescripcion(base: string, method: string, path: string, result: a
 function sanitizarBody(body: any): string {
   if (!body || typeof body !== 'object') return '';
   const copia = { ...body };
-  // Quitar campos sensibles
+  // Quitar campos sensibles y pesados
   delete copia.password; delete copia.token; delete copia.foto;
+  delete copia.firmaDestinatario; // base64 muy largo
   return JSON.stringify(copia).slice(0, 400);
 }
 

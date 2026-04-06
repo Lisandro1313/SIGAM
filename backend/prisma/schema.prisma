@@ -21,6 +21,7 @@ enum Role {
   TRABAJADORA_SOCIAL   // Solo relevamiento (observaciones) de beneficiarios
   ASISTENCIA_CRITICA   // Solo sus propios remitos (chapas, materiales, etc.)
   VISOR                // Solo lectura: dashboard y reportes
+  CHOFER               // Reparto a domicilio - solo ve sus entregas asignadas
 }
 
 enum MovimientoTipo {
@@ -61,9 +62,10 @@ model Usuario {
   deposito   Deposito? @relation(fields: [depositoId], references: [id])
   depositoId Int?
 
-  movimientos Movimiento[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  movimientos    Movimiento[]
+  remitosChofer  Remito[]     @relation("RemitosChofer")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([email])
   @@index([programaId])
@@ -430,10 +432,25 @@ model Remito {
   emailEnviado    Boolean       @default(false)
   fechaEnvio      DateTime?
 
-  // Entrega física
+  // Entrega física (retiro en depósito)
   entregadoAt    DateTime?
   entregadoNota  String?
   entregadoFoto  String?   // path relativo: uploads/remitos/foto.jpg
+
+  // ── Entrega a domicilio ──
+  esEntregaDomicilio  Boolean   @default(false)
+  chofer              Usuario?  @relation("RemitosChofer", fields: [choferId], references: [id])
+  choferId            Int?
+
+  // Retiro del depósito por el chofer
+  retiroDepositoAt    DateTime?
+  retiroDepositoNota  String?   // quién retiró / observación
+
+  // Firma del destinatario (entrega en domicilio)
+  firmaDestinatario       String?   // imagen base64 de la firma
+  nombreDestinatario      String?
+  dniDestinatario         String?
+  firmaDestinatarioAt     DateTime?
 
   // Secretaría
   secretaria     String        @default("PA")
@@ -448,6 +465,8 @@ model Remito {
   @@index([programaId])
   @@index([depositoId])
   @@index([emailEnviado, estado])
+  @@index([choferId])
+  @@index([esEntregaDomicilio])
 }
 
 model RemitoItem {

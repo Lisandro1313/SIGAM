@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Box, Typography, CircularProgress, Paper, Table, TableBody, TableCell,
@@ -27,6 +28,7 @@ import { useAuthStore } from '../stores/authStore';
 export default function HistorialEntregas() {
   const { user } = useAuthStore();
   const esCita = user?.rol === 'ASISTENCIA_CRITICA';
+  const [searchParams] = useSearchParams();
 
   const [entregas, setEntregas]     = useState<any[]>([]);
   const [depositos, setDepositos]   = useState<any[]>([]);
@@ -40,7 +42,7 @@ export default function HistorialEntregas() {
   const [fechaHasta, setFechaHasta]       = useState(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
   const [depositoFiltro, setDepositoFiltro] = useState('');
   const [programaFiltro, setProgramaFiltro] = useState('');
-  const [buscar, setBuscar]               = useState('');
+  const [buscar, setBuscar]               = useState(searchParams.get('busqueda') || '');
 
   // Diálogo foto
   const [fotoDialog, setFotoDialog] = useState(false);
@@ -164,7 +166,7 @@ export default function HistorialEntregas() {
       const params: any = { estado: 'ENTREGADO', entregadoDesde: fechaDesde, entregadoHasta: fechaHasta };
       if (depositoFiltro) params.depositoId = depositoFiltro;
       if (programaFiltro) params.programaId = programaFiltro;
-      if (buscar.trim()) params.buscar = buscar.trim();
+      if (buscar.trim()) params.busqueda = buscar.trim();
       const res = await api.get('/remitos', { params });
       setEntregas(res.data);
     } catch {

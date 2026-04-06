@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -73,6 +74,7 @@ const EstadoIcon = ({ estado }: { estado: string }) => {
 };
 
 export default function BeneficiariosPage() {
+  const navigate = useNavigate();
   const [beneficiarios, setBeneficiarios] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -1075,7 +1077,19 @@ export default function BeneficiariosPage() {
                           <TableBody>
                             {entregados.map((r: any) => (
                               <TableRow key={r.id} hover>
-                                <TableCell><strong>{r.numero}</strong></TableCell>
+                                <TableCell>
+                                  <Typography
+                                    variant="body2"
+                                    fontWeight="bold"
+                                    sx={{ color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                    onClick={() => {
+                                      setDetalleOpen(false);
+                                      navigate(`/historial-entregas?busqueda=${encodeURIComponent(r.numero)}`);
+                                    }}
+                                  >
+                                    {r.numero}
+                                  </Typography>
+                                </TableCell>
                                 <TableCell>
                                   {r.entregadoAt
                                     ? format(new Date(r.entregadoAt), 'dd/MM/yyyy HH:mm', { locale: es })
