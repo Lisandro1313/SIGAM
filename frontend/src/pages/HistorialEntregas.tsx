@@ -24,9 +24,11 @@ import { es } from 'date-fns/locale';
 import api from '../services/api';
 import ExportExcelButton from '../components/ExportExcelButton';
 import { useAuthStore } from '../stores/authStore';
+import { useNotificationStore } from '../stores/notificationStore';
 
 export default function HistorialEntregas() {
   const { user } = useAuthStore();
+  const { showNotification } = useNotificationStore();
   const esCita = user?.rol === 'ASISTENCIA_CRITICA';
   const [searchParams] = useSearchParams();
 
@@ -89,9 +91,10 @@ export default function HistorialEntregas() {
       await api.patch(`/remitos/${remito.id}/entrega`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      showNotification('Foto guardada correctamente', 'success');
       buscarEntregas();
-    } catch {
-      // silencioso
+    } catch (err: any) {
+      showNotification(err?.response?.data?.message || 'Error al subir la foto', 'error');
     } finally {
       setUploadingFotoId(null);
     }
@@ -112,8 +115,8 @@ export default function HistorialEntregas() {
       });
       setEditingNotaId(null);
       buscarEntregas();
-    } catch {
-      // silencioso
+    } catch (err: any) {
+      showNotification(err?.response?.data?.message || 'Error al guardar la nota', 'error');
     } finally {
       setSavingNotaId(null);
     }
@@ -138,10 +141,11 @@ export default function HistorialEntregas() {
       await api.patch(`/remitos/${editRemito.id}/entrega`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      showNotification('Entrega actualizada correctamente', 'success');
       setEditDialog(false);
       buscarEntregas();
-    } catch {
-      // silencioso
+    } catch (err: any) {
+      showNotification(err?.response?.data?.message || 'Error al guardar los cambios', 'error');
     } finally {
       setGuardandoEdit(false);
     }

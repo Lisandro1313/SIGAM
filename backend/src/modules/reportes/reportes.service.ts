@@ -444,6 +444,70 @@ export class ReportesService {
     return resumen;
   }
 
+  // Reporte: Entregas a domicilio — resumen por día con estimación de combustible
+  async entregasDomicilio(
+    mes?: number, anio?: number,
+    fechaDesde?: string, fechaHasta?: string,
+    secretaria?: string | null,
+  ) {
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
+
+    const where: any = { estado: 'ENTREGADO' };
+    if (rango) where.entregadoAt = { gte: rango.inicio, lte: rango.fin };
+    if (secretaria) where.secretaria = secretaria;
+
+    const remitos = await this.prisma.remito.findMany({
+      where,
+      include: {
+        beneficiario: { select: { nombre: true, localidad: true } },
+        programa: { select: { nombre: true } },
+        deposito: { select: { nombre: true } },
+      },
+      orderBy: { entregadoAt: 'desc' },
+    });
+
+    // Agrupar por día de entrega
+    const porDia = new Map<string, {
+      fecha: string;
+      cantidadEntregas: number;
+      totalKg: number;
+      choferes: string[];
+      remitos: { numero: string; beneficiario: string; localidad: string; kg: number; nota: string }[];
+    }>();
+
+    for (const r of remitos) {
+      const fechaKey = (r.entregadoAt ?? r.fecha).toISOString().slice(0, 10);
+      if (!porDia.has(fechaKey)) {
+        porDia.set(fechaKey, { fecha: fechaKey, cantidadEntregas: 0, totalKg: 0, choferes: [], remitos: [] });
+      }
+      const dia = porDia.get(fechaKey)!;
+      dia.cantidadEntregas++;
+      dia.totalKg += r.totalKg ?? 0;
+      if (r.entregadoNota && !dia.choferes.includes(r.entregadoNota)) {
+        dia.choferes.push(r.entregadoNota);
+      }
+      dia.remitos.push({
+        numero: r.numero,
+        beneficiario: r.beneficiario?.nombre ?? '—',
+        localidad: r.beneficiario?.localidad ?? '—',
+        kg: r.totalKg ?? 0,
+        nota: r.entregadoNota ?? '',
+      });
+    }
+
+    const diasOrdenados = Array.from(porDia.values()).sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+    return {
+      totalEntregas: remitos.length,
+      totalKg: parseFloat(remitos.reduce((s, r) => s + (r.totalKg ?? 0), 0).toFixed(2)),
+      diasActivos: diasOrdenados.length,
+      porDia: diasOrdenados.map(d => ({
+        ...d,
+        totalKg: parseFloat(d.totalKg.toFixed(2)),
+      })),
+    };
+  }
+
   // Búsqueda global: beneficiarios, casos y remitos
   async busquedaGlobal(q: string, secretaria?: string | null) {
     if (!q || q.trim().length < 2) return { beneficiarios: [], casos: [], remitos: [] };

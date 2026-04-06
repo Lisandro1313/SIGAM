@@ -232,14 +232,12 @@ export default function RemitosPage() {
     for (const remito of enviables) {
       try {
         const payload: any = {};
-        if (extras.length > 0) {
-          // Mantener el depósito del remito + agregar extras
-          const codigoDeposito = remito.deposito?.codigo as string | undefined;
-          const base = DEPOSITOS_EMAIL
-            .filter(d => !codigoDeposito || (codigoDeposito === 'CITA' ? d.codigo === 'CITA' : d.codigo === 'LOGISTICA'))
-            .map(d => d.email);
-          payload.destinatarios = [...base, ...extras];
-        }
+        // Siempre enrutar al depósito correcto del remito + extras si los hay
+        const codigoDeposito = remito.deposito?.codigo as string | undefined;
+        const base = DEPOSITOS_EMAIL
+          .filter(d => !codigoDeposito || (codigoDeposito === 'CITA' ? d.codigo === 'CITA' : d.codigo === 'LOGISTICA'))
+          .map(d => d.email);
+        payload.destinatarios = [...base, ...extras];
         if (bulkEmailTextoExtra.trim()) payload.textoExtra = bulkEmailTextoExtra.trim();
         await api.post(`/remitos/${remito.id}/enviar`, payload);
       } catch {

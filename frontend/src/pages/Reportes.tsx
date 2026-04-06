@@ -4,6 +4,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tab, Tabs, Select, MenuItem, FormControl, InputLabel, Button,
   Chip, LinearProgress, Tooltip, TextField, ToggleButton, ToggleButtonGroup,
+  CircularProgress,
 } from '@mui/material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -14,6 +15,7 @@ import {
   TrendingUp, Group, Inventory, Assignment,
   CalendarMonth as MesIcon,
   DateRange as RangoIcon,
+  LocalShipping as DomicilioIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import ExportExcelButton from '../components/ExportExcelButton';
@@ -74,6 +76,24 @@ export default function ReportesPage() {
   const [programaRendicion, setProgramaRendicion] = useState<number | ''>('');
   const [rendicion, setRendicion]             = useState<any | null>(null);
   const [loadingRendicion, setLoadingRendicion] = useState(false);
+
+  // ── Entregas a domicilio ────────────────────────────────────────────────────
+  const [domicilioData, setDomicilioData]     = useState<any | null>(null);
+  const [loadingDomicilio, setLoadingDomicilio] = useState(false);
+  const [kmPorEntrega, setKmPorEntrega]       = useState(5);
+  const [consumoL100km, setConsumoL100km]     = useState(8);
+
+  useEffect(() => {
+    if (tabIdx !== 9) return;
+    setLoadingDomicilio(true);
+    const params = modoFiltro === 'rango'
+      ? `fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`
+      : `mes=${mes}&anio=${anio}`;
+    api.get(`/reportes/entregas-domicilio?${params}`)
+      .then(r => setDomicilioData(r.data))
+      .catch(() => setDomicilioData({ totalEntregas: 0, totalKg: 0, diasActivos: 0, porDia: [] }))
+      .finally(() => setLoadingDomicilio(false));
+  }, [tabIdx, mes, anio, fechaDesde, fechaHasta, modoFiltro]);
 
   useEffect(() => {
     api.get('/programas').then(r => setProgramas(r.data.filter((p: any) => p.activo))).catch(() => {});
@@ -247,6 +267,7 @@ export default function ReportesPage() {
           <Tab label="Cruces DNI" />
           <Tab label="Sin Entrega" />
           <Tab label="Rendición" />
+          <Tab icon={<DomicilioIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Domicilio" />
         </Tabs>
       </Box>
 
@@ -1064,6 +1085,134 @@ export default function ReportesPage() {
             </>
           )}
         </Paper>
+      )}
+      {/* ── Tab 9: Entregas a Domicilio ── */}
+      {tabIdx === 9 && (
+        <Box>
+          {loadingDomicilio ? (
+            <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+          ) : domicilioData ? (
+            <>
+              {/* KPI Cards */}
+              <Grid container spacing={2} mb={3}>
+                {[
+                  { label: 'TOTAL ENTREGAS', value: domicilioData.totalEntregas, color: 'primary.main' },
+                  { label: 'TOTAL KG ENTREGADOS', value: `${Number(domicilioData.totalKg).toFixed(1)} kg`, color: 'success.main' },
+                  { label: 'DÍAS ACTIVOS', value: domicilioData.diasActivos, color: 'warning.main' },
+                  {
+                    label: 'COMBUSTIBLE ESTIMADO',
+                    value: `${(domicilioData.totalEntregas * kmPorEntrega * consumoL100km / 100).toFixed(1)} L`,
+                    color: 'error.main',
+                  },
+                ].map((kpi, i) => (
+                  <Grid item xs={6} sm={3} key={i}>
+                    <Card elevation={2}>
+                      <CardContent sx={{ p: '12px !important' }}>
+                        <Typography variant="caption" color="text.secondary">{kpi.label}</Typography>
+                        <Typography variant="h5" fontWeight="bold" color={kpi.color}>{kpi.value}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+
+              {/* Configuración de combustible */}
+              <Paper elevation={1} sx={{ p: 2, mb: 3, bgcolor: 'grey.50' }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  <DomicilioIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle' }} />
+                  Parámetros de estimación de combustible
+                </Typography>
+                <Box display="flex" gap={3} flexWrap="wrap" alignItems="center">
+                  <TextField
+                    label="Km por entrega (ida y vuelta)"
+                    type="number"
+                    size="small"
+                    value={kmPorEntrega}
+                    onChange={e => setKmPorEntrega(Math.max(1, Number(e.target.value)))}
+                    inputProps={{ min: 1, max: 500, step: 1 }}
+                    sx={{ width: 240 }}
+                    helperText="Km promedio recorridos por cada visita"
+                  />
+                  <TextField
+                    label="Consumo del vehículo (L/100km)"
+                    type="number"
+                    size="small"
+                    value={consumoL100km}
+                    onChange={e => setConsumoL100km(Math.max(1, Number(e.target.value)))}
+                    inputProps={{ min: 1, max: 50, step: 0.5 }}
+                    sx={{ width: 250 }}
+                    helperText="Litros por cada 100 km recorridos"
+                  />
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Km totales estimados: <strong>{(domicilioData.totalEntregas * kmPorEntrega).toFixed(0)} km</strong>
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled">
+                      {domicilioData.totalEntregas} entregas × {kmPorEntrega} km × {consumoL100km} L/100km
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+
+              {/* Tabla por día */}
+              <Paper elevation={2}>
+                <Typography variant="subtitle2" sx={{ p: 2, pb: 1 }}>Detalle por día de entrega</Typography>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'grey.100' }}>
+                        <TableCell>Fecha</TableCell>
+                        <TableCell align="right">Entregas</TableCell>
+                        <TableCell align="right">Kg total</TableCell>
+                        <TableCell>Responsable / Chofer</TableCell>
+                        <TableCell align="right">Km estimados</TableCell>
+                        <TableCell align="right">Combustible est.</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {domicilioData.porDia.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} align="center">
+                            <Typography color="text.secondary" variant="body2" py={2}>
+                              Sin entregas en el período seleccionado
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ) : domicilioData.porDia.map((dia: any) => {
+                        const kmDia = dia.cantidadEntregas * kmPorEntrega;
+                        const combDia = kmDia * consumoL100km / 100;
+                        return (
+                          <TableRow key={dia.fecha} hover>
+                            <TableCell>
+                              {new Date(dia.fecha + 'T12:00:00').toLocaleDateString('es-AR', {
+                                weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric',
+                              })}
+                            </TableCell>
+                            <TableCell align="right"><strong>{dia.cantidadEntregas}</strong></TableCell>
+                            <TableCell align="right">{Number(dia.totalKg).toFixed(2)} kg</TableCell>
+                            <TableCell>
+                              {dia.choferes.length > 0
+                                ? dia.choferes.map((c: string, i: number) => (
+                                  <Chip key={i} label={c} size="small" variant="outlined"
+                                    sx={{ mr: 0.5, mb: 0.3, maxWidth: 220, fontSize: 11 }} />
+                                ))
+                                : <Typography variant="caption" color="text.disabled" fontStyle="italic">Sin registrar</Typography>
+                              }
+                            </TableCell>
+                            <TableCell align="right">{kmDia.toFixed(0)} km</TableCell>
+                            <TableCell align="right"><strong>{combDia.toFixed(1)} L</strong></TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            </>
+          ) : (
+            <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+          )}
+        </Box>
       )}
     </Box>
   );

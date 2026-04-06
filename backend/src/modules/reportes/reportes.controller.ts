@@ -157,6 +157,18 @@ export class ReportesController {
     );
   }
 
+  @Get('entregas-domicilio')
+  @ApiOperation({ summary: 'Resumen de entregas a domicilio por día con estimación de combustible' })
+  @Roles('ADMIN', 'VISOR', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA')
+  entregasDomicilio(
+    @Query('mes') mes: string, @Query('anio') anio: string,
+    @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Request() req,
+  ) {
+    const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
+    return this.reportesService.entregasDomicilio(m, a, fechaDesde, fechaHasta, getSecretaria(req));
+  }
+
   @Get('resumen-entregas-mes')
   @ApiOperation({ summary: 'Resumen de entregas de un período: pendientes, generadas, entregadas' })
   resumenEntregasMes(
