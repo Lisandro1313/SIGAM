@@ -241,19 +241,28 @@ export class BeneficiariosService {
     });
   }
 
-  async addIntegrante(beneficiarioId: number, data: { nombre: string; dni?: string; direccion?: string }) {
+  async addIntegrante(beneficiarioId: number, data: { nombre: string; dni?: string; direccion?: string; grupoFamiliar?: number; menores?: number }) {
     return this.prisma.integranteEspacio.create({
-      data: { beneficiarioId, nombre: data.nombre, dni: data.dni || null, direccion: data.direccion || null },
+      data: {
+        beneficiarioId,
+        nombre: data.nombre,
+        dni: data.dni || null,
+        direccion: data.direccion || null,
+        grupoFamiliar: data.grupoFamiliar ?? null,
+        menores: data.menores ?? null,
+      },
     });
   }
 
-  async bulkIntegrantes(beneficiarioId: number, integrantes: { nombre: string; dni?: string; direccion?: string }[]) {
+  async bulkIntegrantes(beneficiarioId: number, integrantes: { nombre: string; dni?: string; direccion?: string; grupoFamiliar?: number; menores?: number }[]) {
     await this.prisma.integranteEspacio.createMany({
       data: integrantes.map((i) => ({
         beneficiarioId,
         nombre: i.nombre,
         dni: i.dni || null,
         direccion: i.direccion || null,
+        grupoFamiliar: i.grupoFamiliar ?? null,
+        menores: i.menores ?? null,
       })),
     });
     const created = await this.prisma.integranteEspacio.findMany({

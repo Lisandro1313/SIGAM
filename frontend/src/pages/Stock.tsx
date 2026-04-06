@@ -5,6 +5,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tabs, Tab, Chip, Alert, IconButton, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
+  TablePagination, InputAdornment,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -17,6 +18,8 @@ import {
   LockOpen as LockOpenIcon,
   OpenInNew as OpenIcon,
   FolderOpen as FolderIcon,
+  FilterList as FilterIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -96,6 +99,10 @@ export default function StockPage() {
 
   const [stock, setStock] = useState<any[]>([]);
   const [movimientos, setMovimientos] = useState<any[]>([]);
+  const [movTotal, setMovTotal] = useState(0);
+  const [movPage, setMovPage] = useState(0);
+  const [movPageSize, setMovPageSize] = useState(50);
+  const [movFiltros, setMovFiltros] = useState({ tipo: '', articuloId: '', depositoId: '', fechaDesde: '', fechaHasta: '' });
   const [depositos, setDepositos] = useState<any[]>([]);
   const [articulos, setArticulos] = useState<any[]>([]);
   const [selectedDeposito, setSelectedDeposito] = useState(0);
@@ -159,7 +166,7 @@ export default function StockPage() {
   }, [selectedDeposito, depositos]);
 
   useEffect(() => {
-    if (vistaTab === 1 || vistaTab === 3) loadMovimientos();
+    if (vistaTab === 1 || vistaTab === 3) loadMovimientos(movPage, movPageSize, movFiltros);
     if (vistaTab === 2 && depositos.length > 0) loadLotes(depositos[selectedDeposito]?.id);
   }, [vistaTab]);
 
@@ -277,11 +284,23 @@ export default function StockPage() {
     }
   };
 
-  const loadMovimientos = async () => {
+  const loadMovimientos = async (page = movPage, pageSize = movPageSize, filtros = movFiltros) => {
     setLoadingMov(true);
     try {
-      const res = await api.get('/stock/movimientos');
-      setMovimientos(res.data);
+      const params: any = { page: page + 1, pageSize };
+      if (filtros.tipo) params.tipo = filtros.tipo;
+      if (filtros.articuloId) params.articuloId = filtros.articuloId;
+      if (filtros.depositoId) params.depositoId = filtros.depositoId;
+      if (filtros.fechaDesde) params.fechaDesde = filtros.fechaDesde;
+      if (filtros.fechaHasta) params.fechaHasta = filtros.fechaHasta;
+      const res = await api.get('/stock/movimientos', { params });
+      if (Array.isArray(res.data)) {
+        setMovimientos(res.data);
+        setMovTotal(res.data.length);
+      } else {
+        setMovimientos(res.data.data ?? []);
+        setMovTotal(res.data.total ?? 0);
+      }
     } catch {
       console.error('Error cargando movimientos');
     } finally {
@@ -404,65 +423,127 @@ export default function StockPage() {
 
       {vistaTab === 1 && (
         <>
+          {/* Filtros */}
+          <Box display="flex" gap={1} mb={2} flexWrap="wrap" alignItems="center">
+            <TextField
+              select size="small" label="Tipo" value={movFiltros.tipo} sx={{ minWidth: 130 }}
+              onChange={e => setMovFiltros(f => ({ ...f, tipo: e.target.value }))}
+            >
+              <MenuItem value="">Todos</MenuItem>
+              {Object.entries(TIPO_LABEL).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+            </TextField>
+            <TextField
+              select size="small" label="Artículo" value={movFiltros.articuloId} sx={{ minWidth: 160 }}
+              onChange={e => setMovFiltros(f => ({ ...f, articuloId: e.target.value }))}
+            >
+              <MenuItem value="">Todos</MenuItem>
+              {articulos.map(a => <MenuItem key={a.id} value={String(a.id)}>{a.nombre}</MenuItem>)}
+            </TextField>
+            <TextField
+              select size="small" label="Depósito" value={movFiltros.depositoId} sx={{ minWidth: 140 }}
+              onChange={e => setMovFiltros(f => ({ ...f, depositoId: e.target.value }))}
+            >
+              <MenuItem value="">Todos</MenuItem>
+              {depositos.map(d => <MenuItem key={d.id} value={String(d.id)}>{d.nombre}</MenuItem>)}
+            </TextField>
+            <TextField
+              size="small" label="Desde" type="date" value={movFiltros.fechaDesde}
+              onChange={e => setMovFiltros(f => ({ ...f, fechaDesde: e.target.value }))}
+              InputLabelProps={{ shrink: true }} sx={{ minWidth: 140 }}
+            />
+            <TextField
+              size="small" label="Hasta" type="date" value={movFiltros.fechaHasta}
+              onChange={e => setMovFiltros(f => ({ ...f, fechaHasta: e.target.value }))}
+              InputLabelProps={{ shrink: true }} sx={{ minWidth: 140 }}
+            />
+            <Button
+              variant="contained" size="small" startIcon={<FilterIcon />}
+              onClick={() => { setMovPage(0); loadMovimientos(0, movPageSize, movFiltros); }}
+            >
+              Filtrar
+            </Button>
+            <Tooltip title="Limpiar filtros">
+              <IconButton size="small" onClick={() => {
+                const f = { tipo: '', articuloId: '', depositoId: '', fechaDesde: '', fechaHasta: '' };
+                setMovFiltros(f); setMovPage(0); loadMovimientos(0, movPageSize, f);
+              }}>
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+
           {loadingMov ? (
             <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>
           ) : (
-            <TableContainer component={Paper} elevation={2}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.50' }}>
-                    <TableCell>Fecha</TableCell>
-                    <TableCell>Tipo</TableCell>
-                    <TableCell>Artículo</TableCell>
-                    <TableCell align="right">Cantidad</TableCell>
-                    <TableCell>Depósito</TableCell>
-                    <TableCell>Usuario</TableCell>
-                    <TableCell>Observaciones</TableCell>
-                    <TableCell align="center">Doc.</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {movimientos.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} align="center">
-                        <Typography variant="body2" color="text.secondary">Sin movimientos</Typography>
-                      </TableCell>
+            <Paper elevation={2}>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'grey.50' }}>
+                      <TableCell>Fecha</TableCell>
+                      <TableCell>Tipo</TableCell>
+                      <TableCell>Artículo</TableCell>
+                      <TableCell align="right">Cantidad</TableCell>
+                      <TableCell>Depósito</TableCell>
+                      <TableCell>Usuario</TableCell>
+                      <TableCell>Observaciones</TableCell>
+                      <TableCell align="center">Doc.</TableCell>
                     </TableRow>
-                  ) : (
-                    movimientos.map((m) => (
-                      <TableRow key={m.id} hover>
-                        <TableCell sx={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                          {format(new Date(m.fecha), 'dd/MM/yy HH:mm', { locale: es })}
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={TIPO_LABEL[m.tipo] ?? m.tipo} size="small" color={TIPO_COLOR[m.tipo] ?? 'default'} />
-                        </TableCell>
-                        <TableCell>{m.articulo?.nombre}</TableCell>
-                        <TableCell align="right"><strong>{m.cantidad}</strong></TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>
-                          {m.depositoHacia?.nombre || m.depositoDesde?.nombre || '—'}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>{m.usuario?.nombre || '—'}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {m.observaciones || '—'}
-                        </TableCell>
-                        <TableCell align="center">
-                          {m.documentoUrl ? (
-                            <Tooltip title="Ver documento adjunto">
-                              <IconButton size="small" color="primary" href={m.documentoUrl} target="_blank" rel="noopener noreferrer">
-                                <DocIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          ) : (
-                            <Typography variant="caption" color="text.disabled">—</Typography>
-                          )}
+                  </TableHead>
+                  <TableBody>
+                    {movimientos.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} align="center">
+                          <Typography variant="body2" color="text.secondary">Sin movimientos</Typography>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                    ) : (
+                      movimientos.map((m) => (
+                        <TableRow key={m.id} hover>
+                          <TableCell sx={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                            {format(new Date(m.fecha), 'dd/MM/yy HH:mm', { locale: es })}
+                          </TableCell>
+                          <TableCell>
+                            <Chip label={TIPO_LABEL[m.tipo] ?? m.tipo} size="small" color={TIPO_COLOR[m.tipo] ?? 'default'} />
+                          </TableCell>
+                          <TableCell>{m.articulo?.nombre}</TableCell>
+                          <TableCell align="right"><strong>{m.cantidad}</strong></TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem' }}>
+                            {m.depositoHacia?.nombre || m.depositoDesde?.nombre || '—'}
+                          </TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem' }}>{m.usuario?.nombre || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {m.observaciones || '—'}
+                          </TableCell>
+                          <TableCell align="center">
+                            {m.documentoUrl ? (
+                              <Tooltip title="Ver documento adjunto">
+                                <IconButton size="small" color="primary" href={m.documentoUrl} target="_blank" rel="noopener noreferrer">
+                                  <DocIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : (
+                              <Typography variant="caption" color="text.disabled">—</Typography>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePagination
+                component="div"
+                count={movTotal}
+                page={movPage}
+                rowsPerPage={movPageSize}
+                rowsPerPageOptions={[25, 50, 100, 200]}
+                onPageChange={(_, p) => { setMovPage(p); loadMovimientos(p, movPageSize, movFiltros); }}
+                onRowsPerPageChange={e => { const ps = parseInt(e.target.value); setMovPageSize(ps); setMovPage(0); loadMovimientos(0, ps, movFiltros); }}
+                labelRowsPerPage="Filas:"
+                labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+              />
+            </Paper>
           )}
         </>
       )}

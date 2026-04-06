@@ -168,6 +168,8 @@ model IntegranteEspacio {
   nombre         String
   dni            String?
   direccion      String?
+  grupoFamiliar  Int?
+  menores        Int?
   activo         Boolean      @default(true)
   createdAt      DateTime     @default(now())
 

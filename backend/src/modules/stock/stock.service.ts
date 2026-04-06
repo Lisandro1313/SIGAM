@@ -295,26 +295,65 @@ export class StockService {
     });
   }
 
-  // Obtener movimientos
+  // Obtener movimientos con paginación y filtros
   async obtenerMovimientos(filtros?: any) {
     const where: any = {};
 
     if (filtros?.tipo) where.tipo = filtros.tipo;
     if (filtros?.articuloId) where.articuloId = parseInt(filtros.articuloId);
-    if (filtros?.depositoDesdeId) where.depositoDesdeId = parseInt(filtros.depositoDesdeId);
+    if (filtros?.depositoId) {
+      where.OR = [
+        { depositoDesdeId: parseInt(filtros.depositoId) },
+        { depositoHaciaId: parseInt(filtros.depositoId) },
+      ];
+    }
+    if (filtros?.fechaDesde || filtros?.fechaHasta) {
+      where.fecha = {};
+      if (filtros.fechaDesde) where.fecha.gte = new Date(filtros.fechaDesde);
+      if (filtros.fechaHasta) {
+        const hasta = new Date(filtros.fechaHasta);
+        hasta.setHours(23, 59, 59, 999);
+        where.fecha.lte = hasta;
+      }
+    }
+    if (filtros?.soloConDocumento === 'true') {
+      where.documentoUrl = { not: null };
+    }
 
-    return await this.prisma.movimiento.findMany({
-      where,
-      include: {
-        articulo: true,
-        usuario: { select: { id: true, nombre: true } },
-        depositoDesde: true,
-        depositoHacia: true,
-        programa: true,
-        beneficiario: true,
-      },
-      orderBy: { fecha: 'desc' },
-      take: 100,
-    });
+    const include = {
+      articulo: true,
+      usuario: { select: { id: true, nombre: true } },
+      depositoDesde: true,
+      depositoHacia: true,
+      programa: true,
+      beneficiario: true,
+    };
+
+    // Para documentos: devolver todos sin paginar
+    if (filtros?.soloConDocumento === 'true') {
+      return this.prisma.movimiento.findMany({
+        where,
+        include,
+        orderBy: { fecha: 'desc' },
+      });
+    }
+
+    // Paginación server-side
+    const page = Math.max(1, parseInt(filtros?.page ?? '1'));
+    const pageSize = Math.min(Math.max(1, parseInt(filtros?.pageSize ?? '50')), 200);
+    const skip = (page - 1) * pageSize;
+
+    const [data, total] = await Promise.all([
+      this.prisma.movimiento.findMany({
+        where,
+        include,
+        orderBy: { fecha: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.movimiento.count({ where }),
+    ]);
+
+    return { data, total, page, pageSize };
   }
 }

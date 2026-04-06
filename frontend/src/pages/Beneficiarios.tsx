@@ -127,7 +127,7 @@ export default function BeneficiariosPage() {
   // Integrantes de espacio/comedor
   const [integrantes, setIntegrantes] = useState<any[]>([]);
   const [loadingIntegrantes, setLoadingIntegrantes] = useState(false);
-  const [integranteForm, setIntegranteForm] = useState({ nombre: '', dni: '', direccion: '' });
+  const [integranteForm, setIntegranteForm] = useState({ nombre: '', dni: '', direccion: '', grupoFamiliar: '', menores: '' });
   const [addingIntegrante, setAddingIntegrante] = useState(false);
   const [importingCsv, setImportingCsv] = useState(false);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -316,9 +316,16 @@ export default function BeneficiariosPage() {
     if (!detalleData || !integranteForm.nombre.trim()) return;
     setAddingIntegrante(true);
     try {
-      const res = await api.post(`/beneficiarios/${detalleData.id}/integrantes`, integranteForm);
+      const payload = {
+        nombre: integranteForm.nombre,
+        dni: integranteForm.dni || undefined,
+        direccion: integranteForm.direccion || undefined,
+        grupoFamiliar: integranteForm.grupoFamiliar ? Number(integranteForm.grupoFamiliar) : undefined,
+        menores: integranteForm.menores ? Number(integranteForm.menores) : undefined,
+      };
+      const res = await api.post(`/beneficiarios/${detalleData.id}/integrantes`, payload);
       setIntegrantes(prev => [...prev, res.data]);
-      setIntegranteForm({ nombre: '', dni: '', direccion: '' });
+      setIntegranteForm({ nombre: '', dni: '', direccion: '', grupoFamiliar: '', menores: '' });
     } catch {
       showNotification('Error al agregar integrante', 'error');
     } finally {
@@ -613,7 +620,7 @@ export default function BeneficiariosPage() {
                 if (v === tabHistorial && historial === null && puedeVerHistorial) {
                   setLoadingHistorial(true);
                   api.get('/auditoria', { params: { buscar: `/beneficiarios/${detalleData.id}` } })
-                    .then(r => setHistorial(r.data))
+                    .then(r => setHistorial(Array.isArray(r.data) ? r.data : (r.data.data ?? [])))
                     .catch(() => setHistorial([]))
                     .finally(() => setLoadingHistorial(false));
                 }
@@ -892,6 +899,18 @@ export default function BeneficiariosPage() {
                       onChange={e => setIntegranteForm(f => ({ ...f, direccion: e.target.value }))}
                       sx={{ flex: 2, minWidth: 160 }}
                     />
+                    <TextField
+                      size="small" label="Grupo familiar" value={integranteForm.grupoFamiliar}
+                      onChange={e => setIntegranteForm(f => ({ ...f, grupoFamiliar: e.target.value }))}
+                      type="number" inputProps={{ min: 0 }}
+                      sx={{ flex: 1, minWidth: 110 }}
+                    />
+                    <TextField
+                      size="small" label="Menores (opcional)" value={integranteForm.menores}
+                      onChange={e => setIntegranteForm(f => ({ ...f, menores: e.target.value }))}
+                      type="number" inputProps={{ min: 0 }}
+                      sx={{ flex: 1, minWidth: 120 }}
+                    />
                     <Button
                       variant="contained" size="small"
                       disabled={!integranteForm.nombre.trim() || addingIntegrante}
@@ -931,6 +950,8 @@ export default function BeneficiariosPage() {
                             <TableCell>Nombre</TableCell>
                             <TableCell>DNI</TableCell>
                             <TableCell>Dirección</TableCell>
+                            <TableCell>Grupo familiar</TableCell>
+                            <TableCell>Menores</TableCell>
                             <TableCell align="right" />
                           </TableRow>
                         </TableHead>
@@ -940,6 +961,8 @@ export default function BeneficiariosPage() {
                               <TableCell><strong>{i.nombre}</strong></TableCell>
                               <TableCell>{i.dni || <Typography variant="caption" color="text.disabled">—</Typography>}</TableCell>
                               <TableCell>{i.direccion || <Typography variant="caption" color="text.disabled">—</Typography>}</TableCell>
+                              <TableCell>{i.grupoFamiliar ?? <Typography variant="caption" color="text.disabled">—</Typography>}</TableCell>
+                              <TableCell>{i.menores ?? <Typography variant="caption" color="text.disabled">—</Typography>}</TableCell>
                               <TableCell align="right">
                                 <Tooltip title="Eliminar integrante">
                                   <IconButton size="small" color="error" onClick={() => handleRemoveIntegrante(i.id)}>
