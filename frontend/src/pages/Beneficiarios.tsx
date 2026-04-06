@@ -294,7 +294,7 @@ export default function BeneficiariosPage() {
     setIntegrantes([]);
     setHistorial(null);
     setProximaEntrega(null);
-    setIntegranteForm({ nombre: '', dni: '', direccion: '' });
+    setIntegranteForm({ nombre: '', dni: '', direccion: '', grupoFamiliar: '', menores: '' });
     try {
       const [res, proxRes] = await Promise.all([
         api.get(`/beneficiarios/${beneficiario.id}`),

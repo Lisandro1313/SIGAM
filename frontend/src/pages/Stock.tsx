@@ -5,7 +5,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tabs, Tab, Chip, Alert, IconButton, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
-  TablePagination, InputAdornment,
+  TablePagination,
 } from '@mui/material';
 import {
   Add as AddIcon,
