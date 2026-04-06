@@ -375,11 +375,25 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                   {ultimaEntrega.totalKg > 0 && (
                     <> — {ultimaEntrega.totalKg.toFixed(1)} kg</>
                   )}
-                  {promedioKg !== null && (
-                    <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.3 }}>
-                      Promedio por entrega: <strong>{promedioKg.toFixed(1)} kg</strong>
-                    </Typography>
-                  )}
+                  {(() => {
+                    const benef = beneficiarios.find((b: any) => String(b.id) === beneficiarioId);
+                    const kilosHabitual = benef?.kilosHabitual;
+                    if (kilosHabitual && kilosHabitual > 0) {
+                      return (
+                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.3 }}>
+                          Kg habituales del espacio: <strong>{kilosHabitual.toFixed(1)} kg</strong>
+                        </Typography>
+                      );
+                    }
+                    if (promedioKg !== null) {
+                      return (
+                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.3 }}>
+                          Promedio por entrega: <strong>{promedioKg.toFixed(1)} kg</strong>
+                        </Typography>
+                      );
+                    }
+                    return null;
+                  })()}
                 </Alert>
               ) : (
                 <Alert severity="success" sx={{ py: 0.5 }}>
@@ -650,7 +664,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                       const sinStock = stockDisp !== null && stockDisp <= 0;
                       const stockBajo = !sinStock && stockDisp !== null && art?.stockMinimo != null && stockDisp < art.stockMinimo;
                       const cantidadExcede = stockDisp !== null && item.cantidad > stockDisp;
-                      const alertaColor = sinStock || cantidadExcede ? 'error.light' : stockBajo ? 'warning.light' : 'success.light';
+                      const alertaColor = sinStock || cantidadExcede ? 'error.light' : stockBajo ? 'warning.light' : undefined;
                       return (
                         <TableRow key={index} sx={alertaColor ? { bgcolor: alertaColor } : undefined}>
                           <TableCell>
