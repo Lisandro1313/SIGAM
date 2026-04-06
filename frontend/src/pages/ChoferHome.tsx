@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Box, Typography, CircularProgress, Card, CardContent, CardActions,
   Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Alert, Divider, Tabs, Tab, Paper, IconButton, Tooltip,
+  TextField, Alert, Divider, Tabs, Tab, Paper, IconButton,
   Slide, AppBar, Toolbar,
 } from '@mui/material';
 import { TransitionProps } from '@mui/material/transitions';
@@ -25,7 +25,6 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
-import { useAuthStore } from '../stores/authStore';
 import FirmaDigital from '../components/FirmaDigital';
 
 const ESTADO_COLOR: Record<string, 'warning' | 'success' | 'info' | 'default'> = {
@@ -43,7 +42,6 @@ const SlideUp = React.forwardRef(function SlideUp(
 });
 
 export default function ChoferHome() {
-  const { user } = useAuthStore();
   const { showNotification } = useNotificationStore();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -165,38 +163,37 @@ export default function ChoferHome() {
     <Box sx={{ pb: isMobile ? 10 : 3 }}>
       {/* Encabezado */}
       <Box sx={{
-        bgcolor: '#e65100', color: 'white', borderRadius: 2,
-        p: { xs: 2, sm: 3 }, mb: 2,
+        bgcolor: '#e65100', color: 'white', borderRadius: { xs: 0, sm: 2 },
+        p: { xs: 1.5, sm: 3 }, mb: { xs: 1, sm: 2 },
+        mx: { xs: -1.5, sm: 0 }, mt: { xs: -1.5, sm: 0 },
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <Box>
           <Typography variant={isMobile ? 'h6' : 'h5'} fontWeight="bold">
             Mis Entregas
           </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.85 }}>
-            {hoyStr} | {user?.nombre}
+          <Typography variant={isMobile ? 'caption' : 'body2'} sx={{ opacity: 0.85 }}>
+            {hoyStr}
           </Typography>
         </Box>
-        <Tooltip title="Actualizar">
-          <IconButton color="inherit" onClick={loadRemitos} disabled={loading}>
-            <RefreshIcon />
-          </IconButton>
-        </Tooltip>
+        <IconButton color="inherit" onClick={loadRemitos} disabled={loading} sx={{ bgcolor: 'rgba(255,255,255,0.15)' }}>
+          <RefreshIcon />
+        </IconButton>
       </Box>
 
       {/* Resumen */}
-      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
-        <Paper sx={{ px: 2, py: 1, flex: 1, minWidth: 100, textAlign: 'center', borderLeft: '3px solid #fb8c00' }}>
+      <Box sx={{ display: 'flex', gap: { xs: 1, sm: 1.5 }, mb: 2 }}>
+        <Paper sx={{ px: { xs: 1, sm: 2 }, py: 1, flex: 1, textAlign: 'center', borderLeft: '3px solid #fb8c00' }}>
           <Typography variant="h5" fontWeight="bold" color="warning.main">{sinRetirar.length}</Typography>
-          <Typography variant="caption" color="text.secondary">Por retirar</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>Por retirar</Typography>
         </Paper>
-        <Paper sx={{ px: 2, py: 1, flex: 1, minWidth: 100, textAlign: 'center', borderLeft: '3px solid #1e88e5' }}>
+        <Paper sx={{ px: { xs: 1, sm: 2 }, py: 1, flex: 1, textAlign: 'center', borderLeft: '3px solid #1e88e5' }}>
           <Typography variant="h5" fontWeight="bold" color="primary.main">{retirados.length}</Typography>
-          <Typography variant="caption" color="text.secondary">En camino</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>En camino</Typography>
         </Paper>
-        <Paper sx={{ px: 2, py: 1, flex: 1, minWidth: 100, textAlign: 'center', borderLeft: '3px solid #43a047' }}>
+        <Paper sx={{ px: { xs: 1, sm: 2 }, py: 1, flex: 1, textAlign: 'center', borderLeft: '3px solid #43a047' }}>
           <Typography variant="h5" fontWeight="bold" color="success.main">{entregados.length}</Typography>
-          <Typography variant="caption" color="text.secondary">Entregados</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>Entregados</Typography>
         </Paper>
       </Box>
 
@@ -219,7 +216,7 @@ export default function ChoferHome() {
                 <RemitoCard
                   key={remito.id}
                   remito={remito}
-                  isMobile={isMobile}
+
                   onRetiro={() => abrirRetiro(remito)}
                   onFirma={() => abrirFirma(remito)}
                   onDetalle={() => setDetalleRemito(remito)}
@@ -237,7 +234,7 @@ export default function ChoferHome() {
                 <RemitoCard
                   key={remito.id}
                   remito={remito}
-                  isMobile={isMobile}
+
                   onDetalle={() => setDetalleRemito(remito)}
                 />
               ))
@@ -268,7 +265,7 @@ export default function ChoferHome() {
             Registrar Retiro del Deposito
           </DialogTitle>
         )}
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2, px: { xs: 2, sm: 3 } }}>
           {retiroRemito && (
             <Alert severity="info" sx={{ py: 0.5 }}>
               <strong>{retiroRemito.numero}</strong> — {retiroRemito.beneficiario?.nombre}
@@ -288,15 +285,14 @@ export default function ChoferHome() {
             fullWidth
           />
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setRetiroDialog(false)} disabled={retirando}>Cancelar</Button>
+        <DialogActions sx={{ p: 2, flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
+          <Button onClick={() => setRetiroDialog(false)} disabled={retirando} fullWidth={isMobile}>Cancelar</Button>
           <Button
-            variant="contained"
-            sx={{ bgcolor: '#e65100', '&:hover': { bgcolor: '#bf360c' } }}
+            variant="contained" fullWidth={isMobile}
+            sx={{ bgcolor: '#e65100', '&:hover': { bgcolor: '#bf360c' }, py: { xs: 1.5, sm: 1 }, fontSize: { xs: '1rem', sm: '0.875rem' } }}
             startIcon={retirando ? <CircularProgress size={16} /> : <RetiroIcon />}
             onClick={handleRetiro}
             disabled={retirando}
-            size="large"
           >
             Confirmar retiro
           </Button>
@@ -325,7 +321,7 @@ export default function ChoferHome() {
             Registrar Entrega a Domicilio
           </DialogTitle>
         )}
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2, px: { xs: 2, sm: 3 } }}>
           {firmaRemito && (
             <Alert severity="info" sx={{ py: 0.5 }}>
               <strong>{firmaRemito.numero}</strong> — {firmaRemito.beneficiario?.nombre}
@@ -345,23 +341,24 @@ export default function ChoferHome() {
             value={firmaNombre}
             onChange={e => setFirmaNombre(e.target.value)}
             fullWidth
-            autoFocus={!isMobile}
+            size={isMobile ? 'medium' : 'small'}
           />
           <TextField
             label="DNI *"
             value={firmaDni}
             onChange={e => setFirmaDni(e.target.value)}
             fullWidth
+            size={isMobile ? 'medium' : 'small'}
             inputProps={{ inputMode: 'numeric' }}
           />
 
           <Divider>Firma del destinatario</Divider>
 
-          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
             <FirmaDigital
               onFirma={setFirmaData}
-              width={isMobile ? Math.min(window.innerWidth - 48, 340) : 340}
-              height={isMobile ? 200 : 180}
+              width={isMobile ? Math.min(window.innerWidth - 64, 400) : 340}
+              height={isMobile ? 220 : 180}
             />
           </Box>
 
@@ -371,12 +368,14 @@ export default function ChoferHome() {
             onChange={e => setFirmaNota(e.target.value)}
             multiline rows={2}
             fullWidth
+            size={isMobile ? 'medium' : 'small'}
           />
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setFirmaDialog(false)} disabled={firmando}>Cancelar</Button>
+        <DialogActions sx={{ p: 2, flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
+          <Button onClick={() => setFirmaDialog(false)} disabled={firmando} fullWidth={isMobile}>Cancelar</Button>
           <Button
-            variant="contained" color="success" size="large"
+            variant="contained" color="success" fullWidth={isMobile}
+            sx={{ py: { xs: 1.5, sm: 1 }, fontSize: { xs: '1rem', sm: '0.875rem' } }}
             startIcon={firmando ? <CircularProgress size={16} /> : <FirmaIcon />}
             onClick={handleFirmaEntrega}
             disabled={firmando || !firmaNombre.trim() || !firmaDni.trim() || !firmaData}
@@ -471,9 +470,8 @@ export default function ChoferHome() {
 }
 
 /* ─── Card de remito para el chofer ─── */
-function RemitoCard({ remito, isMobile, onRetiro, onFirma, onDetalle }: {
+function RemitoCard({ remito, onRetiro, onFirma, onDetalle }: {
   remito: any;
-  isMobile: boolean;
   onRetiro?: () => void;
   onFirma?: () => void;
   onDetalle: () => void;
@@ -488,9 +486,9 @@ function RemitoCard({ remito, isMobile, onRetiro, onFirma, onDetalle }: {
       sx={{ mb: 1.5, borderLeft: `4px solid ${borderColor}`, cursor: 'pointer' }}
       onClick={onDetalle}
     >
-      <CardContent sx={{ pb: 0.5 }}>
+      <CardContent sx={{ pb: 0.5, px: { xs: 1.5, sm: 2 } }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-          <Typography variant="subtitle2" fontWeight="bold">{remito.numero}</Typography>
+          <Typography variant="subtitle2" fontWeight="bold" sx={{ fontSize: { xs: '0.85rem', sm: '0.875rem' } }}>{remito.numero}</Typography>
           <Chip
             icon={pendiente ? (retirado ? <EntregarIcon /> : <PendienteIcon />) : <EntregadoIcon />}
             label={!pendiente ? 'Entregado' : retirado ? 'En camino' : 'Por retirar'}
@@ -500,14 +498,14 @@ function RemitoCard({ remito, isMobile, onRetiro, onFirma, onDetalle }: {
           />
         </Box>
 
-        <Typography variant="body2" fontWeight="bold" sx={{ mb: 0.3 }}>
+        <Typography variant="body2" fontWeight="bold" sx={{ mb: 0.3, fontSize: { xs: '0.9rem', sm: '0.875rem' } }}>
           {remito.beneficiario?.nombre}
         </Typography>
 
         {remito.beneficiario?.direccion && (
-          <Box display="flex" alignItems="center" gap={0.5}>
-            <UbicacionIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-            <Typography variant="caption" color="text.secondary">
+          <Box display="flex" alignItems="flex-start" gap={0.5}>
+            <UbicacionIcon sx={{ fontSize: 16, color: 'text.secondary', mt: 0.2 }} />
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.75rem' } }}>
               {remito.beneficiario.direccion}
               {remito.beneficiario.localidad && `, ${remito.beneficiario.localidad}`}
             </Typography>
@@ -515,24 +513,25 @@ function RemitoCard({ remito, isMobile, onRetiro, onFirma, onDetalle }: {
         )}
 
         {remito.beneficiario?.telefono && (
-          <Box display="flex" alignItems="center" gap={0.5}>
-            <PhoneIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-            <Typography
-              variant="caption"
+          <Box display="flex" alignItems="center" gap={0.5} mt={0.3}>
+            <Button
               component="a"
               href={`tel:${remito.beneficiario.telefono}`}
-              sx={{ color: 'primary.main', textDecoration: 'none' }}
+              size="small"
+              variant="outlined"
+              startIcon={<PhoneIcon />}
               onClick={e => e.stopPropagation()}
+              sx={{ textTransform: 'none', minHeight: 32, fontSize: '0.8rem' }}
             >
               {remito.beneficiario.telefono}
-            </Typography>
+            </Button>
           </Box>
         )}
 
-        <Box display="flex" alignItems="center" gap={0.5} mt={0.3}>
+        <Box display="flex" alignItems="center" gap={0.5} mt={0.5}>
           <ItemsIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
           <Typography variant="caption" color="text.secondary">
-            {remito.items?.length ?? 0} articulos | {remito.totalKg?.toFixed(1) ?? 0} kg | {remito.deposito?.nombre}
+            {remito.items?.length ?? 0} art. | {remito.totalKg?.toFixed(1) ?? 0} kg | {remito.deposito?.nombre}
           </Typography>
         </Box>
 
@@ -544,11 +543,11 @@ function RemitoCard({ remito, isMobile, onRetiro, onFirma, onDetalle }: {
       </CardContent>
 
       {pendiente && (
-        <CardActions sx={{ px: 2, pb: 1.5, pt: 0 }} onClick={e => e.stopPropagation()}>
+        <CardActions sx={{ px: { xs: 1.5, sm: 2 }, pb: 1.5, pt: 0 }} onClick={e => e.stopPropagation()}>
           {!retirado ? (
             <Button
-              fullWidth variant="contained" size={isMobile ? 'large' : 'medium'}
-              sx={{ bgcolor: '#e65100', '&:hover': { bgcolor: '#bf360c' } }}
+              fullWidth variant="contained"
+              sx={{ bgcolor: '#e65100', '&:hover': { bgcolor: '#bf360c' }, py: { xs: 1.2, sm: 1 }, fontSize: { xs: '0.95rem', sm: '0.875rem' } }}
               startIcon={<RetiroIcon />}
               onClick={onRetiro}
             >
@@ -556,7 +555,8 @@ function RemitoCard({ remito, isMobile, onRetiro, onFirma, onDetalle }: {
             </Button>
           ) : (
             <Button
-              fullWidth variant="contained" color="success" size={isMobile ? 'large' : 'medium'}
+              fullWidth variant="contained" color="success"
+              sx={{ py: { xs: 1.2, sm: 1 }, fontSize: { xs: '0.95rem', sm: '0.875rem' } }}
               startIcon={<FirmaIcon />}
               onClick={onFirma}
             >

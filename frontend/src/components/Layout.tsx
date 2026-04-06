@@ -353,39 +353,48 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <Box sx={{ display: 'flex' }}>
       <AppBar
         position="fixed"
-        sx={{ width: { sm: `calc(100% - ${drawerWidth}px)` }, ml: { sm: `${drawerWidth}px` } }}
+        sx={esChofer
+          ? { width: '100%', bgcolor: '#e65100' }
+          : { width: { sm: `calc(100% - ${drawerWidth}px)` }, ml: { sm: `${drawerWidth}px` } }
+        }
       >
         <Toolbar>
-          <IconButton
-            color="inherit"
-            edge="start"
-            onClick={() => setMobileOpen(!mobileOpen)}
-            sx={{ mr: 2, display: { sm: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
-            Sistema de Gestión Alimentaria
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Chip
-              label={rolLabel}
-              size="small"
-              sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.7rem' }}
-            />
-            <Tooltip title="Buscar (Ctrl+K)">
-              <IconButton color="inherit" size="small" onClick={() => setSearchOpen(true)}>
-                <SearchIcon />
-              </IconButton>
-            </Tooltip>
-            <IconButton color="inherit" size="small" onClick={(e) => setBellAnchor(e.currentTarget)}>
-              <Badge badgeContent={(notifs.length + entregasNoLeidas.length + tareasPendientes.length) || null} color="error" max={9}>
-                <BellIcon />
-              </Badge>
+          {!esChofer && (
+            <IconButton
+              color="inherit"
+              edge="start"
+              onClick={() => setMobileOpen(!mobileOpen)}
+              sx={{ mr: 2, display: { sm: 'none' } }}
+            >
+              <MenuIcon />
             </IconButton>
-            <Typography variant="body2">{user?.nombre}</Typography>
+          )}
+          <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
+            {esChofer ? 'SIGAM — Reparto' : 'Sistema de Gestión Alimentaria'}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: esChofer ? 0.5 : 1.5 }}>
+            {!esChofer && (
+              <>
+                <Chip
+                  label={rolLabel}
+                  size="small"
+                  sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.7rem' }}
+                />
+                <Tooltip title="Buscar (Ctrl+K)">
+                  <IconButton color="inherit" size="small" onClick={() => setSearchOpen(true)}>
+                    <SearchIcon />
+                  </IconButton>
+                </Tooltip>
+                <IconButton color="inherit" size="small" onClick={(e) => setBellAnchor(e.currentTarget)}>
+                  <Badge badgeContent={(notifs.length + entregasNoLeidas.length + tareasPendientes.length) || null} color="error" max={9}>
+                    <BellIcon />
+                  </Badge>
+                </IconButton>
+                <Typography variant="body2">{user?.nombre}</Typography>
+              </>
+            )}
             <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} size="small">
-              <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>
+              <Avatar sx={{ width: 32, height: 32, bgcolor: esChofer ? '#bf360c' : 'secondary.main' }}>
                 {user?.nombre?.[0]?.toUpperCase()}
               </Avatar>
             </IconButton>
@@ -639,31 +648,42 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </Paper>
       </Popover>
 
-      <Box component="nav" sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-          ModalProps={{ keepMounted: true }}
-          sx={{ display: { xs: 'block', sm: 'none' }, '& .MuiDrawer-paper': { width: drawerWidth } }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{ display: { xs: 'none', sm: 'block' }, '& .MuiDrawer-paper': { width: drawerWidth } }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
-
-      <Box component="main" sx={{ flexGrow: 1, width: { sm: `calc(100% - ${drawerWidth}px)` }, mt: 8, display: 'flex', flexDirection: 'column' }}>
-        <NewsTicker />
-        <Box sx={{ p: 3, flex: 1 }}>
-          {children}
+      {/* Chofer: sin sidebar, layout limpio mobile-first */}
+      {esChofer ? (
+        <Box component="main" sx={{ flexGrow: 1, width: '100%', mt: 8, display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ p: { xs: 1.5, sm: 3 }, flex: 1 }}>
+            {children}
+          </Box>
         </Box>
-      </Box>
+      ) : (
+        <>
+          <Box component="nav" sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
+            <Drawer
+              variant="temporary"
+              open={mobileOpen}
+              onClose={() => setMobileOpen(false)}
+              ModalProps={{ keepMounted: true }}
+              sx={{ display: { xs: 'block', sm: 'none' }, '& .MuiDrawer-paper': { width: drawerWidth } }}
+            >
+              {drawer}
+            </Drawer>
+            <Drawer
+              variant="permanent"
+              sx={{ display: { xs: 'none', sm: 'block' }, '& .MuiDrawer-paper': { width: drawerWidth } }}
+              open
+            >
+              {drawer}
+            </Drawer>
+          </Box>
+
+          <Box component="main" sx={{ flexGrow: 1, width: { sm: `calc(100% - ${drawerWidth}px)` }, mt: 8, display: 'flex', flexDirection: 'column' }}>
+            <NewsTicker />
+            <Box sx={{ p: 3, flex: 1 }}>
+              {children}
+            </Box>
+          </Box>
+        </>
+      )}
 
       {/* ── Diálogo de búsqueda global ── */}
       <Dialog open={searchOpen} onClose={handleSearchClose} maxWidth="sm" fullWidth PaperProps={{ sx: { mt: '80px', verticalAlign: 'top' } }}>
