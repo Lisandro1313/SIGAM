@@ -356,7 +356,13 @@ export default function BeneficiariosPage() {
       const inicio = ['nombre', 'name', 'apellido'].includes(primeraCelda) ? 1 : 0;
       const filas = lineas.slice(inicio).map(l => {
         const cols = l.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-        return { nombre: cols[0] || '', dni: cols[1] || '', direccion: cols[2] || '' };
+        return {
+          nombre: cols[0] || '',
+          dni: cols[1] || '',
+          direccion: cols[2] || '',
+          grupoFamiliar: cols[3] ? Number(cols[3]) : undefined,
+          menores: cols[4] ? Number(cols[4]) : undefined,
+        };
       }).filter(f => f.nombre);
 
       if (filas.length === 0) { showNotification('No se encontraron filas válidas en el archivo', 'warning'); return; }
@@ -919,7 +925,7 @@ export default function BeneficiariosPage() {
                     >
                       Agregar
                     </Button>
-                    <Tooltip title="Importar CSV — formato: nombre,dni,direccion (una persona por fila, encabezado opcional)">
+                    <Tooltip title="Importar CSV — formato: nombre,dni,direccion,grupoFamiliar,menores (una persona por fila, encabezado opcional)">
                       <Button
                         variant="outlined" size="small"
                         onClick={() => csvInputRef.current?.click()}
@@ -939,7 +945,7 @@ export default function BeneficiariosPage() {
                       <IntegrantesIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
                       <Typography variant="body2" color="text.secondary">
                         Sin integrantes registrados.<br />
-                        Podés agregar uno por uno o importar un CSV con el formato: nombre, DNI, dirección.
+                        Podés agregar uno por uno o importar un CSV con el formato: nombre, DNI, dirección, grupo familiar, menores.
                       </Typography>
                     </Box>
                   ) : (

@@ -79,7 +79,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
   const [horaRetiro, setHoraRetiro] = useState('11:00');
 
   const [openNuevoBeneficiario, setOpenNuevoBeneficiario] = useState(false);
-  const [ultimaEntrega, setUltimaEntrega] = useState<any>(null); // { fecha, programa, totalKg } | null | 'loading'
+  const [ultimasEntregas, setUltimasEntregas] = useState<any>(null); // Array<{ fecha, programa, totalKg }> | null | 'loading'
   const [promedioKg, setPromedioKg] = useState<number | null>(null);
   const [cruceDatos, setCruceDatos] = useState<any>(null);
 
@@ -258,7 +258,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
     setItems([]);
     setSelectedArticuloId('');
     setCantidad('');
-    setUltimaEntrega('loading');
+    setUltimasEntregas('loading');
     setPromedioKg(null);
     onClose();
   };
@@ -301,7 +301,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                   setCruceDatos(null);
                   if (b?.programaId) setProgramaId(String(b.programaId));
                   if (val) {
-                    setUltimaEntrega('loading');
+                    setUltimasEntregas('loading');
                     setPromedioKg(null);
                     try {
                       const res = await api.get('/remitos', { params: { beneficiarioId: val, estado: 'ENTREGADO' } });
@@ -310,27 +310,32 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
                         const sorted = entregados.sort((a: any, b: any) =>
                           new Date(b.entregadoAt || b.fecha).getTime() - new Date(a.entregadoAt || a.fecha).getTime()
                         );
-                        const ultimo = sorted[0];
-                        setUltimaEntrega({
-                          fecha: ultimo.entregadoAt || ultimo.fecha,
-                          programa: ultimo.programa?.nombre || null,
-                          totalKg: ultimo.totalKg || 0,
-                        });
+                        // Agrupar por programa: último remito de cada programa
+                        const porPrograma = new Map<string, any>();
+                        for (const r of sorted) {
+                          const key = r.programa?.nombre || '__sin_programa__';
+                          if (!porPrograma.has(key)) porPrograma.set(key, r);
+                        }
+                        setUltimasEntregas(Array.from(porPrograma.values()).map((r: any) => ({
+                          fecha: r.entregadoAt || r.fecha,
+                          programa: r.programa?.nombre || null,
+                          totalKg: r.totalKg || 0,
+                        })));
                         // Promedio kg de las últimas entregas
                         const kgs = sorted.filter((r: any) => r.totalKg > 0).map((r: any) => r.totalKg);
                         if (kgs.length > 0) setPromedioKg(kgs.reduce((a: number, b: number) => a + b, 0) / kgs.length);
                       } else {
-                        setUltimaEntrega(null);
+                        setUltimasEntregas(null);
                       }
                     } catch {
-                      setUltimaEntrega(null);
+                      setUltimasEntregas(null);
                     }
                     // Cruce de datos por DNI
                     api.get(`/beneficiarios/${val}/cruce-programas`)
                       .then(r => setCruceDatos(r.data))
                       .catch(() => {});
                   } else {
-                    setUltimaEntrega('loading');
+                    setUltimasEntregas('loading');
                   }
                 }}
                 renderOption={(props, b: any) => (
@@ -361,20 +366,22 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
               )}
             </Box>
 
-            {/* Última entrega + kg típicos */}
-            {beneficiarioId && ultimaEntrega !== 'loading' && (
-              ultimaEntrega ? (
+            {/* Última entrega por programa + kg típicos */}
+            {beneficiarioId && ultimasEntregas !== 'loading' && (
+              ultimasEntregas && ultimasEntregas.length > 0 ? (
                 <Alert severity="info" sx={{ py: 0.5 }}>
-                  Última entrega:{' '}
-                  <strong>
-                    {new Date(ultimaEntrega.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                  </strong>
-                  {ultimaEntrega.programa && (
-                    <> — <Chip label={ultimaEntrega.programa} size="small" sx={{ height: 20, fontSize: '0.7rem' }} /></>
-                  )}
-                  {ultimaEntrega.totalKg > 0 && (
-                    <> — {ultimaEntrega.totalKg.toFixed(1)} kg</>
-                  )}
+                  {ultimasEntregas.map((ue: any, idx: number) => (
+                    <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mb: idx < ultimasEntregas.length - 1 ? 0.3 : 0 }}>
+                      <span>Última entrega{ultimasEntregas.length > 1 ? '' : ''}:</span>
+                      <strong>{new Date(ue.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                      {ue.programa && (
+                        <Chip label={ue.programa} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                      )}
+                      {ue.totalKg > 0 && (
+                        <span>— {ue.totalKg.toFixed(1)} kg</span>
+                      )}
+                    </Box>
+                  ))}
                   {(() => {
                     const benef = beneficiarios.find((b: any) => String(b.id) === beneficiarioId);
                     const kilosHabitual = benef?.kilosHabitual;
