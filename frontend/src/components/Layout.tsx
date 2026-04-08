@@ -256,8 +256,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; es?.close(); };
   }, [user]);
 
-  // Cargar notificaciones cada 2 minutos
+  // Cargar notificaciones cada 2 minutos (no para chofer ni nutricionista)
   useEffect(() => {
+    const rolSinNotifs = user && (user.rol === 'CHOFER' || user.rol === 'NUTRICIONISTA');
+    if (rolSinNotifs) return;
     const esDeliveryRole = user && !user.depositoId && ['ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR'].includes(user.rol);
     const fetchNotifs = () => {
       api.get('/reportes/notificaciones').then(r => setNotifs(r.data.notificaciones ?? [])).catch(() => {});
@@ -380,7 +382,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </IconButton>
           )}
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
-            {esChofer ? 'SIGAM — Reparto' : 'Sistema de Gestión Alimentaria'}
+            {esChofer ? 'SIGAM — Reparto' : esNutricionista ? 'SIGAM — Nutrición' : 'Sistema de Gestión Alimentaria'}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: esChofer ? 0.5 : 1.5 }}>
             {!esChofer && (
@@ -395,11 +397,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <SearchIcon />
                   </IconButton>
                 </Tooltip>
-                <IconButton color="inherit" size="small" onClick={(e) => setBellAnchor(e.currentTarget)}>
-                  <Badge badgeContent={(notifs.length + entregasNoLeidas.length + tareasPendientes.length) || null} color="error" max={9}>
-                    <BellIcon />
-                  </Badge>
-                </IconButton>
+                {!esNutricionista && (
+                  <IconButton color="inherit" size="small" onClick={(e) => setBellAnchor(e.currentTarget)}>
+                    <Badge badgeContent={(notifs.length + entregasNoLeidas.length + tareasPendientes.length) || null} color="error" max={9}>
+                      <BellIcon />
+                    </Badge>
+                  </IconButton>
+                )}
                 <Typography variant="body2">{user?.nombre}</Typography>
               </>
             )}
