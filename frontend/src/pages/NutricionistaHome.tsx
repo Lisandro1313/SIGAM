@@ -108,9 +108,9 @@ const ESTADO_GENERAL_COLORS: Record<string, string> = {
 
 const TIPO_PROGRAMA_LABELS: Record<string, string> = {
   HUERTA: 'Huerta',
-  MANIPULACION_ALIMENTOS: 'Manipulaci\u00f3n de alimentos',
-  NUTRICION_INFANTIL: 'Nutrici\u00f3n infantil',
-  CAPACITACION: 'Capacitaci\u00f3n',
+  MANIPULACION_ALIMENTOS: 'Manipulación de alimentos',
+  NUTRICION_INFANTIL: 'Nutrición infantil',
+  CAPACITACION: 'Capacitación',
   OTRO: 'Otro',
 };
 
@@ -298,9 +298,9 @@ export default function NutricionistaHome() {
           <NutricionIcon sx={{ fontSize: 28 }} />
         </Avatar>
         <Box>
-          <Typography variant="h5" fontWeight={700}>Nutrici\u00f3n</Typography>
+          <Typography variant="h5" fontWeight={700}>Nutrición</Typography>
           <Typography variant="body2" color="text.secondary">
-            {user?.nombre} \u2014 M\u00f3dulo de relevamientos y programas de terreno
+            {user?.nombre} — Módulo de relevamientos y programas de terreno
           </Typography>
         </Box>
       </Box>
@@ -367,7 +367,7 @@ export default function NutricionistaHome() {
 
           {relevamientos.length === 0 ? (
             <Alert severity="info" sx={{ mt: 2 }}>
-              No hay relevamientos a\u00fan. Hac\u00e9 clic en "Nuevo relevamiento" para crear el primero.
+              No hay relevamientos aún. Hacé clic en "Nuevo relevamiento" para crear el primero.
             </Alert>
           ) : (
             <Grid container spacing={2}>
@@ -388,7 +388,7 @@ export default function NutricionistaHome() {
                       </Box>
 
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                        {rel.beneficiario.direccion} \u2014 {new Date(rel.fecha).toLocaleDateString('es-AR')}
+                        {rel.beneficiario.direccion} — {new Date(rel.fecha).toLocaleDateString('es-AR')}
                       </Typography>
 
                       {rel.estadoGeneral && (
@@ -407,7 +407,7 @@ export default function NutricionistaHome() {
                           <Grid item xs={6}>
                             <Stack direction="row" spacing={0.5} alignItems="center">
                               <ChildIcon fontSize="small" color="primary" />
-                              <Typography variant="body2">0-5 a\u00f1os: <b>{rel.poblacionInfantil05}</b></Typography>
+                              <Typography variant="body2">0-5 años: <b>{rel.poblacionInfantil05}</b></Typography>
                             </Stack>
                           </Grid>
                         )}
@@ -415,7 +415,7 @@ export default function NutricionistaHome() {
                           <Grid item xs={6}>
                             <Stack direction="row" spacing={0.5} alignItems="center">
                               <ChildIcon fontSize="small" color="secondary" />
-                              <Typography variant="body2">6-12 a\u00f1os: <b>{rel.poblacionInfantil612}</b></Typography>
+                              <Typography variant="body2">6-12 años: <b>{rel.poblacionInfantil612}</b></Typography>
                             </Stack>
                           </Grid>
                         )}
@@ -458,7 +458,7 @@ export default function NutricionistaHome() {
           {relTotal > 10 && (
             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mt: 2 }}>
               <Button disabled={relPage <= 1} onClick={() => fetchRelevamientos(relPage - 1)}>Anterior</Button>
-              <Typography sx={{ alignSelf: 'center' }}>P\u00e1g. {relPage} de {Math.ceil(relTotal / 10)}</Typography>
+              <Typography sx={{ alignSelf: 'center' }}>Pág. {relPage} de {Math.ceil(relTotal / 10)}</Typography>
               <Button disabled={relPage >= Math.ceil(relTotal / 10)} onClick={() => fetchRelevamientos(relPage + 1)}>Siguiente</Button>
             </Box>
           )}
@@ -478,7 +478,7 @@ export default function NutricionistaHome() {
 
           {programas.length === 0 ? (
             <Alert severity="info" sx={{ mt: 2 }}>
-              No hay programas a\u00fan. Cre\u00e1 uno para empezar a registrar actividades de terreno.
+              No hay programas aún. Creá uno para empezar a registrar actividades de terreno.
             </Alert>
           ) : (
             <Stack spacing={2}>
@@ -495,7 +495,7 @@ export default function NutricionistaHome() {
                             {prog.nombre || TIPO_PROGRAMA_LABELS[prog.tipo]}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {prog.beneficiario.nombre} {prog.beneficiario.direccion ? `\u2014 ${prog.beneficiario.direccion}` : ''}
+                            {prog.beneficiario.nombre} {prog.beneficiario.direccion ? `— ${prog.beneficiario.direccion}` : ''}
                           </Typography>
                         </Box>
                       </Box>
@@ -517,7 +517,7 @@ export default function NutricionistaHome() {
                       <Typography variant="body2" color="text.secondary">
                         <CalendarIcon sx={{ fontSize: 14, mr: 0.3, verticalAlign: 'middle' }} />
                         {new Date(prog.fechaInicio).toLocaleDateString('es-AR')}
-                        {prog.fechaFin ? ` \u2014 ${new Date(prog.fechaFin).toLocaleDateString('es-AR')}` : ''}
+                        {prog.fechaFin ? ` — ${new Date(prog.fechaFin).toLocaleDateString('es-AR')}` : ''}
                       </Typography>
                       {prog.duracionSemanas && (
                         <Typography variant="body2" color="text.secondary">{prog.duracionSemanas} semanas</Typography>
@@ -562,7 +562,7 @@ export default function NutricionistaHome() {
                     <Box sx={{ p: 2, bgcolor: '#fafafa' }}>
                       {!prog.actividades || prog.actividades.length === 0 ? (
                         <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
-                          No hay actividades registradas a\u00fan
+                          No hay actividades registradas aún
                         </Typography>
                       ) : (
                         <Stack spacing={1.5}>
@@ -573,7 +573,7 @@ export default function NutricionistaHome() {
                                   <Typography variant="body2" fontWeight={600}>{act.descripcion}</Typography>
                                   <Typography variant="caption" color="text.secondary">
                                     {new Date(act.fecha).toLocaleDateString('es-AR')}
-                                    {act.asistentes != null ? ` \u2014 ${act.asistentes} asistentes` : ''}
+                                    {act.asistentes != null ? ` — ${act.asistentes} asistentes` : ''}
                                   </Typography>
                                 </Box>
                                 <Chip label={`#${idx + 1}`} size="small" variant="outlined" />
@@ -602,7 +602,7 @@ export default function NutricionistaHome() {
           {progTotal > 10 && (
             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mt: 2 }}>
               <Button disabled={progPage <= 1} onClick={() => fetchProgramas(progPage - 1)}>Anterior</Button>
-              <Typography sx={{ alignSelf: 'center' }}>P\u00e1g. {progPage} de {Math.ceil(progTotal / 10)}</Typography>
+              <Typography sx={{ alignSelf: 'center' }}>Pág. {progPage} de {Math.ceil(progTotal / 10)}</Typography>
               <Button disabled={progPage >= Math.ceil(progTotal / 10)} onClick={() => fetchProgramas(progPage + 1)}>Siguiente</Button>
             </Box>
           )}
@@ -719,20 +719,20 @@ function RelevamientoDialog({ open, onClose, onSave, initial, setBeneSearch, ben
         {!initial && (
           <Autocomplete
             options={beneOptions}
-            getOptionLabel={(o: Beneficiario) => `${o.nombre} ${o.direccion ? `\u2014 ${o.direccion}` : ''}`}
+            getOptionLabel={(o: Beneficiario) => `${o.nombre} ${o.direccion ? `— ${o.direccion}` : ''}`}
             value={selectedBene}
             onChange={(_, v) => setSelectedBene(v)}
             onInputChange={(_, v) => setBeneSearch(v)}
             loading={beneLoading}
             renderInput={(params) => <TextField {...params} label="Buscar espacio / beneficiario" fullWidth sx={{ mt: 1, mb: 2 }} />}
-            noOptionsText="Escrib\u00ed para buscar..."
+            noOptionsText="Escribí para buscar..."
           />
         )}
         {initial && (
           <Alert severity="info" sx={{ mb: 2 }}>Espacio: <b>{initial.beneficiario.nombre}</b></Alert>
         )}
 
-        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Poblaci\u00f3n</Typography>
+        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Población</Typography>
         <Grid container spacing={2}>
           <Grid item xs={6} sm={3}>
             <TextField label="Infantil 0-5" type="number" fullWidth size="small"
@@ -859,13 +859,13 @@ function ProgramaDialog({ open, onClose, onSave, initial, setBeneSearch, beneOpt
         {!initial && (
           <Autocomplete
             options={beneOptions}
-            getOptionLabel={(o: Beneficiario) => `${o.nombre} ${o.direccion ? `\u2014 ${o.direccion}` : ''}`}
+            getOptionLabel={(o: Beneficiario) => `${o.nombre} ${o.direccion ? `— ${o.direccion}` : ''}`}
             value={selectedBene}
             onChange={(_, v) => setSelectedBene(v)}
             onInputChange={(_, v) => setBeneSearch(v)}
             loading={beneLoading}
             renderInput={(params) => <TextField {...params} label="Buscar espacio / beneficiario" fullWidth sx={{ mt: 1, mb: 2 }} />}
-            noOptionsText="Escrib\u00ed para buscar..."
+            noOptionsText="Escribí para buscar..."
           />
         )}
         {initial && (
@@ -887,7 +887,7 @@ function ProgramaDialog({ open, onClose, onSave, initial, setBeneSearch, beneOpt
               placeholder="Ej: Huerta primavera 2026" />
           </Grid>
           <Grid item xs={12}>
-            <TextField label="Descripci\u00f3n" multiline rows={2} fullWidth size="small"
+            <TextField label="Descripción" multiline rows={2} fullWidth size="small"
               value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} />
           </Grid>
           <Grid item xs={6}>
@@ -899,7 +899,7 @@ function ProgramaDialog({ open, onClose, onSave, initial, setBeneSearch, beneOpt
               value={form.fechaFin} onChange={e => setForm({ ...form, fechaFin: e.target.value })} />
           </Grid>
           <Grid item xs={6}>
-            <TextField label="Duraci\u00f3n (semanas)" type="number" fullWidth size="small"
+            <TextField label="Duración (semanas)" type="number" fullWidth size="small"
               value={form.duracionSemanas} onChange={e => setForm({ ...form, duracionSemanas: e.target.value })} />
           </Grid>
           {initial && (
@@ -956,9 +956,9 @@ function ActividadDialog({ open, onClose, onSave, isMobile }: any) {
       <DialogContent sx={{ mt: 2 }}>
         <TextField label="Fecha" type="date" fullWidth size="small" sx={{ mb: 2 }} InputLabelProps={{ shrink: true }}
           value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} />
-        <TextField label="Descripci\u00f3n de la actividad" multiline rows={3} fullWidth sx={{ mb: 2 }}
+        <TextField label="Descripción de la actividad" multiline rows={3} fullWidth sx={{ mb: 2 }}
           value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}
-          placeholder="Ej: Preparaci\u00f3n de suelo y siembra de hortalizas" />
+          placeholder="Ej: Preparación de suelo y siembra de hortalizas" />
         <TextField label="Cantidad de asistentes" type="number" fullWidth size="small" sx={{ mb: 2 }}
           value={form.asistentes} onChange={e => setForm({ ...form, asistentes: e.target.value })} />
         <TextField label="Observaciones" multiline rows={2} fullWidth

@@ -88,6 +88,7 @@ const menuItems = [
   { text: 'Casos Particulares', icon: <CasosParticularesIcon />,   path: '/casos-particulares', seccion: 'casos-particulares' },
   { text: 'Mis Casos',          icon: <MisCasosIcon />,            path: '/mis-casos',          seccion: 'mis-casos' },
   { text: 'Búsqueda por DNI',   icon: <BadgeIcon />,               path: '/busqueda-dni',       seccion: 'busqueda-dni' },
+  { text: 'Nutrición',          icon: <NutricionIcon />,           path: '/nutricionista',      seccion: 'nutricionista' },
 ];
 
 // Menú restringido para usuarios de depósito (LOGISTICA + depositoId)

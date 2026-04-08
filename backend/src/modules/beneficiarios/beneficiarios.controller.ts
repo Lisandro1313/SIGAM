@@ -44,13 +44,13 @@ export class BeneficiariosController {
   }
 
   @Get()
-  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR', 'NUTRICIONISTA')
   @ApiOperation({ summary: 'Listar beneficiarios' })
   findAll(@Query() filtros: any, @Request() req) {
     const rol = req.user?.rol;
     const secretaria = rol === 'ADMIN' ? null
       : rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : (rol === 'LOGISTICA' || rol === 'VISOR') ? null
+      : (rol === 'LOGISTICA' || rol === 'VISOR' || rol === 'NUTRICIONISTA') ? null
       : 'PA';
     return this.beneficiariosService.findAll(filtros, secretaria);
   }
@@ -58,7 +58,7 @@ export class BeneficiariosController {
   // ── Integrantes de espacio/comedor ──────────────────────────────────────────
 
   @Get(':id/integrantes')
-  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR', 'NUTRICIONISTA')
   @ApiOperation({ summary: 'Listar integrantes del espacio/comedor' })
   getIntegrantes(@Param('id') id: string) {
     return this.beneficiariosService.getIntegrantes(+id);
@@ -86,7 +86,7 @@ export class BeneficiariosController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR', 'NUTRICIONISTA')
   @ApiOperation({ summary: 'Obtener beneficiario por ID' })
   findOne(@Param('id') id: string) {
     return this.beneficiariosService.findOne(+id);

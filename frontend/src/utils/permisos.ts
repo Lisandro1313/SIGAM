@@ -53,6 +53,7 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'usuarios',
     'casos-particulares',
     'busqueda-dni',
+    'nutricionista',
   ],
   LOGISTICA: [
     'dashboard',
@@ -74,6 +75,7 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'tareas',
     'casos-particulares',
     'busqueda-dni',
+    'nutricionista',
   ],
   TRABAJADORA_SOCIAL: [
     'beneficiarios',

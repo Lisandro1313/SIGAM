@@ -1039,7 +1039,7 @@ export default function BeneficiariosPage() {
                                     <TableCell>Nutricionista</TableCell>
                                     <TableCell>Estado gral.</TableCell>
                                     <TableCell>Modalidad</TableCell>
-                                    <TableCell>Poblaci\u00f3n</TableCell>
+                                    <TableCell>Población</TableCell>
                                     <TableCell>Infraestructura</TableCell>
                                   </TableRow>
                                 </TableHead>
@@ -1049,7 +1049,7 @@ export default function BeneficiariosPage() {
                                       <TableCell sx={{ whiteSpace: 'nowrap' }}>
                                         {new Date(r.fecha).toLocaleDateString('es-AR')}
                                       </TableCell>
-                                      <TableCell>{r.nutricionista?.nombre ?? '\u2014'}</TableCell>
+                                      <TableCell>{r.nutricionista?.nombre ?? '—'}</TableCell>
                                       <TableCell>
                                         {r.estadoGeneral ? (
                                           <Chip
@@ -1061,16 +1061,16 @@ export default function BeneficiariosPage() {
                                               fontSize: '0.7rem',
                                             }}
                                           />
-                                        ) : '\u2014'}
+                                        ) : '—'}
                                       </TableCell>
                                       <TableCell sx={{ fontSize: '0.8rem' }}>
-                                        {r.modalidad === 'RETIRAN_ALIMENTOS' ? 'Retiran' : r.modalidad === 'COMEN_EN_LUGAR' ? 'En lugar' : r.modalidad === 'MIXTO' ? 'Mixto' : '\u2014'}
+                                        {r.modalidad === 'RETIRAN_ALIMENTOS' ? 'Retiran' : r.modalidad === 'COMEN_EN_LUGAR' ? 'En lugar' : r.modalidad === 'MIXTO' ? 'Mixto' : '—'}
                                       </TableCell>
                                       <TableCell sx={{ fontSize: '0.8rem' }}>
-                                        {[r.poblacionInfantil05 && `0-5: ${r.poblacionInfantil05}`, r.poblacionInfantil612 && `6-12: ${r.poblacionInfantil612}`, r.poblacionAdolescente && `Adol: ${r.poblacionAdolescente}`, r.poblacionAdulta && `Adult: ${r.poblacionAdulta}`].filter(Boolean).join(', ') || '\u2014'}
+                                        {[r.poblacionInfantil05 && `0-5: ${r.poblacionInfantil05}`, r.poblacionInfantil612 && `6-12: ${r.poblacionInfantil612}`, r.poblacionAdolescente && `Adol: ${r.poblacionAdolescente}`, r.poblacionAdulta && `Adult: ${r.poblacionAdulta}`].filter(Boolean).join(', ') || '—'}
                                       </TableCell>
                                       <TableCell sx={{ fontSize: '0.8rem' }}>
-                                        {[r.tieneCocina && 'Cocina', r.aguaPotable && 'Agua', r.tieneHeladera && 'Heladera'].filter(Boolean).join(', ') || '\u2014'}
+                                        {[r.tieneCocina && 'Cocina', r.aguaPotable && 'Agua', r.tieneHeladera && 'Heladera'].filter(Boolean).join(', ') || '—'}
                                       </TableCell>
                                     </TableRow>
                                   ))}
@@ -1103,7 +1103,7 @@ export default function BeneficiariosPage() {
                                     <TableRow key={p.id} hover>
                                       <TableCell><strong>{p.nombre || p.tipo}</strong></TableCell>
                                       <TableCell sx={{ fontSize: '0.8rem' }}>
-                                        {({'HUERTA':'Huerta','MANIPULACION_ALIMENTOS':'Manip. alimentos','NUTRICION_INFANTIL':'Nutr. infantil','CAPACITACION':'Capacitaci\u00f3n','OTRO':'Otro'} as any)[p.tipo] || p.tipo}
+                                        {({'HUERTA':'Huerta','MANIPULACION_ALIMENTOS':'Manip. alimentos','NUTRICION_INFANTIL':'Nutr. infantil','CAPACITACION':'Capacitación','OTRO':'Otro'} as any)[p.tipo] || p.tipo}
                                       </TableCell>
                                       <TableCell>
                                         <Chip
@@ -1118,7 +1118,7 @@ export default function BeneficiariosPage() {
                                       </TableCell>
                                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(p.fechaInicio).toLocaleDateString('es-AR')}</TableCell>
                                       <TableCell>{p._count?.actividades ?? 0}</TableCell>
-                                      <TableCell>{p.nutricionista?.nombre ?? '\u2014'}</TableCell>
+                                      <TableCell>{p.nutricionista?.nombre ?? '—'}</TableCell>
                                     </TableRow>
                                   ))}
                                 </TableBody>

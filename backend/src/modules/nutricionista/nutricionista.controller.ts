@@ -10,7 +10,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
-const ROLES_NUTRI = ['ADMIN', 'NUTRICIONISTA'] as const;
+const ROLES_NUTRI = ['ADMIN', 'NUTRICIONISTA', 'OPERADOR_PROGRAMA'] as const;
 
 @ApiTags('nutricionista')
 @Controller('nutricionista')

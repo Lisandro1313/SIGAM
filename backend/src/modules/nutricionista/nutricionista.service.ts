@@ -42,7 +42,7 @@ export class NutricionistaService {
   async actualizarRelevamiento(id: number, dto: any, nutricionistaId: number, rol: string) {
     const rel = await this.prisma.relevamientoNutricional.findUnique({ where: { id } });
     if (!rel) throw new NotFoundException('Relevamiento no encontrado');
-    if (rol !== 'ADMIN' && rel.nutricionistaId !== nutricionistaId) {
+    if (rol !== 'ADMIN' && rol !== 'OPERADOR_PROGRAMA' && rel.nutricionistaId !== nutricionistaId) {
       throw new ForbiddenException('Solo podés editar tus propios relevamientos');
     }
 
@@ -85,8 +85,7 @@ export class NutricionistaService {
   async listarRelevamientos(filtros: any, nutricionistaId: number, rol: string) {
     const where: any = {};
 
-    // Nutricionistas solo ven los suyos, admin ve todos
-    if (rol !== 'ADMIN') where.nutricionistaId = nutricionistaId;
+    // Todos los nutricionistas ven todos los relevamientos; ADMIN y OPERADOR_PROGRAMA también
 
     if (filtros.beneficiarioId) where.beneficiarioId = +filtros.beneficiarioId;
 
@@ -148,7 +147,7 @@ export class NutricionistaService {
   async actualizarProgramaTerreno(id: number, dto: any, nutricionistaId: number, rol: string) {
     const prog = await this.prisma.programaTerreno.findUnique({ where: { id } });
     if (!prog) throw new NotFoundException('Programa de terreno no encontrado');
-    if (rol !== 'ADMIN' && prog.nutricionistaId !== nutricionistaId) {
+    if (rol !== 'ADMIN' && rol !== 'OPERADOR_PROGRAMA' && prog.nutricionistaId !== nutricionistaId) {
       throw new ForbiddenException('Solo podés editar tus propios programas');
     }
 
@@ -190,7 +189,7 @@ export class NutricionistaService {
 
   async listarProgramasTerreno(filtros: any, nutricionistaId: number, rol: string) {
     const where: any = {};
-    if (rol !== 'ADMIN') where.nutricionistaId = nutricionistaId;
+    // Todos los nutricionistas ven todos los programas
     if (filtros.beneficiarioId) where.beneficiarioId = +filtros.beneficiarioId;
     if (filtros.estado) where.estado = filtros.estado;
     if (filtros.tipo) where.tipo = filtros.tipo;
@@ -240,7 +239,7 @@ export class NutricionistaService {
   async crearActividad(programaTerrenoId: number, dto: any, nutricionistaId: number, rol: string) {
     const prog = await this.prisma.programaTerreno.findUnique({ where: { id: programaTerrenoId } });
     if (!prog) throw new NotFoundException('Programa de terreno no encontrado');
-    if (rol !== 'ADMIN' && prog.nutricionistaId !== nutricionistaId) {
+    if (rol !== 'ADMIN' && rol !== 'OPERADOR_PROGRAMA' && prog.nutricionistaId !== nutricionistaId) {
       throw new ForbiddenException('Solo podés agregar actividades a tus programas');
     }
 
@@ -270,7 +269,7 @@ export class NutricionistaService {
       include: { programaTerreno: { select: { nutricionistaId: true } } },
     });
     if (!act) throw new NotFoundException('Actividad no encontrada');
-    if (rol !== 'ADMIN' && act.programaTerreno.nutricionistaId !== nutricionistaId) {
+    if (rol !== 'ADMIN' && rol !== 'OPERADOR_PROGRAMA' && act.programaTerreno.nutricionistaId !== nutricionistaId) {
       throw new ForbiddenException('Solo podés editar actividades de tus programas');
     }
 
@@ -290,7 +289,7 @@ export class NutricionistaService {
       include: { programaTerreno: { select: { nutricionistaId: true } } },
     });
     if (!act) throw new NotFoundException('Actividad no encontrada');
-    if (rol !== 'ADMIN' && act.programaTerreno.nutricionistaId !== nutricionistaId) {
+    if (rol !== 'ADMIN' && rol !== 'OPERADOR_PROGRAMA' && act.programaTerreno.nutricionistaId !== nutricionistaId) {
       throw new ForbiddenException('Solo podés eliminar actividades de tus programas');
     }
     return this.prisma.actividadTerreno.delete({ where: { id } });
@@ -310,7 +309,8 @@ export class NutricionistaService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async dashboard(nutricionistaId: number, rol: string) {
-    const where = rol !== 'ADMIN' ? { nutricionistaId } : {};
+    // Todas las nutricionistas ven las estadísticas globales
+    const where: any = {};
 
     const [relevamientos, programasActivos, programasTotal, actividadesMes] = await Promise.all([
       this.prisma.relevamientoNutricional.count({ where }),
