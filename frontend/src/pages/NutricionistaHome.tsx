@@ -24,6 +24,7 @@ import {
   ChildCare as ChildIcon,
   EscalatorWarning as AdolescentIcon,
   Person as AdultIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
@@ -168,6 +169,10 @@ export default function NutricionistaHome() {
   const [dialogAct, setDialogAct] = useState(false);
   const [actProgId, setActProgId] = useState<number | null>(null);
 
+  // Eliminación con código de seguridad
+  const [deleteDialog, setDeleteDialog] = useState<{ type: 'relevamiento' | 'programa'; id: number } | null>(null);
+  const [deleteCode, setDeleteCode] = useState('');
+
   // Buscador de beneficiarios
   const [beneSearch, setBeneSearch] = useState('');
   const [beneOptions, setBeneOptions] = useState<Beneficiario[]>([]);
@@ -284,6 +289,24 @@ export default function NutricionistaHome() {
     } catch { /* ignore */ }
   };
 
+  // ── Eliminar con código de seguridad ──────────────────────────────────────
+
+  const handleDelete = async () => {
+    if (!deleteDialog || deleteCode !== '6409') return;
+    try {
+      if (deleteDialog.type === 'relevamiento') {
+        await api.delete(`/nutricionista/relevamientos/${deleteDialog.id}`);
+        fetchRelevamientos(relPage);
+      } else {
+        await api.delete(`/nutricionista/programas-terreno/${deleteDialog.id}`);
+        fetchProgramas(progPage);
+      }
+      fetchDashboard();
+    } catch { /* ignore */ }
+    setDeleteDialog(null);
+    setDeleteCode('');
+  };
+
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -380,11 +403,18 @@ export default function NutricionistaHome() {
                           <PlaceIcon color="action" fontSize="small" />
                           <Typography fontWeight={600}>{rel.beneficiario.nombre}</Typography>
                         </Box>
-                        <Tooltip title="Editar">
-                          <IconButton size="small" onClick={() => { setEditRel(rel); setDialogRel(true); }}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        <Box>
+                          <Tooltip title="Editar">
+                            <IconButton size="small" onClick={() => { setEditRel(rel); setDialogRel(true); }}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Eliminar">
+                            <IconButton size="small" color="error" onClick={() => setDeleteDialog({ type: 'relevamiento', id: rel.id })}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </Box>
 
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
@@ -508,6 +538,11 @@ export default function NutricionistaHome() {
                         <Tooltip title="Editar">
                           <IconButton size="small" onClick={() => { setEditProg(prog); setDialogProg(true); }}>
                             <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Eliminar">
+                          <IconButton size="small" color="error" onClick={() => setDeleteDialog({ type: 'programa', id: prog.id })}>
+                            <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </Stack>
@@ -648,6 +683,34 @@ export default function NutricionistaHome() {
         onSave={handleSaveActividad}
         isMobile={isMobile}
       />
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* DIALOG: CONFIRMAR ELIMINACIÓN */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <Dialog open={!!deleteDialog} onClose={() => { setDeleteDialog(null); setDeleteCode(''); }} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ bgcolor: '#e53935', color: '#fff' }}>
+          Eliminar {deleteDialog?.type === 'relevamiento' ? 'relevamiento' : 'programa'}
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Esta acción no se puede deshacer. {deleteDialog?.type === 'programa' ? 'Se eliminarán también todas las actividades asociadas.' : ''}
+          </Alert>
+          <TextField
+            fullWidth
+            label="Código de seguridad"
+            value={deleteCode}
+            onChange={(e) => setDeleteCode(e.target.value)}
+            placeholder="Ingresá el código para confirmar"
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => { setDeleteDialog(null); setDeleteCode(''); }}>Cancelar</Button>
+          <Button variant="contained" color="error" onClick={handleDelete} disabled={deleteCode !== '6409'}>
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

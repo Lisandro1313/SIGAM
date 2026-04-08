@@ -76,6 +76,13 @@ export class NutricionistaController {
     return this.svc.actualizarRelevamiento(+id, dto, req.user.id, req.user.rol);
   }
 
+  @Delete('relevamientos/:id')
+  @Roles(...ROLES_NUTRI)
+  @ApiOperation({ summary: 'Eliminar relevamiento' })
+  eliminarRelevamiento(@Param('id') id: string, @Request() req) {
+    return this.svc.eliminarRelevamiento(+id, req.user.id, req.user.rol);
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // PROGRAMAS DE TERRENO
   // ═══════════════════════════════════════════════════════════════════════════
@@ -113,6 +120,13 @@ export class NutricionistaController {
   @ApiOperation({ summary: 'Actualizar programa de terreno' })
   actualizarProgramaTerreno(@Param('id') id: string, @Body() dto: any, @Request() req) {
     return this.svc.actualizarProgramaTerreno(+id, dto, req.user.id, req.user.rol);
+  }
+
+  @Delete('programas-terreno/:id')
+  @Roles(...ROLES_NUTRI)
+  @ApiOperation({ summary: 'Eliminar programa de terreno y sus actividades' })
+  eliminarProgramaTerreno(@Param('id') id: string, @Request() req) {
+    return this.svc.eliminarProgramaTerreno(+id, req.user.id, req.user.rol);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

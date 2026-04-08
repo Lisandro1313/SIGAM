@@ -109,6 +109,16 @@ export class NutricionistaService {
     return { data: data.map(r => ({ ...r, fotos: r.fotos ? JSON.parse(r.fotos) : [] })), total, page, limit };
   }
 
+  async eliminarRelevamiento(id: number, nutricionistaId: number, rol: string) {
+    const rel = await this.prisma.relevamientoNutricional.findUnique({ where: { id } });
+    if (!rel) throw new NotFoundException('Relevamiento no encontrado');
+    if (rol !== 'ADMIN' && rol !== 'OPERADOR_PROGRAMA' && rel.nutricionistaId !== nutricionistaId) {
+      throw new ForbiddenException('Solo podés eliminar tus propios relevamientos');
+    }
+    await this.prisma.relevamientoNutricional.delete({ where: { id } });
+    return { deleted: true };
+  }
+
   // Por beneficiario (para la pestaña Nutrición)
   async relevamientosPorBeneficiario(beneficiarioId: number) {
     const data = await this.prisma.relevamientoNutricional.findMany({
@@ -213,6 +223,18 @@ export class NutricionistaService {
     ]);
 
     return { data, total, page, limit };
+  }
+
+  async eliminarProgramaTerreno(id: number, nutricionistaId: number, rol: string) {
+    const prog = await this.prisma.programaTerreno.findUnique({ where: { id } });
+    if (!prog) throw new NotFoundException('Programa de terreno no encontrado');
+    if (rol !== 'ADMIN' && rol !== 'OPERADOR_PROGRAMA' && prog.nutricionistaId !== nutricionistaId) {
+      throw new ForbiddenException('Solo podés eliminar tus propios programas');
+    }
+    // Eliminar actividades asociadas primero, luego el programa
+    await this.prisma.actividadTerreno.deleteMany({ where: { programaTerrenoId: id } });
+    await this.prisma.programaTerreno.delete({ where: { id } });
+    return { deleted: true };
   }
 
   // Por beneficiario (para la pestaña Nutrición)
