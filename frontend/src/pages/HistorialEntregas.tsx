@@ -11,7 +11,10 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 function resolveUrl(url: string) {
-  return url?.startsWith('http') ? url : `${API_BASE}/${(url ?? '').replace(/^\//, '')}`;
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('data:')) return url; // base64 inline
+  return `${API_BASE}/${url.replace(/^\//, '')}`;
 }
 import {
   PhotoCamera as FotoIcon, Download as DownloadIcon, FilterAlt as FilterIcon,
@@ -33,6 +36,9 @@ export default function HistorialEntregas() {
   const [searchParams] = useSearchParams();
 
   const [entregas, setEntregas]     = useState<any[]>([]);
+  const [totalEntregas, setTotalEntregas] = useState(0);
+  const [pagina, setPagina]         = useState(1);
+  const porPagina = 50;
   const [depositos, setDepositos]   = useState<any[]>([]);
   const [programas, setProgramas]   = useState<any[]>([]);
   const [loading, setLoading]       = useState(false);
@@ -164,17 +170,33 @@ export default function HistorialEntregas() {
     buscarEntregas();
   }, []);
 
-  const buscarEntregas = async () => {
+  const buscarEntregas = async (pg = pagina) => {
     setLoading(true);
     try {
-      const params: any = { estado: 'ENTREGADO', entregadoDesde: fechaDesde, entregadoHasta: fechaHasta };
+      const params: any = {
+        estado: 'ENTREGADO',
+        entregadoDesde: fechaDesde,
+        entregadoHasta: fechaHasta,
+        page: pg,
+        limit: porPagina,
+      };
       if (depositoFiltro) params.depositoId = depositoFiltro;
       if (programaFiltro) params.programaId = programaFiltro;
       if (buscar.trim()) params.busqueda = buscar.trim();
       const res = await api.get('/remitos', { params });
-      setEntregas(res.data);
+      if (res.data.data) {
+        // Respuesta paginada
+        setEntregas(res.data.data);
+        setTotalEntregas(res.data.total);
+        setPagina(res.data.page);
+      } else {
+        // Legacy (array directo)
+        setEntregas(res.data);
+        setTotalEntregas(res.data.length);
+      }
     } catch {
       setEntregas([]);
+      setTotalEntregas(0);
     } finally {
       setLoading(false);
     }
@@ -286,10 +308,10 @@ export default function HistorialEntregas() {
           <TextField
             label="Buscar por nombre o DNI" size="small" value={buscar}
             onChange={(e) => setBuscar(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') buscarEntregas(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { setPagina(1); buscarEntregas(1); } }}
             sx={{ width: 220 }}
           />
-          <Button variant="contained" startIcon={<FilterIcon />} onClick={buscarEntregas} disabled={loading}>
+          <Button variant="contained" startIcon={<FilterIcon />} onClick={() => { setPagina(1); buscarEntregas(1); }} disabled={loading}>
             Buscar
           </Button>
         </Box>
@@ -323,7 +345,7 @@ export default function HistorialEntregas() {
       {/* Estadísticas */}
       <Grid container spacing={2} mb={3}>
         {[
-          { label: 'TOTAL ENTREGAS', value: entregasFiltradas.length, color: 'primary', sub: 'en el período' },
+          { label: 'TOTAL ENTREGAS', value: totalEntregas || entregasFiltradas.length, color: 'primary', sub: 'en el período' },
           { label: 'TOTAL KG ENTREGADOS', value: `${totalKg.toFixed(0)} kg`, color: 'success.main', sub: 'kilogramos' },
           { label: 'CON FOTO FIRMADA', value: conFoto, color: 'info.main', sub: entregasFiltradas.length > 0 ? `${Math.round((conFoto / entregasFiltradas.length) * 100)}% del total` : '—' },
           { label: 'SIN FOTO', value: sinFoto, color: sinFoto > 0 ? 'warning.main' : 'text.disabled', sub: 'pendientes de documentar' },
@@ -470,6 +492,10 @@ export default function HistorialEntregas() {
                             </IconButton>
                           </Tooltip>
                         </Box>
+                      ) : remito.esEntregaDomicilio && remito.firmaDestinatario ? (
+                        <Tooltip title="Entrega a domicilio con firma digital — expandí para ver">
+                          <Chip label="Firma" size="small" color="success" variant="outlined" sx={{ fontSize: '0.7rem' }} />
+                        </Tooltip>
                       ) : (
                         <Tooltip title="Adjuntar foto firmada">
                           <IconButton
@@ -520,6 +546,38 @@ export default function HistorialEntregas() {
                               <Typography variant="caption" color="text.disabled">Sin ítems registrados</Typography>
                             )}
                           </Box>
+
+                          {/* Datos de entrega a domicilio: firma + destinatario */}
+                          {remito.esEntregaDomicilio && remito.firmaDestinatario && (
+                            <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed #ccc' }}>
+                              <Typography variant="caption" fontWeight="bold" color="text.secondary" display="block" mb={1}>
+                                ENTREGA A DOMICILIO — DATOS DEL DESTINATARIO
+                              </Typography>
+                              <Box display="flex" gap={3} flexWrap="wrap" alignItems="flex-start">
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">Nombre</Typography>
+                                  <Typography variant="body2" fontWeight={600}>{remito.nombreDestinatario || '—'}</Typography>
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">DNI</Typography>
+                                  <Typography variant="body2" fontWeight={600}>{remito.dniDestinatario || '—'}</Typography>
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">Fecha firma</Typography>
+                                  <Typography variant="body2">{remito.firmaDestinatarioAt ? format(new Date(remito.firmaDestinatarioAt), 'dd/MM/yyyy HH:mm', { locale: es }) : '—'}</Typography>
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" display="block">Firma</Typography>
+                                  <Box
+                                    component="img"
+                                    src={remito.firmaDestinatario.startsWith('data:') ? remito.firmaDestinatario : resolveUrl(remito.firmaDestinatario)}
+                                    alt="Firma destinatario"
+                                    sx={{ maxWidth: 200, maxHeight: 100, border: '1px solid #ddd', borderRadius: 1, bgcolor: '#fff', p: 0.5 }}
+                                  />
+                                </Box>
+                              </Box>
+                            </Box>
+                          )}
                         </Box>
                       </Collapse>
                     </TableCell>
@@ -533,6 +591,21 @@ export default function HistorialEntregas() {
             </TableBody>
           </Table>
         </TableContainer>
+      )}
+
+      {/* Paginación */}
+      {totalEntregas > porPagina && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 2 }}>
+          <Button size="small" disabled={pagina <= 1} onClick={() => { setPagina(pagina - 1); buscarEntregas(pagina - 1); }}>
+            Anterior
+          </Button>
+          <Typography variant="body2">
+            Página {pagina} de {Math.ceil(totalEntregas / porPagina)} — {totalEntregas} entregas
+          </Typography>
+          <Button size="small" disabled={pagina >= Math.ceil(totalEntregas / porPagina)} onClick={() => { setPagina(pagina + 1); buscarEntregas(pagina + 1); }}>
+            Siguiente
+          </Button>
+        </Box>
       )}
 
       {/* Diálogo editar entrega */}
@@ -588,10 +661,22 @@ export default function HistorialEntregas() {
           Foto firmada — {fotoRemito?.numero} · {fotoRemito?.beneficiario?.nombre}
         </DialogTitle>
         <DialogContent sx={{ textAlign: 'center', p: 1 }}>
-          {fotoUrl?.match(/\.(jpg|jpeg|png|webp)$/i) ? (
-            <img src={fotoUrl} alt="Remito firmado" style={{ maxWidth: '100%', borderRadius: 8 }} />
-          ) : (
+          {fotoUrl?.match(/\.(jpg|jpeg|png|webp)$/i) || fotoUrl?.startsWith('data:image') ? (
+            <img
+              src={fotoUrl}
+              alt="Remito firmado"
+              style={{ maxWidth: '100%', borderRadius: 8 }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).insertAdjacentHTML('afterend', '<p style="color:#999;padding:2rem">No se pudo cargar la imagen. El archivo pudo haberse perdido (almacenamiento local del servidor). Los nuevos archivos se guardan en Supabase Storage.</p>'); }}
+            />
+          ) : fotoUrl?.match(/\.pdf$/i) ? (
             <iframe src={fotoUrl} style={{ width: '100%', height: 500, border: 'none' }} title="Foto firmada" />
+          ) : (
+            <img
+              src={fotoUrl}
+              alt="Remito firmado"
+              style={{ maxWidth: '100%', borderRadius: 8 }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).insertAdjacentHTML('afterend', '<p style="color:#999;padding:2rem">No se pudo cargar el archivo. Puede haberse perdido del almacenamiento local.</p>'); }}
+            />
           )}
         </DialogContent>
         <DialogActions>

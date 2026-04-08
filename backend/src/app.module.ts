@@ -23,6 +23,7 @@ import { CasosModule } from './modules/casos/casos.module';
 import { EventsModule } from './modules/events/events.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { NoticiasModule } from './modules/noticias/noticias.module';
+import { NutricionistaModule } from './modules/nutricionista/nutricionista.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { NoticiasModule } from './modules/noticias/noticias.module';
     EventsModule,
     BackupModule,
     NoticiasModule,
+    NutricionistaModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente

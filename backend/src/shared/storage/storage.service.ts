@@ -9,7 +9,7 @@ export class StorageService {
   private bucket: string;
 
   constructor() {
-    this.bucket = process.env.SUPABASE_STORAGE_BUCKET || 'sigam';
+    this.bucket = process.env.SUPABASE_STORAGE_BUCKET || 'remitos';
     if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
       this.supabase = createClient(
         process.env.SUPABASE_URL,

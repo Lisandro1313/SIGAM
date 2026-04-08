@@ -10,6 +10,7 @@ import { MovimientoTipo, RemitoEstado } from '@prisma/client';
 import { PdfService } from './services/pdf.service';
 import { EmailService, OpcionesEnvio } from './services/email.service';
 import { EventsService } from '../events/events.service';
+import { StorageService } from '../../shared/storage/storage.service';
 
 @Injectable()
 export class RemitosService {
@@ -18,6 +19,7 @@ export class RemitosService {
     private pdfService: PdfService,
     private emailService: EmailService,
     private eventsService: EventsService,
+    private storageService: StorageService,
   ) {}
 
   // Generar número correlativo único — upsert atómico evita race condition en primer remito
@@ -292,11 +294,11 @@ export class RemitosService {
     secretaria?: string | null,
   ): Promise<Buffer> {
     const remitos = await this.findAll(
-      { ...filtros, estado: 'ENTREGADO' },
+      { ...filtros, estado: 'ENTREGADO', page: undefined },
       usuarioDepositoId,
       depositoCodigo,
       secretaria,
-    );
+    ) as any[];
     const programa = filtros.programaId
       ? (await this.prisma.programa.findUnique({ where: { id: parseInt(filtros.programaId) } }))?.nombre
       : undefined;
@@ -419,25 +421,38 @@ export class RemitosService {
       where.estado = { not: 'ENTREGADO' };
     }
 
-    const limite = filtros.busqueda ? 500 : 200;
+    // Paginación: si viene page/limit, paginar; si no, legacy (máximo 200)
+    const page = filtros.page ? Math.max(1, +filtros.page) : null;
+    const limit = filtros.limit ? Math.min(100, Math.max(1, +filtros.limit)) : 50;
 
+    const include = {
+      beneficiario: true,
+      programa: true,
+      deposito: true,
+      caso: { select: { id: true, nombreSolicitante: true, dni: true } },
+      items: { include: { articulo: true } },
+    };
+
+    if (page) {
+      const [data, total] = await Promise.all([
+        this.prisma.remito.findMany({
+          where,
+          include,
+          orderBy: { fecha: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        this.prisma.remito.count({ where }),
+      ]);
+      return { data, total, page, limit };
+    }
+
+    // Legacy: sin paginación (máx 200)
     return await this.prisma.remito.findMany({
       where,
-      include: {
-        beneficiario: true,
-        programa: true,
-        deposito: true,
-        caso: { select: { id: true, nombreSolicitante: true, dni: true } },
-        items: {
-          include: {
-            articulo: true,
-          },
-        },
-      },
-      orderBy: {
-        fecha: 'desc',
-      },
-      take: limite,
+      include,
+      orderBy: { fecha: 'desc' },
+      take: filtros.busqueda ? 500 : 200,
     });
   }
 
@@ -651,6 +666,21 @@ export class RemitosService {
       throw new BadRequestException('El remito debe estar confirmado para registrar la entrega');
     }
 
+    // Subir firma base64 como imagen a Storage
+    let firmaUrl = data.firmaDestinatario;
+    try {
+      const base64Match = data.firmaDestinatario.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
+      if (base64Match) {
+        const ext = base64Match[1] === 'jpeg' ? 'jpg' : base64Match[1];
+        const buffer = Buffer.from(base64Match[2], 'base64');
+        const filename = `firmas/firma-${id}-${Date.now()}.${ext}`;
+        firmaUrl = await this.storageService.upload(buffer, filename, `image/${base64Match[1]}`);
+      }
+    } catch (e) {
+      // Si falla el upload, guardar el base64 como fallback
+      console.warn('[firmaEntrega] No se pudo subir firma a storage, guardando base64:', e);
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const remitoActualizado = await tx.remito.update({
         where: { id },
@@ -660,7 +690,7 @@ export class RemitosService {
           entregadoNota: data.nota || null,
           nombreDestinatario: data.nombreDestinatario,
           dniDestinatario: data.dniDestinatario,
-          firmaDestinatario: data.firmaDestinatario,
+          firmaDestinatario: firmaUrl,
           firmaDestinatarioAt: new Date(),
         },
         include: {

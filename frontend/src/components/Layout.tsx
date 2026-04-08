@@ -60,6 +60,7 @@ import {
   CheckCircle as EntregaOkIcon,
   History as HistoryIcon,
   DoneAll as MarcarTodasIcon,
+  Restaurant as NutricionIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { puedeAcceder, ROL_LABELS, Rol } from '../utils/permisos';
@@ -101,6 +102,12 @@ const menuDeposito = [
 // Menú restringido para choferes (reparto a domicilio)
 const menuChofer = [
   { text: 'Mis Entregas',  icon: <DepositoIcon />,  path: '/mis-entregas',  seccion: 'mis-entregas' },
+];
+
+// Menú para nutricionistas
+const menuNutricionista = [
+  { text: 'Nutrición',      icon: <NutricionIcon />,  path: '/nutricionista',  seccion: 'nutricionista' },
+  { text: 'Beneficiarios',  icon: <PeopleIcon />,     path: '/beneficiarios',  seccion: 'beneficiarios' },
 ];
 
 const ESTADO_CHIP: Record<string, string> = {
@@ -294,12 +301,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const esDeposito = !!(user?.depositoId);
 
   const esChofer = user?.rol === 'CHOFER';
+  const esNutricionista = user?.rol === 'NUTRICIONISTA';
   // Si es usuario de depósito, menú restringido; si no, filtrar por rol
   const visibleItems = esChofer
     ? menuChofer
-    : esDeposito
-      ? menuDeposito
-      : menuItems.filter((item) => puedeAcceder(user?.rol, item.seccion));
+    : esNutricionista
+      ? menuNutricionista
+      : esDeposito
+        ? menuDeposito
+        : menuItems.filter((item) => puedeAcceder(user?.rol, item.seccion));
 
   const drawer = (
     <div>

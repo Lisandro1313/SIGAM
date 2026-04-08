@@ -22,6 +22,7 @@ enum Role {
   ASISTENCIA_CRITICA   // Solo sus propios remitos (chapas, materiales, etc.)
   VISOR                // Solo lectura: dashboard y reportes
   CHOFER               // Reparto a domicilio - solo ve sus entregas asignadas
+  NUTRICIONISTA        // Nutricionistas que visitan espacios y hacen relevamientos
 }
 
 enum MovimientoTipo {
@@ -62,10 +63,12 @@ model Usuario {
   deposito   Deposito? @relation(fields: [depositoId], references: [id])
   depositoId Int?
 
-  movimientos    Movimiento[]
-  remitosChofer  Remito[]     @relation("RemitosChofer")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  movimientos            Movimiento[]
+  remitosChofer          Remito[]               @relation("RemitosChofer")
+  relevamientos          RelevamientoNutricional[]
+  programasTerreno       ProgramaTerreno[]
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@index([email])
   @@index([programaId])
@@ -137,6 +140,8 @@ model Beneficiario {
   documentos         DocumentoBeneficiario[]
   casos              Caso[]
   integrantes        IntegranteEspacio[]
+  relevamientos      RelevamientoNutricional[]
+  programasTerreno   ProgramaTerreno[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -642,4 +647,134 @@ model DocumentoCaso {
   createdAt DateTime @default(now())
 
   @@index([casoId])
+}
+
+// ============================================================================
+// MÓDULO NUTRICIONISTA
+// ============================================================================
+
+enum ModalidadAlimentaria {
+  RETIRAN_ALIMENTOS
+  COMEN_EN_LUGAR
+  MIXTO
+}
+
+enum EstadoGeneral {
+  BUENO
+  REGULAR
+  MALO
+}
+
+enum TipoProgramaTerreno {
+  HUERTA
+  MANIPULACION_ALIMENTOS
+  NUTRICION_INFANTIL
+  CAPACITACION
+  OTRO
+}
+
+enum EstadoProgramaTerreno {
+  PLANIFICADO
+  EN_CURSO
+  FINALIZADO
+  CANCELADO
+}
+
+model RelevamientoNutricional {
+  id                  Int          @id @default(autoincrement())
+
+  // Espacio/beneficiario relevado
+  beneficiario        Beneficiario @relation(fields: [beneficiarioId], references: [id])
+  beneficiarioId      Int
+
+  // Nutricionista que hizo el relevamiento
+  nutricionista       Usuario      @relation(fields: [nutricionistaId], references: [id])
+  nutricionistaId     Int
+
+  fecha               DateTime     @default(now())
+
+  // Población
+  poblacionInfantil05 Int?         // Niños 0-5 años
+  poblacionInfantil612 Int?        // Niños 6-12 años
+  poblacionAdolescente Int?        // 13-17 años
+  poblacionAdulta     Int?         // 18+
+
+  // Modalidad alimentaria del espacio
+  modalidad           ModalidadAlimentaria?
+
+  // Infraestructura
+  tieneCocina         Boolean      @default(false)
+  aguaPotable         Boolean      @default(false)
+  tieneHeladera       Boolean      @default(false)
+
+  // Evaluación
+  estadoGeneral       EstadoGeneral?
+  necesidades         String?      // Texto libre: qué necesitan
+  observaciones       String?      // Observaciones generales
+
+  // Fotos del relevamiento (JSON array de URLs)
+  fotos               String?      // JSON: ["url1", "url2"]
+
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([beneficiarioId])
+  @@index([nutricionistaId])
+  @@index([fecha])
+}
+
+model ProgramaTerreno {
+  id                Int          @id @default(autoincrement())
+
+  // Tipo de programa/curso
+  tipo              TipoProgramaTerreno
+  nombre            String?      // Nombre personalizado (ej: "Huerta primavera 2026")
+  descripcion       String?
+
+  // Espacio donde se ejecuta
+  beneficiario      Beneficiario @relation(fields: [beneficiarioId], references: [id])
+  beneficiarioId    Int
+
+  // Nutricionista responsable
+  nutricionista     Usuario      @relation(fields: [nutricionistaId], references: [id])
+  nutricionistaId   Int
+
+  // Fechas y duración
+  fechaInicio       DateTime
+  fechaFin          DateTime?
+  duracionSemanas   Int?
+
+  estado            EstadoProgramaTerreno @default(PLANIFICADO)
+
+  // Actividades realizadas dentro de este programa
+  actividades       ActividadTerreno[]
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([beneficiarioId])
+  @@index([nutricionistaId])
+  @@index([estado])
+  @@index([fechaInicio])
+}
+
+model ActividadTerreno {
+  id                Int              @id @default(autoincrement())
+
+  // Programa al que pertenece
+  programaTerreno   ProgramaTerreno  @relation(fields: [programaTerrenoId], references: [id], onDelete: Cascade)
+  programaTerrenoId Int
+
+  fecha             DateTime         @default(now())
+  descripcion       String
+  asistentes        Int?             // Cantidad de asistentes
+  observaciones     String?
+
+  // Fotos/archivos (JSON array de URLs)
+  fotos             String?          // JSON: ["url1", "url2"]
+
+  createdAt         DateTime         @default(now())
+
+  @@index([programaTerrenoId])
+  @@index([fecha])
 }

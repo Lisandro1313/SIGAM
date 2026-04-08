@@ -28,11 +28,13 @@ const MisCasos           = lazy(() => import('./pages/MisCasos'));
 const CasosParticulares  = lazy(() => import('./pages/CasosParticulares'));
 const BusquedaDNI        = lazy(() => import('./pages/BusquedaDNI'));
 const ChoferHome         = lazy(() => import('./pages/ChoferHome'));
+const NutricionistaHome  = lazy(() => import('./pages/NutricionistaHome'));
 
 function HomeRedirect() {
   const { user } = useAuthStore();
   if (user == null) return null;
   if (user.rol === 'CHOFER') return <Navigate to="/mis-entregas" replace />;
+  if (user.rol === 'NUTRICIONISTA') return <Navigate to="/nutricionista" replace />;
   if (user.depositoId != null) return <Navigate to="/deposito" replace />;
   if (user.rol === 'TRABAJADORA_SOCIAL') return <Navigate to="/mis-casos" replace />;
   return <ProtectedRoute seccion="dashboard"><Dashboard /></ProtectedRoute>;
@@ -70,6 +72,7 @@ function App() {
             <Route path="/casos-particulares" element={<ProtectedRoute seccion="casos-particulares"><CasosParticulares /></ProtectedRoute>} />
             <Route path="/busqueda-dni" element={<ProtectedRoute seccion="busqueda-dni"><BusquedaDNI /></ProtectedRoute>} />
             <Route path="/mis-entregas" element={<ProtectedRoute seccion="mis-entregas"><ChoferHome /></ProtectedRoute>} />
+            <Route path="/nutricionista" element={<ProtectedRoute seccion="nutricionista"><NutricionistaHome /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Suspense>

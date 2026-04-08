@@ -44,6 +44,7 @@ const ROLES: Rol[] = [
   'ASISTENCIA_CRITICA',
   'VISOR',
   'CHOFER',
+  'NUTRICIONISTA',
 ];
 
 const ROL_COLOR: Record<Rol, 'error' | 'warning' | 'primary' | 'success' | 'secondary' | 'default'> = {
@@ -54,6 +55,7 @@ const ROL_COLOR: Record<Rol, 'error' | 'warning' | 'primary' | 'success' | 'seco
   ASISTENCIA_CRITICA: 'secondary',
   VISOR:              'default',
   CHOFER:             'warning',
+  NUTRICIONISTA:      'success',
 };
 
 const ROL_DESC: Record<Rol, string> = {
@@ -64,6 +66,7 @@ const ROL_DESC: Record<Rol, string> = {
   ASISTENCIA_CRITICA: 'Solo puede crear y ver sus propios remitos (chapas, materiales, etc.).',
   VISOR:              'Acceso de solo lectura al dashboard, beneficiarios y reportes.',
   CHOFER:             'Reparto a domicilio. Solo ve y gestiona sus entregas asignadas.',
+  NUTRICIONISTA:      'Visita espacios, hace relevamientos nutricionales y gestiona programas de terreno.',
 };
 
 export default function UsuariosPage() {

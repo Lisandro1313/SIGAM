@@ -48,6 +48,7 @@ import {
   PhotoCamera as FotoIcon,
   CompareArrows as CruceIcon,
   Group as IntegrantesIcon,
+  Restaurant as NutricionTabIcon,
 } from '@mui/icons-material';
 import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -127,6 +128,10 @@ export default function BeneficiariosPage() {
   // Integrantes de espacio/comedor
   const [integrantes, setIntegrantes] = useState<any[]>([]);
   const [loadingIntegrantes, setLoadingIntegrantes] = useState(false);
+
+  // Nutrición (relevamientos + programas de terreno)
+  const [nutricionData, setNutricionData] = useState<{ relevamientos: any[]; programas: any[] } | null>(null);
+  const [loadingNutricion, setLoadingNutricion] = useState(false);
   const [integranteForm, setIntegranteForm] = useState({ nombre: '', dni: '', direccion: '', grupoFamiliar: '', menores: '' });
   const [addingIntegrante, setAddingIntegrante] = useState(false);
   const [importingCsv, setImportingCsv] = useState(false);
@@ -293,6 +298,7 @@ export default function BeneficiariosPage() {
     setCruceData(null);
     setIntegrantes([]);
     setHistorial(null);
+    setNutricionData(null);
     setProximaEntrega(null);
     setIntegranteForm({ nombre: '', dni: '', direccion: '', grupoFamiliar: '', menores: '' });
     try {
@@ -602,8 +608,10 @@ export default function BeneficiariosPage() {
 
         {detalleData && (() => {
           const tieneIntegrantes = TIPOS_ESPACIO.includes(detalleData?.tipo);
-          const tabIntegrantes = tieneIntegrantes ? 3 : -1;
-          const tabHistorial   = tieneIntegrantes ? 4 : 3;
+          let nextIdx = 3;
+          const tabIntegrantes = tieneIntegrantes ? nextIdx++ : -1;
+          const tabNutricion = nextIdx++;
+          const tabHistorial = puedeVerHistorial ? nextIdx++ : -1;
           return (
             <Tabs
               value={tabDetalle}
@@ -623,6 +631,16 @@ export default function BeneficiariosPage() {
                     .catch(() => {})
                     .finally(() => setLoadingIntegrantes(false));
                 }
+                if (v === tabNutricion && !nutricionData && detalleData) {
+                  setLoadingNutricion(true);
+                  Promise.all([
+                    api.get(`/nutricionista/relevamientos/beneficiario/${detalleData.id}`),
+                    api.get(`/nutricionista/programas-terreno/beneficiario/${detalleData.id}`),
+                  ])
+                    .then(([relRes, progRes]) => setNutricionData({ relevamientos: relRes.data, programas: progRes.data }))
+                    .catch(() => setNutricionData({ relevamientos: [], programas: [] }))
+                    .finally(() => setLoadingNutricion(false));
+                }
                 if (v === tabHistorial && historial === null && puedeVerHistorial) {
                   setLoadingHistorial(true);
                   api.get('/auditoria', { params: { buscar: `/beneficiarios/${detalleData.id}` } })
@@ -631,6 +649,8 @@ export default function BeneficiariosPage() {
                     .finally(() => setLoadingHistorial(false));
                 }
               }}
+              variant="scrollable"
+              scrollButtons="auto"
               sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}
             >
               <Tab label="Datos" />
@@ -651,6 +671,11 @@ export default function BeneficiariosPage() {
                   iconPosition="start"
                 />
               )}
+              <Tab
+                label={`Nutrición${nutricionData ? ` (${nutricionData.relevamientos.length})` : ''}`}
+                icon={<NutricionTabIcon fontSize="small" />}
+                iconPosition="start"
+              />
               {puedeVerHistorial && <Tab label="Cambios" />}
             </Tabs>
           );
@@ -985,10 +1010,132 @@ export default function BeneficiariosPage() {
                 </Box>
               )}
 
+              {/* ── TAB Nutrición ── */}
+              {(() => {
+                const tieneInt = TIPOS_ESPACIO.includes(detalleData?.tipo);
+                const tabN = tieneInt ? 4 : 3;
+                if (tabDetalle !== tabN) return null;
+                return (
+                  <Box pt={1}>
+                    {loadingNutricion ? (
+                      <Box display="flex" justifyContent="center" py={4}><CircularProgress size={28} /></Box>
+                    ) : !nutricionData || (nutricionData.relevamientos.length === 0 && nutricionData.programas.length === 0) ? (
+                      <Typography variant="body2" color="text.secondary" textAlign="center" py={3}>
+                        No hay datos nutricionales registrados para este espacio
+                      </Typography>
+                    ) : (
+                      <Box>
+                        {/* Relevamientos */}
+                        {nutricionData.relevamientos.length > 0 && (
+                          <Box mb={3}>
+                            <Typography variant="subtitle2" fontWeight={600} mb={1}>
+                              Relevamientos nutricionales ({nutricionData.relevamientos.length})
+                            </Typography>
+                            <TableContainer component={Paper} variant="outlined">
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                    <TableCell>Fecha</TableCell>
+                                    <TableCell>Nutricionista</TableCell>
+                                    <TableCell>Estado gral.</TableCell>
+                                    <TableCell>Modalidad</TableCell>
+                                    <TableCell>Poblaci\u00f3n</TableCell>
+                                    <TableCell>Infraestructura</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {nutricionData.relevamientos.map((r: any) => (
+                                    <TableRow key={r.id} hover>
+                                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                                        {new Date(r.fecha).toLocaleDateString('es-AR')}
+                                      </TableCell>
+                                      <TableCell>{r.nutricionista?.nombre ?? '\u2014'}</TableCell>
+                                      <TableCell>
+                                        {r.estadoGeneral ? (
+                                          <Chip
+                                            label={r.estadoGeneral}
+                                            size="small"
+                                            sx={{
+                                              bgcolor: r.estadoGeneral === 'BUENO' ? '#43a047' : r.estadoGeneral === 'REGULAR' ? '#fb8c00' : '#e53935',
+                                              color: '#fff',
+                                              fontSize: '0.7rem',
+                                            }}
+                                          />
+                                        ) : '\u2014'}
+                                      </TableCell>
+                                      <TableCell sx={{ fontSize: '0.8rem' }}>
+                                        {r.modalidad === 'RETIRAN_ALIMENTOS' ? 'Retiran' : r.modalidad === 'COMEN_EN_LUGAR' ? 'En lugar' : r.modalidad === 'MIXTO' ? 'Mixto' : '\u2014'}
+                                      </TableCell>
+                                      <TableCell sx={{ fontSize: '0.8rem' }}>
+                                        {[r.poblacionInfantil05 && `0-5: ${r.poblacionInfantil05}`, r.poblacionInfantil612 && `6-12: ${r.poblacionInfantil612}`, r.poblacionAdolescente && `Adol: ${r.poblacionAdolescente}`, r.poblacionAdulta && `Adult: ${r.poblacionAdulta}`].filter(Boolean).join(', ') || '\u2014'}
+                                      </TableCell>
+                                      <TableCell sx={{ fontSize: '0.8rem' }}>
+                                        {[r.tieneCocina && 'Cocina', r.aguaPotable && 'Agua', r.tieneHeladera && 'Heladera'].filter(Boolean).join(', ') || '\u2014'}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </Box>
+                        )}
+
+                        {/* Programas de terreno */}
+                        {nutricionData.programas.length > 0 && (
+                          <Box>
+                            <Typography variant="subtitle2" fontWeight={600} mb={1}>
+                              Programas de terreno ({nutricionData.programas.length})
+                            </Typography>
+                            <TableContainer component={Paper} variant="outlined">
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                    <TableCell>Programa</TableCell>
+                                    <TableCell>Tipo</TableCell>
+                                    <TableCell>Estado</TableCell>
+                                    <TableCell>Inicio</TableCell>
+                                    <TableCell>Actividades</TableCell>
+                                    <TableCell>Nutricionista</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {nutricionData.programas.map((p: any) => (
+                                    <TableRow key={p.id} hover>
+                                      <TableCell><strong>{p.nombre || p.tipo}</strong></TableCell>
+                                      <TableCell sx={{ fontSize: '0.8rem' }}>
+                                        {({'HUERTA':'Huerta','MANIPULACION_ALIMENTOS':'Manip. alimentos','NUTRICION_INFANTIL':'Nutr. infantil','CAPACITACION':'Capacitaci\u00f3n','OTRO':'Otro'} as any)[p.tipo] || p.tipo}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Chip
+                                          label={({'PLANIFICADO':'Planificado','EN_CURSO':'En curso','FINALIZADO':'Finalizado','CANCELADO':'Cancelado'} as any)[p.estado] || p.estado}
+                                          size="small"
+                                          sx={{
+                                            bgcolor: ({'PLANIFICADO':'#1e88e5','EN_CURSO':'#43a047','FINALIZADO':'#546e7a','CANCELADO':'#e53935'} as any)[p.estado] || '#9e9e9e',
+                                            color: '#fff',
+                                            fontSize: '0.7rem',
+                                          }}
+                                        />
+                                      </TableCell>
+                                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(p.fechaInicio).toLocaleDateString('es-AR')}</TableCell>
+                                      <TableCell>{p._count?.actividades ?? 0}</TableCell>
+                                      <TableCell>{p.nutricionista?.nombre ?? '\u2014'}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })()}
+
               {/* ── TAB Historial de Cambios ── */}
               {puedeVerHistorial && (() => {
                 const tieneInt = TIPOS_ESPACIO.includes(detalleData?.tipo);
-                const tabH = tieneInt ? 4 : 3;
+                const tabH = tieneInt ? 5 : 4;
                 if (tabDetalle !== tabH) return null;
                 return (
                   <Box pt={1}>

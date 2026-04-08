@@ -9,6 +9,7 @@
 // ASISTENCIA_CRITICA → Solo sus propios remitos (chapas, materiales, etc.)
 // VISOR              → Solo lectura: dashboard y reportes
 // CHOFER             → Reparto a domicilio - solo ve sus entregas asignadas
+// NUTRICIONISTA      → Visita espacios, relevamientos, programas de terreno
 // ============================================================================
 
 export type Rol =
@@ -18,7 +19,8 @@ export type Rol =
   | 'TRABAJADORA_SOCIAL'
   | 'ASISTENCIA_CRITICA'
   | 'VISOR'
-  | 'CHOFER';
+  | 'CHOFER'
+  | 'NUTRICIONISTA';
 
 // Etiquetas para mostrar en UI
 export const ROL_LABELS: Record<Rol, string> = {
@@ -29,6 +31,7 @@ export const ROL_LABELS: Record<Rol, string> = {
   ASISTENCIA_CRITICA: 'Asistencia Crítica',
   VISOR: 'Visor',
   CHOFER: 'Chofer',
+  NUTRICIONISTA: 'Nutricionista',
 };
 
 // Definición de qué secciones puede ver cada rol en el menú lateral
@@ -103,6 +106,10 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
   ],
   CHOFER: [
     'mis-entregas',
+  ],
+  NUTRICIONISTA: [
+    'nutricionista',
+    'beneficiarios',
   ],
 };
 

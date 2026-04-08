@@ -71,6 +71,15 @@ const DESCRIPCIONES: Array<{ pattern: RegExp; metodo: string; desc: string }> = 
   { pattern: /^\/plantillas$/, metodo: 'POST', desc: 'Creó plantilla de entrega' },
   { pattern: /^\/plantillas\/\d+$/, metodo: 'PATCH', desc: 'Editó plantilla de entrega' },
   { pattern: /^\/plantillas\/\d+$/, metodo: 'DELETE', desc: 'Eliminó plantilla de entrega' },
+  // Nutricionista
+  { pattern: /^\/nutricionista\/relevamientos$/, metodo: 'POST', desc: 'Creó relevamiento nutricional' },
+  { pattern: /^\/nutricionista\/relevamientos\/\d+$/, metodo: 'PATCH', desc: 'Editó relevamiento nutricional' },
+  { pattern: /^\/nutricionista\/programas-terreno$/, metodo: 'POST', desc: 'Creó programa de terreno' },
+  { pattern: /^\/nutricionista\/programas-terreno\/\d+$/, metodo: 'PATCH', desc: 'Editó programa de terreno' },
+  { pattern: /^\/nutricionista\/programas-terreno\/\d+\/actividades$/, metodo: 'POST', desc: 'Registró actividad de terreno' },
+  { pattern: /^\/nutricionista\/actividades\/\d+$/, metodo: 'PATCH', desc: 'Editó actividad de terreno' },
+  { pattern: /^\/nutricionista\/actividades\/\d+$/, metodo: 'DELETE', desc: 'Eliminó actividad de terreno' },
+  { pattern: /^\/nutricionista\/upload$/, metodo: 'POST', desc: 'Subió foto de nutrición' },
   // Backup
   { pattern: /^\/backup/, metodo: 'POST', desc: 'Ejecutó backup manual' },
   // Emails masivos
