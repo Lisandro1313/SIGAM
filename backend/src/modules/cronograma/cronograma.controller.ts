@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Delete, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Param, Query, UseGuards, Request, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CronogramaService } from './cronograma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -57,6 +58,49 @@ export class CronogramaController {
     @Request() req,
   ) {
     return this.cronogramaService.generarRemitosRango(body.desde, body.hasta, body.depositoId, req.user.id, req.user.rol);
+  }
+
+  // ---- EXPORTAR PDF ----
+
+  @Get('exportar-pdf')
+  @ApiOperation({ summary: 'Exportar cronograma como PDF' })
+  async exportarPdf(
+    @Query('desde') desde: string,
+    @Query('hasta') hasta: string,
+    @Query('depositoId') depositoId: string,
+    @Query('programaId') programaId: string,
+    @Request() req,
+    @Res() res: Response,
+  ) {
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
+      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null : 'PA';
+    const { buffer } = await this.cronogramaService.exportarPlanillaPdf(
+      desde, hasta,
+      depositoId ? parseInt(depositoId) : undefined,
+      programaId ? parseInt(programaId) : undefined,
+      secretaria,
+    );
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="cronograma_${desde}_${hasta}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Post('enviar-email')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
+  @ApiOperation({ summary: 'Enviar cronograma por email al depósito' })
+  async enviarEmailCronograma(
+    @Body() body: { desde: string; hasta: string; depositoId?: number; programaId?: number; destinatarios?: string[] },
+    @Request() req,
+  ) {
+    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
+      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null : 'PA';
+    await this.cronogramaService.enviarEmailCronograma(
+      body.desde, body.hasta, body.depositoId, body.programaId, body.destinatarios, secretaria,
+    );
+    return { ok: true };
   }
 
   // ---- PLANILLA MANUAL ----

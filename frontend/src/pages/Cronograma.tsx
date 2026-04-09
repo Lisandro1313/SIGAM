@@ -9,6 +9,7 @@ import {
   ChevronLeft, ChevronRight, Add as AddIcon, Delete as DeleteIcon,
   Receipt as ReceiptIcon, Today as TodayIcon, PlaylistAdd as PasteIcon,
   AutoAwesome as GenerarIcon, PersonAdd as PersonAddIcon,
+  PictureAsPdf as PdfIcon, Email as EmailIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -93,6 +94,16 @@ export default function CronogramaPage() {
   // Últimas entregas por beneficiario
   const [ultimasEntregas, setUltimasEntregas] = useState<Record<number, UltimaEntrega>>({});
 
+  // Dialog exportar cronograma
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportDesde, setExportDesde] = useState('');
+  const [exportHasta, setExportHasta] = useState('');
+  const [exportDepositoId, setExportDepositoId] = useState<number | ''>('');
+  const [exportProgramaId, setExportProgramaId] = useState<number | ''>('');
+  const [exportEmailExtra, setExportEmailExtra] = useState('');
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportEmailLoading, setExportEmailLoading] = useState(false);
+
   // Nuevo beneficiario desde cronograma
   const [openNuevoBen, setOpenNuevoBen] = useState(false);
 
@@ -146,7 +157,7 @@ export default function CronogramaPage() {
           hora: e.hora ?? '',
           kilos: e.kilos != null ? String(e.kilos) : (e.beneficiario?.kilosHabitual ?? ''),
           responsableRetiro: e.responsableRetiro ?? '',
-          depositoId: depDefault, estado: e.estado, remito: e.remito ?? null,
+          depositoId: e.remito?.depositoId ?? depDefault, estado: e.estado, remito: e.remito ?? null,
         });
       });
       const nuevoDias: DiaEntry[] = [];
@@ -308,6 +319,49 @@ export default function CronogramaPage() {
     } finally { setSemanaGenerating(false); }
   }
 
+  function handleOpenExport() {
+    // Pre-llenar con la semana actual
+    setExportDesde(toDateStr(semanaInicio));
+    setExportHasta(toDateStr(semanaFin));
+    setExportDepositoId('');
+    setExportProgramaId(programaActivo ? programaActivo.id : '');
+    setExportEmailExtra('');
+    setExportOpen(true);
+  }
+
+  async function handleDescargarPdf() {
+    if (!exportDesde || !exportHasta) return;
+    setExportLoading(true);
+    try {
+      const params = new URLSearchParams({ desde: exportDesde, hasta: exportHasta });
+      if (exportDepositoId) params.set('depositoId', String(exportDepositoId));
+      if (exportProgramaId) params.set('programaId', String(exportProgramaId));
+      const r = await api.get(`/cronograma/exportar-pdf?${params}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([r.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cronograma_${exportDesde}_${exportHasta}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { showNotification('Error generando PDF', 'error'); }
+    finally { setExportLoading(false); }
+  }
+
+  async function handleEnviarEmail() {
+    if (!exportDesde || !exportHasta) return;
+    setExportEmailLoading(true);
+    try {
+      const body: any = { desde: exportDesde, hasta: exportHasta };
+      if (exportDepositoId) body.depositoId = exportDepositoId;
+      if (exportProgramaId) body.programaId = exportProgramaId;
+      if (exportEmailExtra.trim()) body.destinatarios = exportEmailExtra.split(',').map(s => s.trim()).filter(Boolean);
+      await api.post('/cronograma/enviar-email', body);
+      showNotification('Cronograma enviado por email', 'success');
+      setExportOpen(false);
+    } catch (e: any) { showNotification(e.response?.data?.message ?? 'Error enviando email', 'error'); }
+    finally { setExportEmailLoading(false); }
+  }
+
   return (
     <Box>
       {/* Header */}
@@ -318,6 +372,9 @@ export default function CronogramaPage() {
           <Typography variant="body1" fontWeight="bold" minWidth={230} textAlign="center">{semanaLabel}</Typography>
           <Tooltip title="Semana siguiente"><IconButton onClick={()=>setSemanaInicio(p=>addDays(p,7))}><ChevronRight/></IconButton></Tooltip>
           <Tooltip title="Hoy"><IconButton onClick={()=>setSemanaInicio(startOfWeek(new Date()))}><TodayIcon/></IconButton></Tooltip>
+          <Button variant="outlined" startIcon={<PdfIcon/>} onClick={handleOpenExport} size="small" color="secondary">
+            Exportar cronograma
+          </Button>
           <Button variant="outlined" startIcon={<ReceiptIcon/>} onClick={handleOpenSemanaGen} size="small" color="success">
             Remitos semana
           </Button>
@@ -560,6 +617,77 @@ export default function CronogramaPage() {
             startIcon={semanaGenerating ? <CircularProgress size={16}/> : <ReceiptIcon/>}
           >
             {semanaGenerating ? 'Generando...' : `Generar ${semanaPreview?.pendientes ?? ''} remitos`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog: Exportar cronograma */}
+      <Dialog open={exportOpen} onClose={() => setExportOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>Exportar cronograma</DialogTitle>
+        <DialogContent>
+          <Box display="flex" gap={2} mt={1} mb={2}>
+            <TextField
+              size="small" label="Desde" type="date" value={exportDesde}
+              onChange={e => setExportDesde(e.target.value)}
+              InputLabelProps={{ shrink: true }} fullWidth
+            />
+            <TextField
+              size="small" label="Hasta" type="date" value={exportHasta}
+              onChange={e => setExportHasta(e.target.value)}
+              InputLabelProps={{ shrink: true }} fullWidth
+            />
+          </Box>
+          <Box display="flex" gap={2} mb={2}>
+            <FormControl fullWidth size="small">
+              <Typography variant="caption" color="text.secondary" mb={0.5} display="block">Depósito (opcional)</Typography>
+              <Select
+                value={exportDepositoId}
+                onChange={e => setExportDepositoId(e.target.value as number | '')}
+                displayEmpty
+              >
+                <MenuItem value=""><em>Todos los depósitos</em></MenuItem>
+                {depositos.map(d => (
+                  <MenuItem key={d.id} value={d.id}>{d.nombre} ({d.codigo})</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
+              <Typography variant="caption" color="text.secondary" mb={0.5} display="block">Programa (opcional)</Typography>
+              <Select
+                value={exportProgramaId}
+                onChange={e => setExportProgramaId(e.target.value as number | '')}
+                displayEmpty
+              >
+                <MenuItem value=""><em>Todos los programas</em></MenuItem>
+                {programas.map(p => (
+                  <MenuItem key={p.id} value={p.id}>{p.nombre}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+          <TextField
+            size="small" fullWidth label="Email(s) adicionales (separados por coma)"
+            value={exportEmailExtra}
+            onChange={e => setExportEmailExtra(e.target.value)}
+            placeholder="deposito@municipalidad.gob.ar"
+            helperText="Opcional — si no se indica se usa el email del depósito configurado"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExportOpen(false)}>Cancelar</Button>
+          <Button
+            variant="outlined" color="secondary" onClick={handleDescargarPdf}
+            disabled={exportLoading || !exportDesde || !exportHasta}
+            startIcon={exportLoading ? <CircularProgress size={16}/> : <PdfIcon/>}
+          >
+            {exportLoading ? 'Generando...' : 'Descargar PDF'}
+          </Button>
+          <Button
+            variant="contained" color="primary" onClick={handleEnviarEmail}
+            disabled={exportEmailLoading || !exportDesde || !exportHasta}
+            startIcon={exportEmailLoading ? <CircularProgress size={16}/> : <EmailIcon/>}
+          >
+            {exportEmailLoading ? 'Enviando...' : 'Enviar por email'}
           </Button>
         </DialogActions>
       </Dialog>

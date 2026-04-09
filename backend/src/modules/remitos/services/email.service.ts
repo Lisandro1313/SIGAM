@@ -88,6 +88,45 @@ export class EmailService {
       ],
     });
 
+    await this.sendViaBrevio(body);
+  }
+
+  async enviarCronograma(
+    pdfBuffer: Buffer,
+    asunto: string,
+    destinatarios: string[],
+    desde: string,
+    hasta: string,
+  ): Promise<void> {
+    if (!this.apiKey) {
+      console.warn('[EmailService] Email no enviado: BREVO_API_KEY no configurada');
+      return;
+    }
+
+    const pdfNombre = `CRONOGRAMA_${desde.replace(/-/g,'')}_${hasta.replace(/-/g,'')}.pdf`;
+    const periodoLabel = desde === hasta ? desde : `${desde} al ${hasta}`;
+
+    const textContent = [
+      'ESTIMADO:',
+      '',
+      `SE ADJUNTA EL CRONOGRAMA DE ENTREGAS CORRESPONDIENTE AL PERÍODO: ${periodoLabel.toUpperCase()}.`,
+      '',
+      'MUCHAS GRACIAS !!',
+    ].join('\n');
+
+    const body = JSON.stringify({
+      sender: { name: this.fromName, email: this.fromEmail },
+      to: destinatarios.map(email => ({ email })),
+      bcc: [{ email: this.fromEmail }],
+      subject: asunto,
+      textContent,
+      attachment: [{ name: pdfNombre, content: pdfBuffer.toString('base64') }],
+    });
+
+    await this.sendViaBrevio(body);
+  }
+
+  private async sendViaBrevio(body: string): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const req = https.request(
         {

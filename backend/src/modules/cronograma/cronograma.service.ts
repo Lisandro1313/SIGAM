@@ -2,6 +2,8 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { startOfMonth, endOfMonth, addMonths } from 'date-fns';
 import { RemitosService } from '../remitos/remitos.service';
+import { PdfService } from '../remitos/services/pdf.service';
+import { EmailService } from '../remitos/services/email.service';
 import { EntregaEstado } from '@prisma/client';
 
 @Injectable()
@@ -9,6 +11,8 @@ export class CronogramaService {
   constructor(
     private prisma: PrismaService,
     private remitosService: RemitosService,
+    private pdfService: PdfService,
+    private emailService: EmailService,
   ) {}
 
   // Generar cronograma automático distribuido en días hábiles
@@ -392,7 +396,7 @@ export class CronogramaService {
           include: { programa: true },
         },
         programa: true,
-        remito: { select: { id: true, numero: true, estado: true } },
+        remito: { select: { id: true, numero: true, estado: true, depositoId: true } },
       },
       orderBy: [{ fechaProgramada: 'asc' }, { id: 'asc' }],
     });
@@ -433,7 +437,7 @@ export class CronogramaService {
           include: { programa: true },
         },
         programa: true,
-        remito: { select: { id: true, numero: true, estado: true } },
+        remito: { select: { id: true, numero: true, estado: true, depositoId: true } },
       },
     });
   }
@@ -463,7 +467,7 @@ export class CronogramaService {
           include: { programa: true },
         },
         programa: true,
-        remito: { select: { id: true, numero: true, estado: true } },
+        remito: { select: { id: true, numero: true, estado: true, depositoId: true } },
       },
     });
   }
@@ -475,6 +479,105 @@ export class CronogramaService {
     if (entrega.remitoId) throw new BadRequestException('No se puede eliminar una fila con remito generado');
 
     return await this.prisma.entregaProgramada.delete({ where: { id } });
+  }
+
+  // ============================================================
+  // EXPORTAR CRONOGRAMA PDF
+  // ============================================================
+
+  async exportarPlanillaPdf(
+    desde: string,
+    hasta: string,
+    depositoId?: number,
+    programaId?: number,
+    secretaria?: string | null,
+  ): Promise<{ buffer: Buffer; deposito?: any; programa?: any }> {
+    const desdeDate = new Date(desde); desdeDate.setHours(0, 0, 0, 0);
+    const hastaDate = new Date(hasta); hastaDate.setHours(23, 59, 59, 999);
+
+    const where: any = {
+      fechaProgramada: { gte: desdeDate, lte: hastaDate },
+      estado: { not: EntregaEstado.CANCELADA },
+      beneficiario: { activo: true },
+    };
+    if (programaId) where.programaId = programaId;
+    if (depositoId) where.remito = { depositoId };
+    if (secretaria) where.secretaria = secretaria;
+
+    const entregas = await this.prisma.entregaProgramada.findMany({
+      where,
+      include: {
+        beneficiario: { include: { programa: true } },
+        programa: true,
+        remito: {
+          select: { id: true, numero: true, estado: true, depositoId: true,
+            deposito: { select: { codigo: true, nombre: true } } },
+        },
+      },
+      orderBy: [{ fechaProgramada: 'asc' }, { id: 'asc' }],
+    });
+
+    // Enriquecer filas con depositoCodigo del remito
+    const filas = entregas.map(e => ({
+      ...e,
+      fechaProgramada: e.fechaProgramada.toISOString(),
+      remito: e.remito ? {
+        ...e.remito,
+        depositoCodigo: e.remito.deposito?.codigo ?? null,
+      } : null,
+    }));
+
+    // Resolver nombre depósito/programa para el header del PDF
+    let depositoNombre: string | undefined;
+    let programaNombre: string | undefined;
+    if (depositoId) {
+      const dep = await this.prisma.deposito.findUnique({ where: { id: depositoId } });
+      depositoNombre = dep ? `${dep.nombre} (${dep.codigo})` : undefined;
+    }
+    if (programaId) {
+      const prog = await this.prisma.programa.findUnique({ where: { id: programaId } });
+      programaNombre = prog?.nombre;
+    }
+
+    const buffer = await this.pdfService.generarCronogramaPdf(filas, {
+      desde,
+      hasta,
+      deposito: depositoNombre,
+      programa: programaNombre,
+    });
+
+    return { buffer, deposito: depositoNombre, programa: programaNombre };
+  }
+
+  async enviarEmailCronograma(
+    desde: string,
+    hasta: string,
+    depositoId?: number,
+    programaId?: number,
+    destinatarios?: string[],
+    secretaria?: string | null,
+  ): Promise<void> {
+    const { buffer, deposito } = await this.exportarPlanillaPdf(desde, hasta, depositoId, programaId, secretaria);
+
+    const asunto = `CRONOGRAMA ${desde}${desde !== hasta ? ' al ' + hasta : ''}${deposito ? ' — ' + deposito : ''}`;
+
+    // Usar destinatarios explícitos o los del env según depósito
+    let destinos: string[] = destinatarios ?? [];
+    if (!destinos.length && depositoId) {
+      const dep = await this.prisma.deposito.findUnique({ where: { id: depositoId } });
+      if (dep) {
+        const envKey = `DEPOSITO_EMAIL_${dep.codigo.toUpperCase().replace(/\s/g, '_')}`;
+        const envEmail = process.env[envKey];
+        if (envEmail) destinos = [envEmail];
+      }
+    }
+    if (!destinos.length) {
+      const fallback = [process.env.DEPOSITO_EMAIL_LOGISTICA, process.env.DEPOSITO_EMAIL_CITA].filter(Boolean) as string[];
+      destinos = fallback.length ? fallback : ['deposito@municipalidad.gob.ar'];
+    }
+
+    // Reusar enviarRemito con un objeto mínimo adaptado
+    await this.emailService.enviarCronograma(buffer, asunto, destinos, desde, hasta);
   }
 
   // Generar remito desde una fila de la planilla

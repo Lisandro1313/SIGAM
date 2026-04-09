@@ -9,6 +9,6 @@ import { StorageModule } from '../../shared/storage/storage.module';
   imports: [StorageModule],
   providers: [RemitosService, PdfService, EmailService],
   controllers: [RemitosController],
-  exports: [RemitosService],
+  exports: [RemitosService, PdfService, EmailService],
 })
 export class RemitosModule {}

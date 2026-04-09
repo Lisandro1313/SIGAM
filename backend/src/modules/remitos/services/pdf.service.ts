@@ -385,4 +385,194 @@ export class PdfService {
     doc.moveTo(M + DniW + NomW + 6, dotY).lineTo(M + CW - 6, dotY).stroke();
     doc.undash().lineWidth(1);
   }
+
+  // ============================================================
+  // CRONOGRAMA PDF
+  // ============================================================
+
+  async generarCronogramaPdf(
+    filas: any[],
+    filtros: { desde: string; hasta: string; deposito?: string; programa?: string },
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      this.drawCronograma(doc, filas, filtros);
+      doc.end();
+    });
+  }
+
+  private drawCronograma(
+    doc: PDFKit.PDFDocument,
+    filas: any[],
+    filtros: { desde: string; hasta: string; deposito?: string; programa?: string },
+  ): void {
+    // Columnas adaptadas al PDF de LOGISTICA
+    const cols = [
+      { label: 'ESPACIO / BENEFICIARIO', w: 140, align: 'left' as const },
+      { label: 'REFERENTE',              w: 90,  align: 'left' as const },
+      { label: 'HORA',                   w: 35,  align: 'center' as const },
+      { label: 'DIRECCIÓN',              w: 120, align: 'left' as const },
+      { label: 'KG',                     w: 35,  align: 'right' as const },
+      { label: 'TELÉFONO',               w: 68,  align: 'center' as const },
+      { label: 'DEPÓSITO',               w: 50,  align: 'center' as const },
+      { label: 'RESPONSABLE RETIRO',     w: 101, align: 'left' as const },
+    ];
+
+    const ROW_H  = 14;
+    const HDR_H  = 48;
+    const COL_H  = 16;
+    const FOOT_H = 14;
+    const PAGE_USABLE = PAGE_H - 2 * M - FOOT_H;
+
+    // Agrupar por fecha
+    const porFecha: Record<string, any[]> = {};
+    for (const f of filas) {
+      const fecha = (f.fechaProgramada as string).slice(0, 10);
+      if (!porFecha[fecha]) porFecha[fecha] = [];
+      porFecha[fecha].push(f);
+    }
+
+    const DIAS_ES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    const MESES_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const COLORES_DIA = ['#1565C0','#2E7D32','#6A1B9A','#00695C','#E65100','#AD1457','#283593'];
+
+    function formatFechaHdr(s: string): string {
+      const [y, m, d] = s.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      return `${DIAS_ES[dt.getDay()].toUpperCase()} ${d} DE ${MESES_ES[m - 1].toUpperCase()} ${y}`;
+    }
+
+    let pageNum = 0;
+    let y = 0;
+
+    const addPage = () => {
+      pageNum++;
+      doc.addPage({ size: 'A4', margin: 0 });
+      y = M;
+
+      // Header
+      doc.rect(M, y, CW, HDR_H).fillAndStroke('#1565C0', '#1565C0');
+      doc.fillColor('#fff').font('Helvetica-Bold').fontSize(10)
+        .text('MUNICIPALIDAD DE LA PLATA', M + 8, y + 5, { width: CW - 16, align: 'left', lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(13)
+        .text('CRONOGRAMA DE ENTREGAS — LOGÍSTICA', M + 8, y + 18, { width: CW - 16, align: 'left', lineBreak: false });
+
+      const periodoLabel = filtros.desde === filtros.hasta
+        ? filtros.desde
+        : `${filtros.desde}  al  ${filtros.hasta}`;
+      doc.font('Helvetica').fontSize(8)
+        .text(`Período: ${periodoLabel}`, M + 8, y + 36, { width: CW / 2, align: 'left', lineBreak: false });
+
+      const extras: string[] = [];
+      if (filtros.programa) extras.push(`Programa: ${filtros.programa}`);
+      if (filtros.deposito) extras.push(`Depósito: ${filtros.deposito}`);
+      if (extras.length) {
+        doc.text(extras.join('   ·   '), M + CW / 2, y + 36, { width: CW / 2 - 8, align: 'right', lineBreak: false });
+      }
+
+      y += HDR_H + 2;
+
+      // Footer page num placeholder
+      doc.fillColor('#555').font('Helvetica').fontSize(7)
+        .text(`Pág. ${pageNum}  —  Generado ${new Date().toLocaleString('es-AR')}`,
+          M, PAGE_H - M - FOOT_H + 3, { width: CW, align: 'right', lineBreak: false });
+    };
+
+    const drawColHeaders = () => {
+      doc.rect(M, y, CW, COL_H).fillAndStroke('#90CAF9', '#1565C0');
+      doc.fillColor('#000').font('Helvetica-Bold').fontSize(7);
+      let cx = M;
+      for (const col of cols) {
+        doc.text(col.label, cx + 2, y + 4, { width: col.w - 4, align: col.align, lineBreak: false });
+        if (col !== cols[cols.length - 1]) {
+          doc.moveTo(cx + col.w, y).lineTo(cx + col.w, y + COL_H).strokeColor('#1565C0').lineWidth(0.4).stroke();
+        }
+        cx += col.w;
+      }
+      y += COL_H;
+    };
+
+    const needSpace = (extra: number) => {
+      if (y + extra > PAGE_USABLE + M) {
+        addPage();
+        drawColHeaders();
+      }
+    };
+
+    addPage();
+    drawColHeaders();
+
+    let colorIdx = 0;
+    const fechas = Object.keys(porFecha).sort();
+    let totalFilas = 0;
+    let totalKg = 0;
+
+    for (const fecha of fechas) {
+      const rows = porFecha[fecha];
+      const color = COLORES_DIA[colorIdx % COLORES_DIA.length];
+      colorIdx++;
+
+      // Fila encabezado de día
+      needSpace(16 + ROW_H);
+      doc.rect(M, y, CW, 14).fillAndStroke(color, color);
+      doc.fillColor('#fff').font('Helvetica-Bold').fontSize(8)
+        .text(formatFechaHdr(fecha), M + 6, y + 3, { width: CW - 80, align: 'left', lineBreak: false });
+      doc.fillColor('#fff').font('Helvetica').fontSize(7)
+        .text(`${rows.length} entrega${rows.length !== 1 ? 's' : ''}`, M + CW - 60, y + 3, { width: 54, align: 'right', lineBreak: false });
+      y += 14;
+
+      for (let ri = 0; ri < rows.length; ri++) {
+        const f = rows[ri];
+        needSpace(ROW_H);
+
+        const bg = ri % 2 === 0 ? '#fff' : '#f5f5f5';
+        doc.rect(M, y, CW, ROW_H).fillAndStroke(bg, bg);
+
+        // Separadores verticales y contenido
+        const vals = [
+          f.beneficiario?.nombre ?? '—',
+          f.beneficiario?.responsableNombre ?? '—',
+          f.hora ?? '—',
+          f.beneficiario?.direccion ?? '—',
+          f.kilos != null ? `${f.kilos}` : '—',
+          f.beneficiario?.telefono ?? '—',
+          f.remito?.depositoId ? '' : (f.depositoCodigo ?? '—'),
+          f.responsableRetiro ?? '—',
+        ];
+
+        doc.fillColor('#111').font('Helvetica').fontSize(7);
+        let cx = M;
+        for (let ci = 0; ci < cols.length; ci++) {
+          const col = cols[ci];
+          // Para depósito, usar el código del depósito del remito si existe
+          let val = vals[ci];
+          if (ci === 6 && f.remito?.depositoCodigo) val = f.remito.depositoCodigo;
+          doc.text(val, cx + 2, y + 3, { width: col.w - 4, align: col.align, lineBreak: false });
+          if (ci < cols.length - 1) {
+            doc.moveTo(cx + col.w, y).lineTo(cx + col.w, y + ROW_H).strokeColor('#ddd').lineWidth(0.3).stroke();
+          }
+          cx += col.w;
+        }
+        // Borde inferior de fila
+        doc.moveTo(M, y + ROW_H).lineTo(M + CW, y + ROW_H).strokeColor('#e0e0e0').lineWidth(0.3).stroke();
+
+        y += ROW_H;
+        totalFilas++;
+        totalKg += f.kilos ?? 0;
+      }
+
+      y += 3; // espacio entre días
+    }
+
+    // Totales al final
+    needSpace(20);
+    doc.rect(M, y, CW, 18).fillAndStroke('#E3F2FD', '#1565C0');
+    doc.fillColor('#1565C0').font('Helvetica-Bold').fontSize(8)
+      .text(`TOTAL: ${totalFilas} entregas   ·   ${totalKg.toFixed(1)} kg`, M + 6, y + 5, { width: CW - 12, align: 'left', lineBreak: false });
+    y += 18;
+  }
 }
