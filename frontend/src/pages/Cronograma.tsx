@@ -10,7 +10,7 @@ import {
   Receipt as ReceiptIcon, Today as TodayIcon, PlaylistAdd as PasteIcon,
   AutoAwesome as GenerarIcon, PersonAdd as PersonAddIcon,
   PictureAsPdf as PdfIcon, Email as EmailIcon,
-  PlaylistAddCheck as AgregarRemitoIcon,
+  PlaylistAddCheck as AgregarRemitoIcon, Undo as UndoIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -257,6 +257,20 @@ export default function CronogramaPage() {
     } catch(e:any) {
       setFila(fecha,fila.tempId,{saving:false});
       showNotification(e.response?.data?.message ?? 'Error al preparar remito', 'error');
+    }
+  }
+
+  // Deshacer: eliminar remito PREPARADO y volver la fila a editable
+  async function handleDeshacerRemito(fecha:string, fila:FilaData) {
+    if (!fila.remito) return;
+    setFila(fecha,fila.tempId,{saving:true});
+    try {
+      await api.delete(`/remitos/${fila.remito.id}`);
+      setFila(fecha,fila.tempId,{saving:false, remito:undefined, estado:'PENDIENTE'});
+      showNotification('Remito deshecho. La fila vuelve a ser editable.','success');
+    } catch(e:any) {
+      setFila(fecha,fila.tempId,{saving:false});
+      showNotification(e.response?.data?.message ?? 'Error al deshacer remito','error');
     }
   }
 
@@ -520,7 +534,16 @@ export default function CronogramaPage() {
                     <Box display="flex" alignItems="center" gap={0.5} px={0.5}>
                       {fila.saving&&<CircularProgress size={14}/>}
                       {tieneRemito?(
-                        <Chip label={fila.remito!.numero} size="small" color={fila.remito!.estado==='PREPARADO'?'warning':'success'} variant="outlined" icon={<ReceiptIcon style={{fontSize:12}}/>} sx={{fontSize:10,height:22}}/>
+                        <>
+                          <Chip label={fila.remito!.numero} size="small" color={fila.remito!.estado==='PREPARADO'?'warning':'success'} variant="outlined" icon={<ReceiptIcon style={{fontSize:12}}/>} sx={{fontSize:10,height:22}}/>
+                          {fila.remito!.estado==='PREPARADO'&&(
+                            <Tooltip title="Deshacer (quitar de remitos)"><span>
+                              <IconButton size="small" color="warning" onClick={()=>handleDeshacerRemito(dia.fecha,fila)} disabled={fila.saving} sx={{ml:-0.5}}>
+                                <UndoIcon sx={{fontSize:16}}/>
+                              </IconButton>
+                            </span></Tooltip>
+                          )}
+                        </>
                       ):(
                         <>
                           <Tooltip title="Agregar a remitos"><span>

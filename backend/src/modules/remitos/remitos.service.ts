@@ -663,8 +663,19 @@ export class RemitosService {
       throw new NotFoundException('Remito no encontrado');
     }
 
-    if (remito.estado !== RemitoEstado.BORRADOR) {
-      throw new BadRequestException('Solo se pueden eliminar remitos en borrador');
+    if (remito.estado !== RemitoEstado.BORRADOR && remito.estado !== RemitoEstado.PREPARADO) {
+      throw new BadRequestException('Solo se pueden eliminar remitos en borrador o preparado');
+    }
+
+    // Revertir entrega programada vinculada (cronograma)
+    const entrega = await this.prisma.entregaProgramada.findFirst({
+      where: { remitoId: id },
+    });
+    if (entrega) {
+      await this.prisma.entregaProgramada.update({
+        where: { id: entrega.id },
+        data: { estado: 'PENDIENTE' as any, remitoId: null },
+      });
     }
 
     await this.prisma.remito.delete({
