@@ -53,11 +53,11 @@ function formatFechaHeader(s: string) {
 function makeTempId() { return 'tmp_'+Math.random().toString(36).slice(2); }
 
 const COLS = [
-  { label:'NOMBRE DEL ESPACIO', w:220 }, { label:'REFERENTE', w:155 },
-  { label:'HORA', w:75 }, { label:'DIRECCION', w:175 },
-  { label:'KILOS', w:75 }, { label:'TELEFONO', w:120 },
-  { label:'DEPOSITO', w:115 }, { label:'RESPONSABLE DEL RETIRO', w:200 },
-  { label:'', w:90 },
+  { label:'ESPACIO', w:160 }, { label:'REFERENTE', w:140 },
+  { label:'HORA', w:55 }, { label:'DIRECCION', w:160 },
+  { label:'KG', w:60 }, { label:'TELEFONO', w:105 },
+  { label:'DEP.', w:80 }, { label:'RESP. RETIRO', w:160 },
+  { label:'', w:100 },
 ];
 const GRID = COLS.map(c=>`${c.w}px`).join(' ');
 const MINW = COLS.reduce((a,c)=>a+c.w,0);
@@ -448,7 +448,7 @@ export default function CronogramaPage() {
       {loading ? (
         <Box display="flex" justifyContent="center" mt={6}><CircularProgress/></Box>
       ) : (
-        <Box sx={{overflowX:'auto'}}>
+        <Box sx={{overflowX:'auto',mx:-1,px:1}}>
           {/* Cabecera columnas */}
           <Box sx={{display:'grid',gridTemplateColumns:GRID,bgcolor:'#1a237e',color:'#fff',borderRadius:'8px 8px 0 0',px:1,py:0.75,minWidth:MINW,position:'sticky',top:0,zIndex:10}}>
             {COLS.map((c,i)=><Typography key={i} variant="caption" fontWeight="bold" sx={{fontSize:11,px:0.5}}>{c.label}</Typography>)}
