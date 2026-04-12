@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Button, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, FormControl, InputLabel, Select, MenuItem,
   Chip, IconButton, Tooltip, Alert, CircularProgress, Grid, Card,
-  CardContent, CardActions, List, ListItem, ListItemIcon, ListItemText,
+  CardContent, CardActions,
 } from '@mui/material';
 import {
   Add as AddIcon, CheckCircle as DoneIcon, Delete as DeleteIcon,
@@ -465,27 +465,32 @@ export default function Tareas() {
                 Adjuntar archivos
               </Button>
               {archivosNuevos.length > 0 && (
-                <List dense sx={{ mt: 1 }}>
+                <Box display="flex" flexDirection="column" gap={1} mt={1}>
                   {archivosNuevos.map((f, i) => (
-                    <ListItem
-                      key={i}
-                      secondaryAction={
-                        <IconButton edge="end" size="small" onClick={() => removeFileCrear(i)}>
+                    <Box key={i} sx={{ border: '1px solid #e0e0e0', borderRadius: 1, p: 1 }}>
+                      {f.type.startsWith('image/') && (
+                        <Box
+                          component="img"
+                          src={URL.createObjectURL(f)}
+                          alt={f.name}
+                          sx={{ width: '100%', maxHeight: 120, objectFit: 'contain', borderRadius: 1, mb: 0.5, bgcolor: '#f5f5f5' }}
+                        />
+                      )}
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {getFileIcon(f.type)}
+                        <Box flex={1} minWidth={0}>
+                          <Typography variant="body2" noWrap>{f.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {(f.size / 1024).toFixed(0)} KB
+                          </Typography>
+                        </Box>
+                        <IconButton size="small" onClick={() => removeFileCrear(i)}>
                           <CloseIcon fontSize="small" />
                         </IconButton>
-                      }
-                    >
-                      <ListItemIcon sx={{ minWidth: 32 }}>
-                        {getFileIcon(f.type)}
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={f.name}
-                        secondary={`${(f.size / 1024).toFixed(0)} KB`}
-                        primaryTypographyProps={{ variant: 'body2' }}
-                      />
-                    </ListItem>
+                      </Box>
+                    </Box>
                   ))}
-                </List>
+                </Box>
               )}
             </Box>
           </Box>
@@ -549,45 +554,45 @@ export default function Tareas() {
               {(!archTarea.archivos || archTarea.archivos.length === 0) ? (
                 <Alert severity="info" sx={{ mb: 2 }}>No hay archivos adjuntos.</Alert>
               ) : (
-                <List dense>
+                <Box display="flex" flexDirection="column" gap={1.5}>
                   {archTarea.archivos.map((arch: any) => (
-                    <ListItem
-                      key={arch.id}
-                      secondaryAction={
-                        puedeEditar && (
-                          <Tooltip title="Eliminar archivo">
-                            <IconButton
-                              edge="end"
-                              size="small"
-                              color="error"
-                              onClick={() => handleEliminarArchivo(arch.id)}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )
-                      }
-                    >
-                      <ListItemIcon sx={{ minWidth: 32 }}>
+                    <Box key={arch.id} sx={{ border: '1px solid #e0e0e0', borderRadius: 1, p: 1 }}>
+                      {arch.tipo?.startsWith('image/') && (
+                        <a href={fileUrl(arch.url)} target="_blank" rel="noopener noreferrer">
+                          <Box
+                            component="img"
+                            src={fileUrl(arch.url)}
+                            alt={arch.nombre}
+                            sx={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 1, mb: 1, cursor: 'pointer', bgcolor: '#f5f5f5' }}
+                          />
+                        </a>
+                      )}
+                      <Box display="flex" alignItems="center" gap={1}>
                         {getFileIcon(arch.tipo)}
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={
+                        <Box flex={1} minWidth={0}>
                           <a
                             href={fileUrl(arch.url)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ color: 'inherit', textDecoration: 'underline' }}
+                            style={{ color: 'inherit', textDecoration: 'underline', fontSize: 13 }}
                           >
                             {arch.nombre}
                           </a>
-                        }
-                        secondary={format(new Date(arch.createdAt), 'dd/MM/yyyy HH:mm', { locale: es })}
-                        primaryTypographyProps={{ variant: 'body2' }}
-                      />
-                    </ListItem>
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            {format(new Date(arch.createdAt), 'dd/MM/yyyy HH:mm', { locale: es })}
+                          </Typography>
+                        </Box>
+                        {puedeEditar && (
+                          <Tooltip title="Eliminar archivo">
+                            <IconButton size="small" color="error" onClick={() => handleEliminarArchivo(arch.id)}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    </Box>
                   ))}
-                </List>
+                </Box>
               )}
 
               {/* Boton agregar mas archivos */}

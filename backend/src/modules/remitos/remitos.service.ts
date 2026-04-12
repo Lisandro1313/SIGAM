@@ -136,7 +136,10 @@ export class RemitosService {
     let fechaRemito: Date | undefined;
     if (data.fecha) {
       const hora = data.horaRetiro || '11:00';
-      fechaRemito = new Date(`${data.fecha}T${hora}:00`);
+      const parsed = new Date(`${data.fecha}T${hora}:00`);
+      if (!isNaN(parsed.getTime())) {
+        fechaRemito = parsed;
+      }
     }
 
     const remito = await this.prisma.remito.create({
