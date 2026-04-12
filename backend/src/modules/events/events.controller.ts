@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Sse, Query, UnauthorizedException, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Observable } from 'rxjs';
 import { randomBytes } from 'crypto';
 import { EventsService } from './events.service';
@@ -34,6 +35,7 @@ export class EventsController {
    * Paso 2: el frontend abre EventSource con el ticket de un solo uso.
    */
   @Sse('stream')
+  @SkipThrottle()
   @ApiOperation({ summary: 'SSE stream de eventos en tiempo real (ticket efímero)' })
   stream(@Query('ticket') ticket: string): Observable<MessageEvent> {
     if (!ticket) throw new UnauthorizedException('Ticket requerido');

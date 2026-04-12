@@ -33,17 +33,30 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor para manejar errores
+// Interceptor para manejar errores (incluye retry con backoff para 429)
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      // Limpiar TODAS las claves de sesión (directas + zustand-persist)
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('auth-storage');
       window.location.href = '/';
+      return Promise.reject(error);
     }
+
+    // Retry automático en 429 (rate limit) — máximo 3 intentos con backoff
+    const config = error.config;
+    if (error.response?.status === 429 && config && !config._retryCount) {
+      config._retryCount = 0;
+    }
+    if (error.response?.status === 429 && config && config._retryCount < 3) {
+      config._retryCount += 1;
+      const delay = config._retryCount * 2000; // 2s, 4s, 6s
+      await new Promise(res => setTimeout(res, delay));
+      return api(config);
+    }
+
     return Promise.reject(error);
   }
 );

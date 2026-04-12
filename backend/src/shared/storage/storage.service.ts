@@ -15,8 +15,11 @@ export class StorageService {
         process.env.SUPABASE_URL,
         process.env.SUPABASE_SERVICE_KEY,
       );
+      console.log('[StorageService] Conectado a Supabase Storage (bucket: ' + this.bucket + ')');
+    } else if (process.env.NODE_ENV === 'production') {
+      console.error('[StorageService] SUPABASE_URL/SUPABASE_SERVICE_KEY no configuradas en produccion — los archivos se perderan con cada deploy');
     } else {
-      console.warn('[StorageService] SUPABASE_URL/SUPABASE_SERVICE_KEY no configuradas — usando almacenamiento local');
+      console.warn('[StorageService] SUPABASE_URL/SUPABASE_SERVICE_KEY no configuradas — usando almacenamiento local (solo desarrollo)');
     }
   }
 

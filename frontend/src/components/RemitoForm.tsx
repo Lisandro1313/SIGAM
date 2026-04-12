@@ -49,6 +49,8 @@ interface RemitoFormProps {
   onClose: () => void;
   onSuccess: (remito?: any) => void;
   initialData?: InitialData;
+  /** Si se pasa, el form arranca en paso 2 (Artículos) y completa un remito PREPARADO */
+  preparadoRemitoId?: number;
 }
 
 interface RemitoItem {
@@ -60,8 +62,8 @@ interface RemitoItem {
 
 const steps = ['Datos del Remito', 'Artículos', 'Confirmar'];
 
-export default function RemitoForm({ open, onClose, onSuccess, initialData }: RemitoFormProps) {
-  const [activeStep, setActiveStep] = useState(0);
+export default function RemitoForm({ open, onClose, onSuccess, initialData, preparadoRemitoId }: RemitoFormProps) {
+  const [activeStep, setActiveStep] = useState(preparadoRemitoId ? 1 : 0);
   const [loading, setLoading] = useState(false);
   const showNotification = useNotificationStore((state) => state.showNotification);
   const { user } = useAuthStore();
@@ -225,30 +227,41 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData }: Re
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const res = await api.post('/remitos', {
-        beneficiarioId: parseInt(beneficiarioId),
-        depositoId: parseInt(depositoId),
-        programaId: programaId ? parseInt(programaId) : undefined,
-        fecha,
-        horaRetiro,
-        cronogramaEntregaId: initialData?.cronogramaEntregaId,
-        items: items.map((item) => ({
-          articuloId: item.articuloId,
-          cantidad: item.cantidad,
-        })),
-      });
+      let res;
+      if (preparadoRemitoId) {
+        // Completar remito PREPARADO → BORRADOR con artículos
+        res = await api.post(`/remitos/${preparadoRemitoId}/completar-preparado`, {
+          items: items.map((item) => ({
+            articuloId: item.articuloId,
+            cantidad: item.cantidad,
+          })),
+        });
+      } else {
+        res = await api.post('/remitos', {
+          beneficiarioId: parseInt(beneficiarioId),
+          depositoId: parseInt(depositoId),
+          programaId: programaId ? parseInt(programaId) : undefined,
+          fecha,
+          horaRetiro,
+          cronogramaEntregaId: initialData?.cronogramaEntregaId,
+          items: items.map((item) => ({
+            articuloId: item.articuloId,
+            cantidad: item.cantidad,
+          })),
+        });
+      }
       handleClose();
       onSuccess(res.data);
     } catch (error) {
       console.error('Error al crear remito:', error);
-      showNotification('Error al crear el remito', 'error');
+      showNotification(preparadoRemitoId ? 'Error al completar el remito' : 'Error al crear el remito', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleClose = () => {
-    setActiveStep(0);
+    setActiveStep(preparadoRemitoId ? 1 : 0);
     setBeneficiarioId('');
     setProgramaId('');
     setDepositoId('');

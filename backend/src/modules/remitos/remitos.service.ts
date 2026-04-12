@@ -117,6 +117,105 @@ export class RemitosService {
     return remito;
   }
 
+  // Preparar remito desde cronograma (sin artículos, estado PREPARADO)
+  async preparar(
+    data: {
+      beneficiarioId: number;
+      depositoId: number;
+      programaId?: number;
+      fecha?: string;
+      horaRetiro?: string;
+      kilos?: number;
+      cronogramaEntregaId?: number;
+    },
+    usuario: { id: number; rol?: string },
+  ) {
+    const secretaria = usuario.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    const numero = await this.generarNumeroRemito(secretaria);
+
+    let fechaRemito: Date | undefined;
+    if (data.fecha) {
+      const hora = data.horaRetiro || '11:00';
+      fechaRemito = new Date(`${data.fecha}T${hora}:00`);
+    }
+
+    const remito = await this.prisma.remito.create({
+      data: {
+        numero,
+        programaId: data.programaId,
+        beneficiarioId: data.beneficiarioId,
+        depositoId: data.depositoId,
+        estado: RemitoEstado.PREPARADO,
+        totalKg: data.kilos ?? 0,
+        secretaria,
+        ...(fechaRemito ? { fecha: fechaRemito } : {}),
+      },
+      include: {
+        beneficiario: true,
+        programa: true,
+        deposito: true,
+      },
+    });
+
+    // Si viene de cronograma, vincular la entrega programada
+    if (data.cronogramaEntregaId) {
+      await this.prisma.entregaProgramada.update({
+        where: { id: data.cronogramaEntregaId },
+        data: { estado: 'GENERADA' as any, remitoId: remito.id },
+      });
+    }
+
+    return remito;
+  }
+
+  // Completar remito preparado: agregar artículos y pasar a BORRADOR
+  async completarPreparado(
+    id: number,
+    items: { articuloId: number; cantidad: number; pesoKg?: number }[],
+  ) {
+    const remito = await this.prisma.remito.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!remito) throw new NotFoundException('Remito no encontrado');
+    if (remito.estado !== RemitoEstado.PREPARADO) {
+      throw new BadRequestException('Solo se pueden completar remitos en estado PREPARADO');
+    }
+    if (!items || items.length === 0) {
+      throw new BadRequestException('Debe incluir al menos un artículo');
+    }
+
+    // Calcular peso total
+    let totalKg = 0;
+    for (const item of items) {
+      const articulo = await this.prisma.articulo.findUnique({ where: { id: item.articuloId } });
+      if (articulo?.pesoUnitarioKg) {
+        totalKg += item.cantidad * articulo.pesoUnitarioKg;
+      }
+    }
+
+    return this.prisma.remito.update({
+      where: { id },
+      data: {
+        estado: RemitoEstado.BORRADOR,
+        totalKg,
+        items: {
+          create: items.map((item) => ({
+            articuloId: item.articuloId,
+            cantidad: item.cantidad,
+            pesoKg: item.pesoKg,
+          })),
+        },
+      },
+      include: {
+        items: { include: { articulo: true } },
+        beneficiario: true,
+        programa: true,
+        deposito: true,
+      },
+    });
+  }
+
   // Confirmar remito (ACCIÓN CRÍTICA)
   async confirmar(id: number, dto: ConfirmarRemitoDto, usuarioId: number | { id: number; rol?: string }) {
     const uid = typeof usuarioId === 'object' ? usuarioId.id : usuarioId;

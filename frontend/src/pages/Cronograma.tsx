@@ -10,6 +10,7 @@ import {
   Receipt as ReceiptIcon, Today as TodayIcon, PlaylistAdd as PasteIcon,
   AutoAwesome as GenerarIcon, PersonAdd as PersonAddIcon,
   PictureAsPdf as PdfIcon, Email as EmailIcon,
+  PlaylistAddCheck as AgregarRemitoIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -231,6 +232,35 @@ export default function CronogramaPage() {
     }
     removeFila(fecha,fila.tempId);
   }
+  // Un clic: crea remito PREPARADO (sin artículos) y lo manda a la lista de remitos
+  async function handleAgregarARemitos(fecha:string, fila:FilaData) {
+    if (!fila.id){showNotification('Selecciona un beneficiario primero','warning');return;}
+    if (fila.remito){showNotification(`Remito ${fila.remito.numero} ya existe`,'info');return;}
+    if (!fila.beneficiario) return;
+    setFila(fecha,fila.tempId,{saving:true});
+    try {
+      const res = await api.post('/remitos/preparar', {
+        beneficiarioId: fila.beneficiario.id,
+        depositoId: fila.depositoId,
+        programaId: fila.beneficiario.programaId ?? programaActivo?.id ?? undefined,
+        fecha,
+        horaRetiro: fila.hora || '11:00',
+        kilos: fila.kilos ? parseFloat(fila.kilos) : undefined,
+        cronogramaEntregaId: fila.id,
+      });
+      setFila(fecha, fila.tempId, {
+        saving: false,
+        estado: 'GENERADA',
+        remito: { id: res.data.id, numero: res.data.numero, estado: res.data.estado },
+      });
+      showNotification(`${res.data.numero} agregado a remitos. Completa los articulos desde la seccion Remitos.`, 'success');
+    } catch(e:any) {
+      setFila(fecha,fila.tempId,{saving:false});
+      showNotification(e.response?.data?.message ?? 'Error al preparar remito', 'error');
+    }
+  }
+
+  // Alternativa: abrir formulario completo de remito (para quienes prefieran cargar todo de una)
   function handleGenerarRemito(fecha:string, fila:FilaData) {
     if (!fila.id){showNotification('Selecciona un beneficiario primero','warning');return;}
     if (fila.remito){showNotification(`Remito ${fila.remito.numero} ya existe`,'info');return;}
@@ -490,13 +520,20 @@ export default function CronogramaPage() {
                     <Box display="flex" alignItems="center" gap={0.5} px={0.5}>
                       {fila.saving&&<CircularProgress size={14}/>}
                       {tieneRemito?(
-                        <Chip label={fila.remito!.numero} size="small" color="success" variant="outlined" icon={<ReceiptIcon style={{fontSize:12}}/>} sx={{fontSize:10,height:22}}/>
+                        <Chip label={fila.remito!.numero} size="small" color={fila.remito!.estado==='PREPARADO'?'warning':'success'} variant="outlined" icon={<ReceiptIcon style={{fontSize:12}}/>} sx={{fontSize:10,height:22}}/>
                       ):(
-                        <Tooltip title="Generar remito"><span>
-                          <IconButton size="small" color="primary" onClick={()=>handleGenerarRemito(dia.fecha,fila)} disabled={!fila.id||fila.saving}>
-                            <ReceiptIcon fontSize="small"/>
-                          </IconButton>
-                        </span></Tooltip>
+                        <>
+                          <Tooltip title="Agregar a remitos"><span>
+                            <IconButton size="small" color="success" onClick={()=>handleAgregarARemitos(dia.fecha,fila)} disabled={!fila.id||fila.saving}>
+                              <AgregarRemitoIcon fontSize="small"/>
+                            </IconButton>
+                          </span></Tooltip>
+                          <Tooltip title="Crear remito completo"><span>
+                            <IconButton size="small" color="primary" onClick={()=>handleGenerarRemito(dia.fecha,fila)} disabled={!fila.id||fila.saving} sx={{ml:-0.5}}>
+                              <ReceiptIcon sx={{fontSize:16}}/>
+                            </IconButton>
+                          </span></Tooltip>
+                        </>
                       )}
                       <Tooltip title="Eliminar"><span>
                         <IconButton size="small" color="error" onClick={()=>handleEliminar(dia.fecha,fila)} disabled={tieneRemito||fila.saving}>

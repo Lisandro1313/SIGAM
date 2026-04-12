@@ -205,6 +205,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (!user) return;
     let es: EventSource | null = null;
     let cancelled = false;
+    let retryDelay = 5000; // backoff exponencial: 5s, 10s, 20s, 40s… max 60s
 
     const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -245,12 +246,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           } catch { /* ignorar mensajes malformados */ }
         };
 
-        es.onerror = () => {
-          // EventSource reconecta automáticamente; al reconectar necesita nuevo ticket
-          es?.close();
-          if (!cancelled) setTimeout(conectar, 5000);
+        es.onopen = () => {
+          retryDelay = 5000; // conexión exitosa: resetear backoff
         };
-      } catch { /* silencioso si el backend no está disponible */ }
+
+        es.onerror = () => {
+          es?.close();
+          if (!cancelled) {
+            setTimeout(conectar, retryDelay);
+            retryDelay = Math.min(retryDelay * 2, 60000); // backoff: 5s → 10s → 20s → 40s → 60s max
+          }
+        };
+      } catch {
+        // Backend no disponible: reintentar con backoff
+        if (!cancelled) {
+          setTimeout(conectar, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 60000);
+        }
+      }
     };
 
     conectar();

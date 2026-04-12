@@ -47,6 +47,7 @@ import {
   FileDownload as ExportarIcon,
   WhatsApp as WhatsAppIcon,
   HomeWork as DomicilioIcon,
+  PlaylistAddCheck as CompletarIcon,
 } from '@mui/icons-material';
 import TableSortLabel from '@mui/material/TableSortLabel';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -100,6 +101,7 @@ export default function RemitosPage() {
   const [remitos, setRemitos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
+  const [preparadoRemito, setPreparadoRemito] = useState<any>(null);
   const { showNotification } = useNotificationStore();
   const { user } = useAuthStore();
 
@@ -156,7 +158,7 @@ export default function RemitosPage() {
 
   // Ordenamiento de columnas
   type SortField = 'numero' | 'fecha' | 'beneficiario' | 'estado';
-  const ESTADO_ORDEN: Record<string, number> = { BORRADOR: 0, CONFIRMADO: 1, ENVIADO: 2, ENTREGADO: 3, ANULADO: 4 };
+  const ESTADO_ORDEN: Record<string, number> = { PREPARADO: 0, BORRADOR: 1, CONFIRMADO: 2, ENVIADO: 3, ENTREGADO: 4, ANULADO: 5 };
   const [sortField, setSortField] = useState<SortField>('estado');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -450,6 +452,11 @@ export default function RemitosPage() {
     }
   };
 
+  const handleCompletarPreparado = (remito: any) => {
+    setPreparadoRemito(remito);
+    setFormOpen(true);
+  };
+
   const handleConfirmar = async (id: number) => {
     try {
       const res = await api.post(`/remitos/${id}/confirmar`);
@@ -590,6 +597,7 @@ export default function RemitosPage() {
             onChange={(e) => setEstadoFiltro(e.target.value)}
           >
             <MenuItem value="">Todos</MenuItem>
+            <MenuItem value="PREPARADO">Preparado</MenuItem>
             <MenuItem value="BORRADOR">Borrador</MenuItem>
             <MenuItem value="CONFIRMADO">Confirmado</MenuItem>
             <MenuItem value="ENVIADO">Enviado</MenuItem>
@@ -759,7 +767,9 @@ export default function RemitosPage() {
                     label={remito.estado}
                     size="small"
                     color={
-                      remito.estado === 'CONFIRMADO'
+                      remito.estado === 'PREPARADO'
+                        ? 'warning'
+                        : remito.estado === 'CONFIRMADO'
                         ? 'success'
                         : remito.estado === 'ENVIADO'
                         ? 'info'
@@ -769,6 +779,7 @@ export default function RemitosPage() {
                         ? 'warning'
                         : 'default'
                     }
+                    variant={remito.estado === 'PREPARADO' ? 'outlined' : 'filled'}
                   />
                 </TableCell>
                 <TableCell align="center">
@@ -778,6 +789,22 @@ export default function RemitosPage() {
                       <ViewIcon />
                     </IconButton>
                   </Tooltip>
+
+                  {/* Completar — solo PREPARADO (agregar artículos) */}
+                  {remito.estado === 'PREPARADO' && puedeCrear && (
+                    <>
+                      <Tooltip title="Completar remito (agregar articulos)">
+                        <IconButton size="small" color="warning" onClick={() => handleCompletarPreparado(remito)}>
+                          <CompletarIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Eliminar">
+                        <IconButton size="small" color="error" onClick={() => handleEliminar(remito.id)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  )}
 
                   {/* Confirmar — solo BORRADOR */}
                   {remito.estado === 'BORRADOR' && (
@@ -867,7 +894,18 @@ export default function RemitosPage() {
         </Table>
       </TableContainer>
 
-      <RemitoForm open={formOpen} onClose={() => setFormOpen(false)} onSuccess={() => loadRemitos(busqueda)} />
+      <RemitoForm
+        open={formOpen}
+        onClose={() => { setFormOpen(false); setPreparadoRemito(null); }}
+        onSuccess={() => { loadRemitos(busqueda); setPreparadoRemito(null); }}
+        initialData={preparadoRemito ? {
+          beneficiarioId: preparadoRemito.beneficiarioId,
+          fecha: preparadoRemito.fecha ? new Date(preparadoRemito.fecha).toISOString().split('T')[0] : undefined,
+          depositoId: preparadoRemito.depositoId,
+          programaId: preparadoRemito.programaId,
+        } : undefined}
+        preparadoRemitoId={preparadoRemito?.id}
+      />
 
       {/* Diálogo: Reprogramar / Anular */}
       <Dialog open={gestionDialog} onClose={() => setGestionDialog(false)} maxWidth="xs" fullWidth>
@@ -933,6 +971,7 @@ export default function RemitosPage() {
                 size="small"
                 sx={{ ml: 1 }}
                 color={
+                  detalleRemito.estado === 'PREPARADO' ? 'warning' :
                   detalleRemito.estado === 'CONFIRMADO' ? 'success' :
                   detalleRemito.estado === 'ENVIADO' ? 'info' :
                   detalleRemito.estado === 'PENDIENTE_STOCK' ? 'warning' : 'default'
@@ -1060,6 +1099,19 @@ export default function RemitosPage() {
           ) : null}
         </DialogContent>
         <DialogActions>
+          {detalleRemito?.estado === 'PREPARADO' && puedeCrear && (
+            <Button
+              variant="contained"
+              color="warning"
+              startIcon={<CompletarIcon />}
+              onClick={() => {
+                setDetalleDialog(false);
+                handleCompletarPreparado(detalleRemito);
+              }}
+            >
+              Completar (agregar articulos)
+            </Button>
+          )}
           {detalleRemito?.estado === 'BORRADOR' && (
             <Button
               variant="contained"

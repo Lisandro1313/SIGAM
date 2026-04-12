@@ -40,6 +40,7 @@ enum EntregaEstado {
 }
 
 enum RemitoEstado {
+  PREPARADO
   BORRADOR
   CONFIRMADO
   ENVIADO
@@ -538,12 +539,25 @@ model Tarea {
   completadoAt        DateTime?
   completadoPorNombre String?
   completadoNota      String?
+  archivos            ArchivoTarea[]
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
   @@index([estado])
   @@index([programaId])
   @@index([createdAt])
+}
+
+model ArchivoTarea {
+  id        Int      @id @default(autoincrement())
+  tarea     Tarea    @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  tareaId   Int
+  nombre    String   // Nombre original del archivo
+  url       String   // URL en Supabase Storage o path local
+  tipo      String?  // MIME type (image/jpeg, application/pdf, etc.)
+  createdAt DateTime @default(now())
+
+  @@index([tareaId])
 }
 
 // ============================================================================

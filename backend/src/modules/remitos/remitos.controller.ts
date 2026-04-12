@@ -44,6 +44,34 @@ export class RemitosController {
     return this.remitosService.create(createRemitoDto, { id: req.user.id, rol: req.user.rol });
   }
 
+  @Post('preparar')
+  @ApiOperation({ summary: 'Preparar remito desde cronograma (sin artículos, estado PREPARADO)' })
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'ASISTENCIA_CRITICA')
+  preparar(
+    @Body() body: {
+      beneficiarioId: number;
+      depositoId: number;
+      programaId?: number;
+      fecha?: string;
+      horaRetiro?: string;
+      kilos?: number;
+      cronogramaEntregaId?: number;
+    },
+    @Request() req,
+  ) {
+    return this.remitosService.preparar(body, { id: req.user.id, rol: req.user.rol });
+  }
+
+  @Post(':id/completar-preparado')
+  @ApiOperation({ summary: 'Completar remito preparado: agregar artículos y pasar a BORRADOR' })
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'ASISTENCIA_CRITICA')
+  completarPreparado(
+    @Param('id') id: string,
+    @Body() body: { items: { articuloId: number; cantidad: number; pesoKg?: number }[] },
+  ) {
+    return this.remitosService.completarPreparado(+id, body.items);
+  }
+
   @Post(':id/confirmar')
   @ApiOperation({ summary: 'Confirmar remito y descontar stock' })
   @Roles('ADMIN', 'LOGISTICA', 'ASISTENCIA_CRITICA')
