@@ -173,6 +173,13 @@ export class CronogramaController {
     );
   }
 
+  @Patch('fila/:id/avisado-wsp')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
+  @ApiOperation({ summary: 'Marcar/desmarcar aviso WhatsApp' })
+  toggleAvisadoWsp(@Param('id') id: string, @Body() body: { avisadoWsp: boolean }) {
+    return this.cronogramaService.toggleAvisadoWsp(+id, body.avisadoWsp);
+  }
+
   @Patch(':id/fecha')
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
   @ApiOperation({ summary: 'Actualizar fecha de entrega' })

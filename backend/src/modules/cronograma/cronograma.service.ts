@@ -580,6 +580,19 @@ export class CronogramaService {
     await this.emailService.enviarCronograma(buffer, asunto, destinos, desde, hasta);
   }
 
+  // Marcar/desmarcar aviso WhatsApp
+  async toggleAvisadoWsp(id: number, avisadoWsp: boolean) {
+    return this.prisma.entregaProgramada.update({
+      where: { id },
+      data: { avisadoWsp },
+      include: {
+        beneficiario: { include: { programa: true } },
+        programa: true,
+        remito: { select: { id: true, numero: true, estado: true, depositoId: true } },
+      },
+    });
+  }
+
   // Generar remito desde una fila de la planilla
   async generarRemitoDesFila(id: number, depositoId: number, usuarioId: number, usuarioRol?: string) {
     const entrega = await this.prisma.entregaProgramada.findUnique({

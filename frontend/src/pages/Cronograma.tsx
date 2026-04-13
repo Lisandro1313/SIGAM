@@ -11,7 +11,7 @@ import {
   Receipt as ReceiptIcon, Today as TodayIcon, PlaylistAdd as PasteIcon,
   AutoAwesome as GenerarIcon, PersonAdd as PersonAddIcon,
   PictureAsPdf as PdfIcon, Email as EmailIcon,
-  PlaylistAddCheck as AgregarRemitoIcon, Undo as UndoIcon,
+  PlaylistAddCheck as AgregarRemitoIcon, Undo as UndoIcon, WhatsApp as WspIcon, Check as CheckIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -32,6 +32,7 @@ interface FilaData {
   depositoId: number; estado?: string;
   remito?: { id: number; numero: string; estado: string } | null;
   saving?: boolean;
+  avisadoWsp?: boolean;
 }
 interface DiaEntry { fecha: string; filas: FilaData[]; }
 
@@ -57,8 +58,8 @@ const COLS = [
   { label:'ESPACIO', w:160 }, { label:'REFERENTE', w:140 },
   { label:'HORA', w:55 }, { label:'DIRECCION', w:160 },
   { label:'KG', w:60 }, { label:'TELEFONO', w:105 },
-  { label:'DEP.', w:80 }, { label:'RESP. RETIRO', w:160 },
-  { label:'', w:100 },
+  { label:'DEP.', w:80 }, { label:'RESP. RETIRO', w:150 },
+  { label:'', w:120 },
 ];
 const GRID = COLS.map(c=>`${c.w}px`).join(' ');
 const MINW = COLS.reduce((a,c)=>a+c.w,0);
@@ -162,7 +163,7 @@ export default function CronogramaPage() {
           hora: e.hora ?? '',
           kilos: e.kilos != null ? String(e.kilos) : (e.beneficiario?.kilosHabitual ?? ''),
           responsableRetiro: e.responsableRetiro ?? '',
-          depositoId: e.remito?.depositoId ?? depDefault, estado: e.estado, remito: e.remito ?? null,
+          depositoId: e.remito?.depositoId ?? depDefault, estado: e.estado, remito: e.remito ?? null, avisadoWsp: !!e.avisadoWsp,
         });
       });
       const nuevoDias: DiaEntry[] = [];
@@ -290,6 +291,26 @@ export default function CronogramaPage() {
     } catch(e:any) {
       setFila(fecha,fila.tempId,{saving:false});
       showNotification(e.response?.data?.message ?? 'Error al deshacer remito','error');
+    }
+  }
+
+  // Avisar por WhatsApp
+  function handleAvisarWsp(fecha: string, fila: FilaData) {
+    const ben = fila.beneficiario;
+    if (!ben) return;
+    let tel = ben.telefono?.replace(/[^0-9]/g, '') || '';
+    // Si empieza con 0 o 15, normalizar a formato argentino
+    if (tel.startsWith('0')) tel = tel.slice(1);
+    if (!tel.startsWith('54')) tel = '54' + tel;
+    const dia = new Date(fecha + 'T12:00:00');
+    const diaStr = dia.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const kg = fila.kilos ? `${fila.kilos} kg` : '';
+    const msg = `Hola! Le informamos desde Politica Alimentaria que tiene programada una entrega para el dia *${diaStr}*${kg ? ` de *${kg}*` : ''}${fila.hora ? ` a las *${fila.hora}*` : ''}. Por favor confirmar retiro. Gracias!`;
+    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank');
+    // Marcar como avisado en backend
+    if (fila.id && !fila.avisadoWsp) {
+      api.patch(`/cronograma/fila/${fila.id}/avisado-wsp`, { avisadoWsp: true }).catch(() => {});
+      setFila(fecha, fila.tempId, { avisadoWsp: true });
     }
   }
 
@@ -576,6 +597,16 @@ export default function CronogramaPage() {
                             </IconButton>
                           </span></Tooltip>
                         </>
+                      )}
+                      {ben?.telefono && (
+                        <Tooltip title={fila.avisadoWsp ? 'Ya avisado por WhatsApp (clic para reenviar)' : 'Avisar por WhatsApp'}><span>
+                          <IconButton size="small" onClick={()=>handleAvisarWsp(dia.fecha,fila)} disabled={!fila.id||fila.saving}
+                            sx={{ color: fila.avisadoWsp ? '#4caf50' : '#25D366', ml: -0.5 }}>
+                            {fila.avisadoWsp
+                              ? <CheckIcon sx={{fontSize:16}}/>
+                              : <WspIcon sx={{fontSize:16}}/>}
+                          </IconButton>
+                        </span></Tooltip>
                       )}
                       <Tooltip title="Eliminar"><span>
                         <IconButton size="small" color="error" onClick={()=>handleEliminar(dia.fecha,fila)} disabled={tieneRemito||fila.saving}>
