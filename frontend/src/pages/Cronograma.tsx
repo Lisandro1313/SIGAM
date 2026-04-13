@@ -24,8 +24,8 @@ interface Beneficiario {
   responsableNombre?: string; kilosHabitual?: number;
   programa?: { id: number; nombre: string }; programaId?: number;
 }
-interface Deposito { id: number; codigo: string; nombre: string; }
-interface Programa { id: number; nombre: string; tipo: string; }
+interface Deposito { id: number; codigo: string; nombre: string; direccion?: string; }
+interface Programa { id: number; nombre: string; tipo: string; mensajeWhatsapp?: string; }
 interface FilaData {
   id?: number; tempId: string; beneficiario: Beneficiario | null;
   hora: string; kilos: string; responsableRetiro: string;
@@ -306,8 +306,24 @@ export default function CronogramaPage() {
     if (!tel.startsWith('54')) tel = '54' + tel;
     const dia = new Date(fecha + 'T12:00:00');
     const diaStr = dia.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-    const kg = fila.kilos ? `${fila.kilos} kg` : '';
-    const msg = `Hola! Le informamos desde Politica Alimentaria que tiene programada una entrega para el dia *${diaStr}*${kg ? ` de *${kg}*` : ''}${fila.hora ? ` a las *${fila.hora}*` : ''}. Por favor confirmar retiro. Gracias!`;
+    const dep = depositos.find(d => d.id === fila.depositoId);
+    // Buscar programa del beneficiario para obtener mensajeWhatsapp
+    const progId = ben.programaId ?? ben.programa?.id;
+    const prog = programas.find(p => p.id === progId);
+    const numeroRemito = fila.remito?.numero ?? '';
+    let msg: string;
+    if (prog?.mensajeWhatsapp) {
+      msg = prog.mensajeWhatsapp
+        .replace(/\{nombre\}/g, ben.nombre)
+        .replace(/\{fecha\}/g, diaStr)
+        .replace(/\{hora\}/g, fila.hora || '')
+        .replace(/\{deposito\}/g, dep?.nombre || '')
+        .replace(/\{direccion\}/g, dep?.direccion || ben.direccion || '')
+        .replace(/\{numero\}/g, numeroRemito);
+    } else {
+      const kg = fila.kilos ? `${fila.kilos} kg` : '';
+      msg = `Hola! Le informamos desde Politica Alimentaria que tiene programada una entrega para el dia *${diaStr}*${kg ? ` de *${kg}*` : ''}${fila.hora ? ` a las *${fila.hora}*` : ''}. Por favor confirmar retiro. Gracias!`;
+    }
     window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank');
     // Marcar como avisado en backend
     if (fila.id && !fila.avisadoWsp) {

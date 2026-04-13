@@ -39,7 +39,7 @@ async function main() {
     data: {
       codigo: 'CITA',
       nombre: 'Depósito CITA (Centro)',
-      direccion: 'Ubicación céntrica',
+      direccion: '115 E/62 y 63',
       telefono: '221-XXX-XXXX',
     },
   });
