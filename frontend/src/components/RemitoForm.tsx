@@ -91,6 +91,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
   const [items, setItems] = useState<RemitoItem[]>([]);
   const [selectedArticuloId, setSelectedArticuloId] = useState('');
   const [cantidad, setCantidad] = useState('');
+  const [modulos, setModulos] = useState(1);
 
   useEffect(() => {
     if (open) {
@@ -233,7 +234,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
         res = await api.post(`/remitos/${preparadoRemitoId}/completar-preparado`, {
           items: items.map((item) => ({
             articuloId: item.articuloId,
-            cantidad: item.cantidad,
+            cantidad: item.cantidad * modulos,
           })),
         });
       } else {
@@ -246,7 +247,7 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
           cronogramaEntregaId: initialData?.cronogramaEntregaId,
           items: items.map((item) => ({
             articuloId: item.articuloId,
-            cantidad: item.cantidad,
+            cantidad: item.cantidad * modulos,
           })),
         });
       }
@@ -271,13 +272,14 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
     setItems([]);
     setSelectedArticuloId('');
     setCantidad('');
+    setModulos(1);
     setUltimasEntregas('loading');
     setPromedioKg(null);
     onClose();
   };
 
 
-  const totalKg = items.reduce((sum, item) => sum + item.pesoKg, 0);
+  const totalKg = items.reduce((sum, item) => sum + item.pesoKg, 0) * modulos;
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
@@ -656,12 +658,30 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
             })()}
 
 
+            {/* Módulos */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'grey.200' }}>
+              <Typography variant="body2" fontWeight="bold">Módulos:</Typography>
+              <TextField
+                type="number"
+                value={modulos}
+                onChange={(e) => setModulos(Math.max(1, parseInt(e.target.value) || 1))}
+                inputProps={{ min: 1, step: 1 }}
+                sx={{ width: 80 }}
+                size="small"
+              />
+              {modulos > 1 && (
+                <Typography variant="body2" color="primary">
+                  × {modulos} — cada artículo se multiplica por {modulos}
+                </Typography>
+              )}
+            </Box>
+
             <TableContainer component={Paper}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
                     <TableCell>Artículo</TableCell>
-                    <TableCell align="right">Cantidad</TableCell>
+                    <TableCell align="right">Cant. × módulo</TableCell>
                     <TableCell align="right">Peso (kg)</TableCell>
                     <TableCell align="center">Acciones</TableCell>
                   </TableRow>
@@ -706,8 +726,10 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
                               )}
                             </Box>
                           </TableCell>
-                          <TableCell align="right">{item.cantidad}</TableCell>
-                          <TableCell align="right">{item.pesoKg.toFixed(2)}</TableCell>
+                          <TableCell align="right">
+                            {modulos > 1 ? `${item.cantidad} × ${modulos} = ${item.cantidad * modulos}` : item.cantidad}
+                          </TableCell>
+                          <TableCell align="right">{(item.pesoKg * modulos).toFixed(2)}</TableCell>
                           <TableCell align="center">
                             <IconButton size="small" color="error" onClick={() => handleRemoveItem(index)}>
                               <DeleteIcon />
@@ -722,6 +744,11 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
             </TableContainer>
 
             <Box sx={{ mt: 2, textAlign: 'right' }}>
+              {modulos > 1 && (
+                <Typography variant="body2" color="text.secondary">
+                  {modulos} módulos × {(totalKg / modulos).toFixed(2)} kg c/u
+                </Typography>
+              )}
               <Typography variant="h6">Total: {totalKg.toFixed(2)} kg</Typography>
             </Box>
           </Box>

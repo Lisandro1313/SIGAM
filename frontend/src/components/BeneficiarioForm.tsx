@@ -166,6 +166,7 @@ export default function BeneficiarioForm({
                 <MenuItem value="ORGANIZACION">Organización</MenuItem>
                 <MenuItem value="CASO_PARTICULAR">Caso Particular</MenuItem>
                 <MenuItem value="COMEDOR">Comedor</MenuItem>
+                <MenuItem value="MANZANERA">Manzanera</MenuItem>
               </TextField>
             </Grid>
 

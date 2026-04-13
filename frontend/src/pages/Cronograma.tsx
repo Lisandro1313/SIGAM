@@ -540,7 +540,13 @@ export default function CronogramaPage() {
                 return (
                   <Paper key={fila.tempId} elevation={0} sx={{display:'grid',gridTemplateColumns:GRID,alignItems:'center',borderBottom:'1px solid #e8e8e8',bgcolor:tieneRemito?'#f0f7ff':!fila.id&&ben?'#fffde7':'#fff','&:hover':{bgcolor:tieneRemito?'#e3f0fb':'#f5f5f5'},px:0.5,py:0.25,minHeight:44}}>
                     {/* Espacio */}
-                    <Box px={0.5} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box px={0.5} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0 }}>
+                      {ben?.programa?.nombre && (
+                        <Typography variant="caption" sx={{ fontSize: 10, color: 'text.disabled', lineHeight: 1.2, mb: 0.2, fontStyle: 'italic' }} noWrap>
+                          {ben.programa.nombre}
+                        </Typography>
+                      )}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <Autocomplete size="small" options={bens} getOptionLabel={o=>o.nombre} value={ben}
                         onChange={(_,v)=>handleSelectBen(dia.fecha,fila,v)} disabled={tieneRemito}
                         filterOptions={(opts,{inputValue})=>opts.filter(o=>o.nombre.toLowerCase().includes(inputValue.toLowerCase()))}
@@ -559,6 +565,7 @@ export default function CronogramaPage() {
                           </IconButton>
                         </Tooltip>
                       )}
+                    </Box>
                     </Box>
                     {/* Referente */}
                     <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.responsableNombre??'—'}</Typography></Box>
