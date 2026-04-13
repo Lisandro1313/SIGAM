@@ -4,6 +4,7 @@ import {
   Autocomplete, Tooltip, Chip, CircularProgress, Select,
   MenuItem, FormControl, Tab, Tabs, Dialog, DialogTitle,
   DialogContent, DialogActions, Alert, InputAdornment,
+  Table, TableHead, TableRow, TableCell, TableBody, TableContainer,
 } from '@mui/material';
 import {
   ChevronLeft, ChevronRight, Add as AddIcon, Delete as DeleteIcon,
@@ -111,6 +112,9 @@ export default function CronogramaPage() {
   // RemitoForm desde cronograma
   const [remitoFormOpen, setRemitoFormOpen] = useState(false);
   const [remitoFormData, setRemitoFormData] = useState<{ fecha: string; fila: FilaData } | null>(null);
+  const [detalleOpen, setDetalleOpen] = useState(false);
+  const [detalleRemito, setDetalleRemito] = useState<any>(null);
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
 
   const semanaFin = addDays(semanaInicio, 6);
   const semanaLabel = `${semanaInicio.getDate()} ${MESES_ES[semanaInicio.getMonth()]} - ${semanaFin.getDate()} ${MESES_ES[semanaFin.getMonth()]} ${semanaFin.getFullYear()}`;
@@ -257,6 +261,21 @@ export default function CronogramaPage() {
     } catch(e:any) {
       setFila(fecha,fila.tempId,{saving:false});
       showNotification(e.response?.data?.message ?? 'Error al preparar remito', 'error');
+    }
+  }
+
+  // Ver detalle de remito
+  async function handleVerRemito(remitoId: number) {
+    setDetalleOpen(true);
+    setLoadingDetalle(true);
+    try {
+      const res = await api.get(`/remitos/${remitoId}`);
+      setDetalleRemito(res.data);
+    } catch {
+      showNotification('Error al cargar detalle del remito', 'error');
+      setDetalleOpen(false);
+    } finally {
+      setLoadingDetalle(false);
     }
   }
 
@@ -535,7 +554,7 @@ export default function CronogramaPage() {
                       {fila.saving&&<CircularProgress size={14}/>}
                       {tieneRemito?(
                         <>
-                          <Chip label={fila.remito!.numero} size="small" color={fila.remito!.estado==='PREPARADO'?'warning':'success'} variant="outlined" icon={<ReceiptIcon style={{fontSize:12}}/>} sx={{fontSize:10,height:22}}/>
+                          <Chip label={fila.remito!.numero} size="small" color={fila.remito!.estado==='PREPARADO'?'warning':'success'} variant="outlined" icon={<ReceiptIcon style={{fontSize:12}}/>} sx={{fontSize:10,height:22,cursor:'pointer'}} onClick={()=>handleVerRemito(fila.remito!.id)}/>
                           {fila.remito!.estado==='PREPARADO'&&(
                             <Tooltip title="Deshacer (quitar de remitos)"><span>
                               <IconButton size="small" color="warning" onClick={()=>handleDeshacerRemito(dia.fecha,fila)} disabled={fila.saving} sx={{ml:-0.5}}>
@@ -777,6 +796,81 @@ export default function CronogramaPage() {
           }}
         />
       )}
+
+      {/* Dialog detalle remito */}
+      <Dialog open={detalleOpen} onClose={() => { setDetalleOpen(false); setDetalleRemito(null); }} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ReceiptIcon color="primary" />
+          {detalleRemito?.numero || 'Cargando...'}
+          {detalleRemito && (
+            <Chip label={detalleRemito.estado} size="small" sx={{ ml: 1 }}
+              color={detalleRemito.estado === 'ENTREGADO' ? 'success' : detalleRemito.estado === 'CONFIRMADO' ? 'info' : detalleRemito.estado === 'PREPARADO' ? 'warning' : 'default'} />
+          )}
+        </DialogTitle>
+        <DialogContent dividers>
+          {loadingDetalle ? (
+            <Box display="flex" justifyContent="center" p={4}><CircularProgress /></Box>
+          ) : detalleRemito ? (
+            <Box>
+              <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1.5} mb={2}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Beneficiario</Typography>
+                  <Typography variant="body2" fontWeight="bold">{detalleRemito.beneficiario?.nombre}</Typography>
+                  {detalleRemito.beneficiario?.direccion && (
+                    <Typography variant="caption" color="text.secondary">{detalleRemito.beneficiario.direccion}</Typography>
+                  )}
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Deposito</Typography>
+                  <Typography variant="body2" fontWeight="bold">{detalleRemito.deposito?.nombre || '—'}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {detalleRemito.totalKg?.toFixed(2)} kg
+                  </Typography>
+                </Box>
+              </Box>
+
+              {detalleRemito.estado === 'ENTREGADO' && (
+                <Alert severity="success" sx={{ mb: 2, py: 0.5 }}>
+                  Entregado{detalleRemito.entregadoAt ? ` el ${new Date(detalleRemito.entregadoAt).toLocaleDateString('es-AR')}` : ''}
+                  {detalleRemito.entregadoNota && <> — {detalleRemito.entregadoNota}</>}
+                </Alert>
+              )}
+
+              {detalleRemito.items?.length > 0 ? (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'grey.100' }}>
+                        <TableCell>Articulo</TableCell>
+                        <TableCell align="right">Cant.</TableCell>
+                        <TableCell align="right">Kg</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {detalleRemito.items.map((item: any) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.articulo?.descripcion || item.articulo?.nombre || '—'}</TableCell>
+                          <TableCell align="right">{item.cantidad}</TableCell>
+                          <TableCell align="right">{item.pesoKg?.toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow sx={{ bgcolor: 'grey.50' }}>
+                        <TableCell colSpan={2}><strong>TOTAL</strong></TableCell>
+                        <TableCell align="right"><strong>{detalleRemito.totalKg?.toFixed(2)} kg</strong></TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Alert severity="info" sx={{ py: 0.5 }}>Sin articulos cargados (PREPARADO).</Alert>
+              )}
+            </Box>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setDetalleOpen(false); setDetalleRemito(null); }}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
