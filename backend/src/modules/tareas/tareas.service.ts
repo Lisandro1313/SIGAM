@@ -9,11 +9,6 @@ export class TareasService {
     private storage: StorageService,
   ) {}
 
-  private readonly includeArchivos = {
-    programa: { select: { id: true, nombre: true } },
-    archivos: { select: { id: true, nombre: true, url: true, tipo: true, createdAt: true } },
-  };
-
   findAll(filtros?: { estado?: string; programaId?: number; prioridad?: string; secretaria?: string | null }) {
     const where: any = {};
     if (filtros?.estado) {
@@ -25,7 +20,10 @@ export class TareasService {
     if (filtros?.secretaria) where.secretaria = filtros.secretaria;
     return this.prisma.tarea.findMany({
       where,
-      include: this.includeArchivos,
+      include: {
+        programa: { select: { id: true, nombre: true } },
+        documentos: { orderBy: { createdAt: 'asc' } },
+      },
       orderBy: [
         { estado: 'asc' },
         { prioridad: 'asc' },
@@ -34,18 +32,15 @@ export class TareasService {
     });
   }
 
-  async create(
-    data: {
-      titulo: string;
-      descripcion?: string;
-      prioridad?: string;
-      asignadoA?: string;
-      programaId?: number;
-      vencimiento?: string;
-    },
-    archivos?: Express.Multer.File[],
-  ) {
-    const tarea = await this.prisma.tarea.create({
+  create(data: {
+    titulo: string;
+    descripcion?: string;
+    prioridad?: string;
+    asignadoA?: string;
+    programaId?: number;
+    vencimiento?: string;
+  }) {
+    return this.prisma.tarea.create({
       data: {
         titulo: data.titulo,
         descripcion: data.descripcion,
@@ -54,15 +49,11 @@ export class TareasService {
         programaId: data.programaId,
         vencimiento: data.vencimiento ? new Date(data.vencimiento) : undefined,
       },
-      include: this.includeArchivos,
+      include: {
+        programa: { select: { id: true, nombre: true } },
+        documentos: true,
+      },
     });
-
-    if (archivos?.length) {
-      await this.subirArchivos(tarea.id, archivos);
-      return this.prisma.tarea.findUnique({ where: { id: tarea.id }, include: this.includeArchivos });
-    }
-
-    return tarea;
   }
 
   async update(id: number, data: {
@@ -82,7 +73,10 @@ export class TareasService {
         ...data,
         vencimiento: data.vencimiento ? new Date(data.vencimiento) : undefined,
       },
-      include: this.includeArchivos,
+      include: {
+        programa: { select: { id: true, nombre: true } },
+        documentos: true,
+      },
     });
   }
 
@@ -98,58 +92,57 @@ export class TareasService {
         completadoPorNombre: data.completadoPorNombre,
         completadoNota: data.completadoNota,
       },
-      include: this.includeArchivos,
+      include: {
+        programa: { select: { id: true, nombre: true } },
+        documentos: true,
+      },
     });
   }
 
   async remove(id: number) {
     const tarea = await this.prisma.tarea.findUnique({
       where: { id },
-      include: { archivos: true },
+      include: { documentos: true },
     });
     if (!tarea) throw new NotFoundException('Tarea no encontrada');
-    // Borrar archivos del storage
-    for (const arch of tarea.archivos) {
-      await this.storage.delete(arch.url.replace(/^uploads\//, '')).catch(() => {});
+    // Eliminar archivos del storage
+    for (const doc of tarea.documentos) {
+      await this.storage.delete(doc.archivo).catch(() => {});
     }
     return this.prisma.tarea.delete({ where: { id } });
   }
 
-  // ── Archivos adjuntos ───────────────────────────────────────────────────
+  // ── Documentos ──────────────────────────────────────────────────────────────
 
-  async subirArchivos(tareaId: number, files: Express.Multer.File[]) {
-    const results: any[] = [];
-    for (const file of files) {
-      const ext = file.originalname.split('.').pop() || 'bin';
-      const filename = `${tareaId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const url = await this.storage.upload(file.buffer, `tareas/${filename}`, file.mimetype);
-      const arch = await this.prisma.archivoTarea.create({
-        data: {
-          tareaId,
-          nombre: file.originalname,
-          url,
-          tipo: file.mimetype,
-        },
-      });
-      results.push(arch);
-    }
-    return results;
+  getDocumentos(tareaId: number) {
+    return this.prisma.documentoTarea.findMany({
+      where: { tareaId },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
-  async agregarArchivos(tareaId: number, files: Express.Multer.File[]) {
+  async uploadDocumento(
+    tareaId: number,
+    file: Express.Multer.File,
+    nombre: string,
+    tipo?: string,
+  ) {
     const tarea = await this.prisma.tarea.findUnique({ where: { id: tareaId } });
     if (!tarea) throw new NotFoundException('Tarea no encontrada');
-    await this.subirArchivos(tareaId, files);
-    return this.prisma.tarea.findUnique({ where: { id: tareaId }, include: this.includeArchivos });
+
+    const ext = file.originalname.split('.').pop() || 'bin';
+    const archivo = `tareas/${tareaId}/${Date.now()}.${ext}`;
+    const url = await this.storage.upload(file.buffer, archivo, file.mimetype);
+
+    return this.prisma.documentoTarea.create({
+      data: { tareaId, nombre, archivo, url, tipo },
+    });
   }
 
-  async eliminarArchivo(tareaId: number, archivoId: number) {
-    const archivo = await this.prisma.archivoTarea.findFirst({
-      where: { id: archivoId, tareaId },
-    });
-    if (!archivo) throw new NotFoundException('Archivo no encontrado');
-    await this.storage.delete(archivo.url.replace(/^uploads\//, '')).catch(() => {});
-    await this.prisma.archivoTarea.delete({ where: { id: archivoId } });
-    return { ok: true };
+  async deleteDocumento(docId: number) {
+    const doc = await this.prisma.documentoTarea.findUnique({ where: { id: docId } });
+    if (!doc) throw new NotFoundException('Documento no encontrado');
+    await this.storage.delete(doc.archivo).catch(() => {});
+    return this.prisma.documentoTarea.delete({ where: { id: docId } });
   }
 }

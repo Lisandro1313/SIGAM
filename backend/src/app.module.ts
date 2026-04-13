@@ -36,11 +36,11 @@ import { NutricionistaModule } from './modules/nutricionista/nutricionista.modul
     // Tareas programadas (backup semanal, etc.)
     ScheduleModule.forRoot(),
 
-    // Rate limiting global: máximo 200 requests por minuto por IP
+    // Rate limiting global: máximo 300 requests por minuto por IP
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 200,
+        limit: 300,
       },
     ]),
 

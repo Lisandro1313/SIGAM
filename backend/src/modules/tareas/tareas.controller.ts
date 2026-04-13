@@ -1,23 +1,14 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query,
-  UseGuards, Request, UseInterceptors, UploadedFiles,
+  UseGuards, Request, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TareasService } from './tareas.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-
-const ALLOWED_MIMES = [
-  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-];
 
 @ApiTags('tareas')
 @Controller('tareas')
@@ -47,25 +38,9 @@ export class TareasController {
 
   @Post()
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
-  @ApiOperation({ summary: 'Crear tarea (con archivos adjuntos opcionales)' })
-  @ApiConsumes('multipart/form-data')
-  @UseInterceptors(
-    FilesInterceptor('archivos', 10, {
-      storage: memoryStorage(),
-      fileFilter: (_req, file, cb) => {
-        if (ALLOWED_MIMES.includes(file.mimetype)) cb(null, true);
-        else cb(new Error(`Tipo de archivo no permitido: ${file.mimetype}`), false);
-      },
-      limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB por archivo
-    }),
-  )
-  create(
-    @Body() body: any,
-    @UploadedFiles() archivos?: Express.Multer.File[],
-  ) {
-    const data = { ...body };
-    if (data.programaId) data.programaId = parseInt(data.programaId);
-    return this.tareasService.create(data, archivos);
+  @ApiOperation({ summary: 'Crear tarea' })
+  create(@Body() body: any) {
+    return this.tareasService.create(body);
   }
 
   @Patch(':id')
@@ -85,41 +60,38 @@ export class TareasController {
     return this.tareasService.completar(+id, body);
   }
 
-  @Post(':id/archivos')
-  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
-  @ApiOperation({ summary: 'Agregar archivos a una tarea existente' })
-  @ApiConsumes('multipart/form-data')
-  @UseInterceptors(
-    FilesInterceptor('archivos', 10, {
-      storage: memoryStorage(),
-      fileFilter: (_req, file, cb) => {
-        if (ALLOWED_MIMES.includes(file.mimetype)) cb(null, true);
-        else cb(new Error(`Tipo de archivo no permitido: ${file.mimetype}`), false);
-      },
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
-  agregarArchivos(
-    @Param('id') id: string,
-    @UploadedFiles() archivos: Express.Multer.File[],
-  ) {
-    return this.tareasService.agregarArchivos(+id, archivos);
-  }
-
-  @Delete(':id/archivos/:archivoId')
-  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
-  @ApiOperation({ summary: 'Eliminar archivo adjunto de una tarea' })
-  eliminarArchivo(
-    @Param('id') id: string,
-    @Param('archivoId') archivoId: string,
-  ) {
-    return this.tareasService.eliminarArchivo(+id, +archivoId);
-  }
-
   @Delete(':id')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Eliminar tarea' })
   remove(@Param('id') id: string) {
     return this.tareasService.remove(+id);
+  }
+
+  // ── Documentos adjuntos ─────────────────────────────────────────────────────
+
+  @Get(':id/documentos')
+  @ApiOperation({ summary: 'Listar documentos adjuntos de la tarea' })
+  getDocumentos(@Param('id') id: string) {
+    return this.tareasService.getDocumentos(+id);
+  }
+
+  @Post(':id/documentos')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
+  @UseInterceptors(FileInterceptor('archivo', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Adjuntar documento a la tarea' })
+  async uploadDocumento(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { nombre?: string; tipo?: string },
+  ) {
+    if (!file) throw new BadRequestException('No se recibió archivo');
+    return this.tareasService.uploadDocumento(+id, file, body.nombre || file.originalname, body.tipo);
+  }
+
+  @Delete(':id/documentos/:docId')
+  @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
+  @ApiOperation({ summary: 'Eliminar documento adjunto' })
+  deleteDocumento(@Param('docId') docId: string) {
+    return this.tareasService.deleteDocumento(+docId);
   }
 }

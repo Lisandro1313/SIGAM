@@ -3,7 +3,10 @@
     "allow": [
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(curl -s \"https://raw.githubusercontent.com/Lisandro1313/veronica/main/public/index.html\")",
-      "Bash(curl -s \"https://raw.githubusercontent.com/Lisandro1313/veronica/main/public/app.js\")"
+      "Bash(curl -s \"https://raw.githubusercontent.com/Lisandro1313/veronica/main/public/app.js\")",
+      "Bash(npx prisma:*)",
+      "Bash(node -e ':*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
