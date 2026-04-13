@@ -24,7 +24,7 @@ export class ReportesService {
   }
 
   // Reporte: Kilos entregados por mes (retorna los últimos N meses si no se especifica)
-  async kilosPorMes(mes?: number, anio?: number, secretaria?: string | null) {
+  async kilosPorMes(mes?: number, anio?: number, secretaria?: string | null, programaId?: number) {
     // Si se pasan parámetros válidos, retorna un solo mes
     if (mes && anio && !isNaN(mes) && !isNaN(anio)) {
       const fecha = new Date(anio, mes - 1, 1);
@@ -32,6 +32,7 @@ export class ReportesService {
       const fin = endOfMonth(fecha);
       const where: any = { fecha: { gte: inicio, lte: fin }, estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] } };
       if (secretaria) where.secretaria = secretaria;
+      if (programaId) where.programaId = programaId;
       const remitos = await this.prisma.remito.findMany({
         where,
         select: { totalKg: true },
@@ -47,6 +48,7 @@ export class ReportesService {
     const fin6    = endOfMonth(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
     const where6: any = { fecha: { gte: inicio6, lte: fin6 }, estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] } };
     if (secretaria) where6.secretaria = secretaria;
+    if (programaId) where6.programaId = programaId;
     const todosRemitos = await this.prisma.remito.findMany({ where: where6, select: { fecha: true, totalKg: true } });
 
     // Construir mapa mes->año -> acumulado
@@ -75,7 +77,7 @@ export class ReportesService {
   }
 
   // Reporte: Entregas por localidad
-  async entregasPorLocalidad(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
+  async entregasPorLocalidad(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string, programaId?: number) {
     const where: any = {
       estado: {
         in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'],
@@ -93,6 +95,7 @@ export class ReportesService {
       };
     }
     if (secretaria) where.secretaria = secretaria;
+    if (programaId) where.programaId = programaId;
 
     const remitos = await this.prisma.remito.findMany({
       where,
@@ -134,11 +137,12 @@ export class ReportesService {
   }
 
   // Reporte: Artículos más distribuidos
-  async articulosMasDistribuidos(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
+  async articulosMasDistribuidos(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string, programaId?: number) {
     const where: any = {};
     const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
     if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
     if (secretaria) where.secretaria = secretaria;
+    if (programaId) where.programaId = programaId;
 
     const items = await this.prisma.remitoItem.findMany({
       where: {
@@ -174,11 +178,12 @@ export class ReportesService {
   }
 
   // Reporte: Entregas por programa
-  async entregasPorPrograma(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
+  async entregasPorPrograma(mes?: number, anio?: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string, programaId?: number) {
     const where: any = { estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] } };
     const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
     if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
     if (secretaria) where.secretaria = secretaria;
+    if (programaId) where.programaId = programaId;
 
     const remitos = await this.prisma.remito.findMany({
       where,
@@ -407,12 +412,13 @@ export class ReportesService {
   }
 
   // Reporte: Resumen de entregas del mes (entregadas vs no entregadas)
-  async resumenEntregasMes(mes: number, anio: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
+  async resumenEntregasMes(mes: number, anio: number, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string, programaId?: number) {
     const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta)!;
     const { inicio, fin } = rango;
 
     const where: any = { fechaProgramada: { gte: inicio, lte: fin } };
     if (secretaria) where.secretaria = secretaria;
+    if (programaId) where.programaId = programaId;
 
     const entregas = await this.prisma.entregaProgramada.findMany({
       where,

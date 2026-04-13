@@ -121,12 +121,12 @@ export default function ReportesPage() {
       const pId = programaId ? `&programaId=${programaId}` : '';
 
       const [kilosRes, artRes, progRes, remRes, entRes, locRes] = await Promise.all([
-        api.get(`/reportes/kilos-por-mes?${modoFiltro === 'mes' ? paramsMes : ''}`),
-        api.get(`/reportes/articulos-mas-distribuidos?${params}`),
-        api.get(`/reportes/entregas-por-programa?${params}`),
+        api.get(`/reportes/kilos-por-mes?${modoFiltro === 'mes' ? paramsMes : ''}${pId}`),
+        api.get(`/reportes/articulos-mas-distribuidos?${params}${pId}`),
+        api.get(`/reportes/entregas-por-programa?${params}${pId}`),
         api.get(`/reportes/remitos-detalle?${params}${pId}`),
-        api.get(`/reportes/resumen-entregas-mes?${params}`),
-        api.get(`/reportes/entregas-por-localidad?${params}`),
+        api.get(`/reportes/resumen-entregas-mes?${params}${pId}`),
+        api.get(`/reportes/entregas-por-localidad?${params}${pId}`),
       ]);
       setKilosPorMes(kilosRes.data);
       setTopArticulos(artRes.data.slice(0, 15));

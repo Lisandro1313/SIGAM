@@ -59,9 +59,9 @@ export class ReportesController {
 
   @Get('kilos-por-mes')
   @ApiOperation({ summary: 'Total de kilos entregados por mes' })
-  kilosPorMes(@Query('mes') mes: string, @Query('anio') anio: string, @Request() req) {
+  kilosPorMes(@Query('mes') mes: string, @Query('anio') anio: string, @Query('programaId') programaId: string, @Request() req) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.kilosPorMes(m, a, getSecretaria(req));
+    return this.reportesService.kilosPorMes(m, a, getSecretaria(req), programaId ? parseInt(programaId) : undefined);
   }
 
   @Get('entregas-por-localidad')
@@ -69,10 +69,11 @@ export class ReportesController {
   entregasPorLocalidad(
     @Query('mes') mes: string, @Query('anio') anio: string,
     @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Query('programaId') programaId: string,
     @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.entregasPorLocalidad(m, a, getSecretaria(req), fechaDesde, fechaHasta);
+    return this.reportesService.entregasPorLocalidad(m, a, getSecretaria(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
   }
 
   @Get('articulos-mas-distribuidos')
@@ -80,10 +81,11 @@ export class ReportesController {
   articulosMasDistribuidos(
     @Query('mes') mes: string, @Query('anio') anio: string,
     @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Query('programaId') programaId: string,
     @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.articulosMasDistribuidos(m, a, getSecretaria(req), fechaDesde, fechaHasta);
+    return this.reportesService.articulosMasDistribuidos(m, a, getSecretaria(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
   }
 
   @Get('entregas-por-programa')
@@ -91,10 +93,11 @@ export class ReportesController {
   entregasPorPrograma(
     @Query('mes') mes: string, @Query('anio') anio: string,
     @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Query('programaId') programaId: string,
     @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.entregasPorPrograma(m, a, getSecretaria(req), fechaDesde, fechaHasta);
+    return this.reportesService.entregasPorPrograma(m, a, getSecretaria(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
   }
 
   @Get('stock-bajo')
@@ -174,6 +177,7 @@ export class ReportesController {
   resumenEntregasMes(
     @Query('mes') mes: string, @Query('anio') anio: string,
     @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Query('programaId') programaId: string,
     @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
@@ -181,6 +185,6 @@ export class ReportesController {
     if ((!m || !a) && (!fechaDesde || !fechaHasta)) throw new BadRequestException('Proveer mes+anio o fechaDesde+fechaHasta');
     const mesFinal = m ?? new Date().getMonth() + 1;
     const anioFinal = a ?? new Date().getFullYear();
-    return this.reportesService.resumenEntregasMes(mesFinal, anioFinal, getSecretaria(req), fechaDesde, fechaHasta);
+    return this.reportesService.resumenEntregasMes(mesFinal, anioFinal, getSecretaria(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
   }
 }
