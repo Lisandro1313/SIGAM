@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 
 // ── Captcha: preguntas de cultura general / gramática argentina ──────────────
@@ -324,7 +325,7 @@ export default function LoginPage() {
                   tabIndex={-1}
                   aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                 >
-                  {showPassword ? '🙈' : '👁️'}
+                  {showPassword ? <VisibilityOff style={{ fontSize: 20 }} /> : <Visibility style={{ fontSize: 20 }} />}
                 </button>
               </div>
             </div>
