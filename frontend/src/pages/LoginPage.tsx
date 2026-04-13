@@ -146,6 +146,7 @@ export default function LoginPage() {
   const [captcha, setCaptcha] = useState(pickCaptcha);
   const [captchaValue, setCaptchaValue] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -301,14 +302,31 @@ export default function LoginPage() {
               <label style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 500, color: '#202124', fontFamily: 'inherit' }}>
                 Contraseña:
               </label>
-              <input
-                className="login-input"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="login-input"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  style={{ paddingRight: 44 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  style={{
+                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    padding: 0, color: '#5f6368', fontSize: 18, lineHeight: 1,
+                    display: 'flex', alignItems: 'center',
+                  }}
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
             </div>
 
             {/* Captcha */}
