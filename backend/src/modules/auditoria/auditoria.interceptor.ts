@@ -191,10 +191,8 @@ function enrichDescripcion(base: string, method: string, path: string, result: a
     return base; // result es {success, message}
   }
   // Transferencia
-  if (method === 'POST' && /^\/stock\/transferir$/.test(cleanPath) && result.articulo) {
-    const desde = result.depositoDesde?.nombre ?? '';
-    const hacia = result.depositoHacia?.nombre ?? '';
-    return `Transfirió ${result.cantidad} u. de ${result.articulo.nombre}${desde ? ` de ${desde}` : ''}${hacia ? ` a ${hacia}` : ''}`;
+  if (method === 'POST' && /^\/stock\/transferir$/.test(cleanPath) && result.transferencias !== undefined) {
+    return `Realizó transferencia de stock (${result.transferencias} artículo${result.transferencias !== 1 ? 's' : ''})`;
   }
   // Creó/editó usuario
   if (method === 'POST' && /^\/usuarios$/.test(cleanPath) && result.nombre) {

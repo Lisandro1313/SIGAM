@@ -80,11 +80,11 @@ export class StockController {
   @Roles('ADMIN', 'LOGISTICA')
   @ApiOperation({ summary: 'Transferir entre depósitos' })
   transferir(@Body() body: any, @Request() req) {
+    // Acepta { depositoOrigenId, depositoDestinoId, items: [{articuloId, cantidad}] }
     return this.stockService.transferir(
-      body.articuloId,
       body.depositoOrigenId,
       body.depositoDestinoId,
-      body.cantidad,
+      body.items,
       req.user.id,
     );
   }

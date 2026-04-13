@@ -413,6 +413,7 @@ export class CronogramaService {
     responsableRetiro?: string;
     kilos?: number;
     observaciones?: string;
+    depositoId?: number;
   }) {
     const beneficiario = await this.prisma.beneficiario.findUnique({
       where: { id: data.beneficiarioId },
@@ -430,6 +431,7 @@ export class CronogramaService {
         responsableRetiro: data.responsableRetiro,
         kilos: data.kilos,
         observaciones: data.observaciones,
+        depositoId: data.depositoId,
         estado: EntregaEstado.PENDIENTE,
       },
       include: {
@@ -451,6 +453,7 @@ export class CronogramaService {
       kilos?: number;
       observaciones?: string;
       fechaProgramada?: string;
+      depositoId?: number;
     },
   ) {
     return await this.prisma.entregaProgramada.update({
@@ -461,6 +464,7 @@ export class CronogramaService {
         kilos: data.kilos !== undefined ? data.kilos : undefined,
         observaciones: data.observaciones,
         fechaProgramada: data.fechaProgramada ? new Date(data.fechaProgramada) : undefined,
+        depositoId: data.depositoId !== undefined ? data.depositoId : undefined,
       },
       include: {
         beneficiario: {

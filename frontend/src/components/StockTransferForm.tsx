@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  CircularProgress,
-  MenuItem,
-  Typography,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Button, TextField, CircularProgress, MenuItem,
+  Typography, Box, IconButton, Divider,
 } from '@mui/material';
+import {
+  Add as AddIcon,
+  Delete as DeleteIcon,
+} from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
+
+interface TransferItem {
+  articuloId: number;
+  cantidad: number;
+}
 
 interface StockTransferFormProps {
   open: boolean;
@@ -19,84 +22,71 @@ interface StockTransferFormProps {
   onSuccess: () => void;
 }
 
-export default function StockTransferForm({
-  open,
-  onClose,
-  onSuccess,
-}: StockTransferFormProps) {
+export default function StockTransferForm({ open, onClose, onSuccess }: StockTransferFormProps) {
   const [loading, setLoading] = useState(false);
   const [depositos, setDepositos] = useState<any[]>([]);
   const [stock, setStock] = useState<any[]>([]);
   const { showNotification } = useNotificationStore();
-  
-  const [formData, setFormData] = useState({
-    depositoOrigenId: 0,
-    depositoDestinoId: 0,
-    articuloId: 0,
-    cantidad: 0,
-  });
+
+  const [depositoOrigenId, setDepositoOrigenId] = useState(0);
+  const [depositoDestinoId, setDepositoDestinoId] = useState(0);
+  const [items, setItems] = useState<TransferItem[]>([{ articuloId: 0, cantidad: 0 }]);
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (formData.depositoOrigenId) {
-      loadStock(formData.depositoOrigenId);
-    }
-  }, [formData.depositoOrigenId]);
-
-  const loadData = async () => {
-    try {
-      const depositosRes = await api.get('/depositos');
-      setDepositos(depositosRes.data);
-      if (depositosRes.data.length > 0) {
-        setFormData((prev) => ({
-          ...prev,
-          depositoOrigenId: depositosRes.data[0].id,
-          depositoDestinoId: depositosRes.data[1]?.id || 0,
-        }));
+    if (!open) return;
+    api.get('/depositos').then(res => {
+      setDepositos(res.data);
+      if (res.data.length > 0) {
+        setDepositoOrigenId(res.data[0].id);
+        setDepositoDestinoId(res.data[1]?.id || 0);
       }
-    } catch (error) {
-      console.error('Error cargando datos:', error);
+    }).catch(() => {});
+  }, [open]);
+
+  useEffect(() => {
+    if (depositoOrigenId) {
+      api.get(`/stock/deposito/${depositoOrigenId}`).then(res => setStock(res.data)).catch(() => {});
     }
+  }, [depositoOrigenId]);
+
+  const handleOrigenChange = (id: number) => {
+    setDepositoOrigenId(id);
+    setItems([{ articuloId: 0, cantidad: 0 }]);
   };
 
-  const loadStock = async (depositoId: number) => {
-    try {
-      const response = await api.get(`/stock/deposito/${depositoId}`);
-      setStock(response.data);
-    } catch (error) {
-      console.error('Error cargando stock:', error);
-    }
+  const setItem = (idx: number, partial: Partial<TransferItem>) => {
+    setItems(prev => prev.map((it, i) => i === idx ? { ...it, ...partial } : it));
   };
+
+  const addItem = () => setItems(prev => [...prev, { articuloId: 0, cantidad: 0 }]);
+
+  const removeItem = (idx: number) => setItems(prev => prev.filter((_, i) => i !== idx));
+
+  const getStockDisponible = (articuloId: number) =>
+    stock.find(s => s.articulo.id === articuloId)?.cantidad || 0;
+
+  // Artículos ya seleccionados en otras filas
+  const articulosUsados = (currentIdx: number) =>
+    items.map((it, i) => i !== currentIdx ? it.articuloId : null).filter(Boolean);
+
+  const canSubmit = items.length > 0 &&
+    items.every(it => it.articuloId > 0 && it.cantidad > 0 && it.cantidad <= getStockDisponible(it.articuloId)) &&
+    depositoOrigenId > 0 && depositoDestinoId > 0 && depositoOrigenId !== depositoDestinoId;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      await api.post('/stock/transferir', formData);
-      showNotification('Transferencia realizada correctamente', 'success');
+      await api.post('/stock/transferir', { depositoOrigenId, depositoDestinoId, items });
+      showNotification(`Transferencia realizada: ${items.length} artículo${items.length > 1 ? 's' : ''}`, 'success');
       onSuccess();
       onClose();
     } catch (error: any) {
-      showNotification(
-        error.response?.data?.message || 'Error al realizar transferencia',
-        'error'
-      );
+      showNotification(error.response?.data?.message || 'Error al realizar transferencia', 'error');
     } finally {
       setLoading(false);
     }
   };
-
-  const handleChange = (field: string, value: any) => {
-    setFormData({ ...formData, [field]: value });
-  };
-
-  const stockDisponible = stock.find(
-    (s) => s.articuloId === formData.articuloId
-  )?.cantidad || 0;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -106,76 +96,90 @@ export default function StockTransferForm({
           <Typography variant="body2" color="text.secondary" gutterBottom>
             Transfiere mercadería de un depósito a otro
           </Typography>
-          
-          <TextField
-            select
-            fullWidth
-            label="Depósito Origen"
-            value={formData.depositoOrigenId}
-            onChange={(e) => handleChange('depositoOrigenId', parseInt(e.target.value))}
-            margin="normal"
-            required
-          >
-            {depositos.map((deposito) => (
-              <MenuItem key={deposito.id} value={deposito.id}>
-                {deposito.nombre}
-              </MenuItem>
-            ))}
-          </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Depósito Destino"
-            value={formData.depositoDestinoId}
-            onChange={(e) => handleChange('depositoDestinoId', parseInt(e.target.value))}
-            margin="normal"
-            required
-          >
-            {depositos
-              .filter((d) => d.id !== formData.depositoOrigenId)
-              .map((deposito) => (
-                <MenuItem key={deposito.id} value={deposito.id}>
-                  {deposito.nombre}
-                </MenuItem>
+          <Box display="flex" gap={2} mt={1}>
+            <TextField
+              select fullWidth label="Depósito Origen *"
+              value={depositoOrigenId}
+              onChange={e => handleOrigenChange(Number(e.target.value))}
+            >
+              {depositos.map(d => <MenuItem key={d.id} value={d.id}>{d.nombre}</MenuItem>)}
+            </TextField>
+
+            <TextField
+              select fullWidth label="Depósito Destino *"
+              value={depositoDestinoId}
+              onChange={e => setDepositoDestinoId(Number(e.target.value))}
+            >
+              {depositos.filter(d => d.id !== depositoOrigenId).map(d => (
+                <MenuItem key={d.id} value={d.id}>{d.nombre}</MenuItem>
               ))}
-          </TextField>
+            </TextField>
+          </Box>
 
-          <TextField
-            select
-            fullWidth
-            label="Artículo"
-            value={formData.articuloId}
-            onChange={(e) => handleChange('articuloId', parseInt(e.target.value))}
-            margin="normal"
-            required
+          <Divider sx={{ my: 2 }} />
+
+          <Typography variant="subtitle2" fontWeight="bold" mb={1}>
+            Artículos a transferir
+          </Typography>
+
+          {items.map((item, idx) => {
+            const stockDisp = getStockDisponible(item.articuloId);
+            const usados = articulosUsados(idx);
+            const opcionesDisp = stock.filter(s => !usados.includes(s.articulo.id));
+            return (
+              <Box key={idx} display="flex" gap={1} alignItems="flex-start" mb={1}>
+                <TextField
+                  select label="Artículo" size="small"
+                  value={item.articuloId}
+                  onChange={e => setItem(idx, { articuloId: Number(e.target.value), cantidad: 0 })}
+                  sx={{ flex: 2 }}
+                  required
+                >
+                  <MenuItem value={0}>Seleccionar...</MenuItem>
+                  {opcionesDisp.map(s => (
+                    <MenuItem key={s.articulo.id} value={s.articulo.id}>
+                      {s.articulo.nombre} (Stock: {s.cantidad})
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                <TextField
+                  label="Cantidad" type="number" size="small"
+                  value={item.cantidad}
+                  onChange={e => setItem(idx, { cantidad: Number(e.target.value) })}
+                  inputProps={{ min: 1, max: stockDisp || undefined }}
+                  helperText={item.articuloId > 0 ? `Disp: ${stockDisp}` : ''}
+                  error={item.articuloId > 0 && item.cantidad > stockDisp}
+                  sx={{ flex: 1 }}
+                  required
+                />
+
+                <IconButton
+                  size="small" color="error"
+                  onClick={() => removeItem(idx)}
+                  disabled={items.length === 1}
+                  sx={{ mt: 0.5 }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            );
+          })}
+
+          <Button
+            startIcon={<AddIcon />} size="small" onClick={addItem}
+            disabled={stock.length === 0 || items.length >= stock.length}
+            sx={{ mt: 0.5 }}
           >
-            <MenuItem value={0}>Seleccionar artículo</MenuItem>
-            {stock.map((item) => (
-              <MenuItem key={item.articulo.id} value={item.articulo.id}>
-                {item.articulo.nombre} (Stock: {item.cantidad})
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            fullWidth
-            label="Cantidad"
-            type="number"
-            value={formData.cantidad}
-            onChange={(e) => handleChange('cantidad', parseInt(e.target.value))}
-            margin="normal"
-            inputProps={{ min: 1, max: stockDisponible }}
-            required
-            helperText={`Stock disponible: ${stockDisponible}`}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose} disabled={loading}>
-            Cancelar
+            Agregar artículo
           </Button>
-          <Button type="submit" variant="contained" disabled={loading}>
-            {loading ? <CircularProgress size={24} /> : 'Transferir'}
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={onClose} disabled={loading}>Cancelar</Button>
+          <Button type="submit" variant="contained" disabled={loading || !canSubmit}>
+            {loading ? <CircularProgress size={24} /> : `Transferir${items.length > 1 ? ` (${items.length})` : ''}`}
           </Button>
         </DialogActions>
       </form>

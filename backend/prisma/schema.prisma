@@ -207,6 +207,9 @@ model Deposito {
   // Remitos desde este depósito
   remitos  Remito[]
 
+  // Entregas programadas asignadas a este depósito
+  entregas EntregaProgramada[]
+
   // Usuarios asignados (LOGISTICA)
   usuarios Usuario[]
   lotes    LoteArticulo[]
@@ -385,7 +388,11 @@ model EntregaProgramada {
   hora             String?       // Ej: "10:30"
   responsableRetiro String?      // Nombre + DNI del responsable del retiro
   kilos            Float?        // Kilos estimados para esta entrega
-  
+
+  // Depósito seleccionado para esta entrega (antes de generar remito)
+  deposito         Deposito?     @relation(fields: [depositoId], references: [id])
+  depositoId       Int?
+
   // Remito generado (cuando pasa a GENERADA)
   remito           Remito?       @relation(fields: [remitoId], references: [id])
   remitoId         Int?          @unique
@@ -403,6 +410,7 @@ model EntregaProgramada {
   @@index([fechaProgramada])
   @@index([beneficiarioId])
   @@index([programaId])
+  @@index([depositoId])
 }
 
 // ============================================================================
@@ -545,6 +553,7 @@ model Tarea {
   archivos            ArchivoTarea[]
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+  documentos          DocumentoTarea[]
 
   @@index([estado])
   @@index([programaId])
@@ -558,6 +567,19 @@ model ArchivoTarea {
   nombre    String   // Nombre original del archivo
   url       String   // URL en Supabase Storage o path local
   tipo      String?  // MIME type (image/jpeg, application/pdf, etc.)
+  createdAt DateTime @default(now())
+
+  @@index([tareaId])
+}
+
+model DocumentoTarea {
+  id        Int      @id @default(autoincrement())
+  tarea     Tarea    @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  tareaId   Int
+  nombre    String
+  archivo   String
+  url       String
+  tipo      String?
   createdAt DateTime @default(now())
 
   @@index([tareaId])

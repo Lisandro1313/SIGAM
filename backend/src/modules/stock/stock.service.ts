@@ -105,62 +105,51 @@ export class StockService {
     });
   }
 
-  // Transferir entre depósitos
+  // Transferir entre depósitos (uno o múltiples artículos)
   async transferir(
-    articuloId: number,
     depositoOrigenId: number,
     depositoDestinoId: number,
-    cantidad: number,
+    items: { articuloId: number; cantidad: number }[],
     usuarioId: number,
   ) {
     return await this.prisma.$transaction(async (tx) => {
-      // Verificar stock origen
-      const stockOrigen = await tx.stock.findUnique({
-        where: {
-          articuloId_depositoId: { articuloId, depositoId: depositoOrigenId },
-        },
-      });
+      for (const { articuloId, cantidad } of items) {
+        const stockOrigen = await tx.stock.findUnique({
+          where: { articuloId_depositoId: { articuloId, depositoId: depositoOrigenId } },
+        });
 
-      if (!stockOrigen || stockOrigen.cantidad < cantidad) {
-        throw new BadRequestException(
-          `Stock insuficiente en depósito origen. Disponible: ${stockOrigen?.cantidad || 0}, Requerido: ${cantidad}`,
-        );
+        if (!stockOrigen || stockOrigen.cantidad < cantidad) {
+          const articulo = await tx.articulo.findUnique({ where: { id: articuloId }, select: { nombre: true } });
+          throw new BadRequestException(
+            `Stock insuficiente de "${articulo?.nombre ?? articuloId}". Disponible: ${stockOrigen?.cantidad || 0}, Requerido: ${cantidad}`,
+          );
+        }
+
+        await tx.movimiento.create({
+          data: {
+            tipo: MovimientoTipo.TRANSFERENCIA,
+            cantidad,
+            articuloId,
+            depositoDesdeId: depositoOrigenId,
+            depositoHaciaId: depositoDestinoId,
+            usuarioId,
+            observaciones: `Transferencia de ${cantidad} unidades`,
+          },
+        });
+
+        await tx.stock.update({
+          where: { articuloId_depositoId: { articuloId, depositoId: depositoOrigenId } },
+          data: { cantidad: { decrement: cantidad } },
+        });
+
+        await tx.stock.upsert({
+          where: { articuloId_depositoId: { articuloId, depositoId: depositoDestinoId } },
+          update: { cantidad: { increment: cantidad } },
+          create: { articuloId, depositoId: depositoDestinoId, cantidad },
+        });
       }
 
-      // Crear movimiento de TRANSFERENCIA
-      await tx.movimiento.create({
-        data: {
-          tipo: MovimientoTipo.TRANSFERENCIA,
-          cantidad,
-          articuloId,
-          depositoDesdeId: depositoOrigenId,
-          depositoHaciaId: depositoDestinoId,
-          usuarioId,
-          observaciones: `Transferencia de ${stockOrigen.cantidad} unidades`,
-        },
-      });
-
-      // Descontar de origen
-      await tx.stock.update({
-        where: {
-          articuloId_depositoId: { articuloId, depositoId: depositoOrigenId },
-        },
-        data: {
-          cantidad: { decrement: cantidad },
-        },
-      });
-
-      // Incrementar en destino
-      await tx.stock.update({
-        where: {
-          articuloId_depositoId: { articuloId, depositoId: depositoDestinoId },
-        },
-        data: {
-          cantidad: { increment: cantidad },
-        },
-      });
-
-      return { success: true, message: 'Transferencia realizada' };
+      return { success: true, transferencias: items.length };
     });
   }
 

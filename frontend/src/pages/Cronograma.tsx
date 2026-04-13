@@ -163,7 +163,7 @@ export default function CronogramaPage() {
           hora: e.hora ?? '',
           kilos: e.kilos != null ? String(e.kilos) : (e.beneficiario?.kilosHabitual ?? ''),
           responsableRetiro: e.responsableRetiro ?? '',
-          depositoId: e.remito?.depositoId ?? depDefault, estado: e.estado, remito: e.remito ?? null, avisadoWsp: !!e.avisadoWsp,
+          depositoId: e.depositoId ?? e.remito?.depositoId ?? depDefault, estado: e.estado, remito: e.remito ?? null, avisadoWsp: !!e.avisadoWsp,
         });
       });
       const nuevoDias: DiaEntry[] = [];
@@ -200,6 +200,7 @@ export default function CronogramaPage() {
           hora: fila.hora||undefined,
           kilos: fila.kilos?parseFloat(fila.kilos):undefined,
           responsableRetiro: fila.responsableRetiro||undefined,
+          depositoId: fila.depositoId||undefined,
         });
         setFila(fecha,fila.tempId,{id:r.data.id,saving:false});
       } else {
@@ -207,6 +208,7 @@ export default function CronogramaPage() {
           hora: fila.hora||undefined,
           kilos: fila.kilos?parseFloat(fila.kilos):undefined,
           responsableRetiro: fila.responsableRetiro||undefined,
+          depositoId: fila.depositoId||undefined,
         });
         setFila(fecha,fila.tempId,{saving:false});
       }
@@ -558,7 +560,7 @@ export default function CronogramaPage() {
                     <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.telefono??'—'}</Typography></Box>
                     {/* Deposito */}
                     <Box px={0.5}>
-                      <Select size="small" value={fila.depositoId} onChange={e=>setFila(dia.fecha,fila.tempId,{depositoId:Number(e.target.value)})} disabled={tieneRemito} variant="standard" disableUnderline={tieneRemito} sx={{fontSize:13,width:'100%'}}>
+                      <Select size="small" value={fila.depositoId} onChange={e=>{const upd={...fila,depositoId:Number(e.target.value)};setFila(dia.fecha,fila.tempId,{depositoId:Number(e.target.value)});if(fila.beneficiario)scheduleSave(dia.fecha,upd);}} disabled={tieneRemito} variant="standard" disableUnderline={tieneRemito} sx={{fontSize:13,width:'100%'}}>
                         {depositos.map(d=>(
                           <MenuItem key={d.id} value={d.id} sx={{fontSize:13}}>
                             <Chip label={d.codigo} size="small" color={d.codigo==='LOGISTICA'?'primary':'warning'} sx={{fontSize:11,height:20}}/>
