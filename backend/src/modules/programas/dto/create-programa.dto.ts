@@ -32,6 +32,11 @@ export class CreateProgramaDto {
   @IsOptional()
   descuentaStock?: boolean;
 
+  @ApiProperty({ default: true })
+  @IsBoolean()
+  @IsOptional()
+  activo?: boolean;
+
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
