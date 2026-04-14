@@ -817,3 +817,10 @@ model ActividadTerreno {
   @@index([programaTerrenoId])
   @@index([fecha])
 }
+
+model NotaBorrador {
+  id        Int      @id @default(autoincrement())
+  clave     String   @unique // ej: "cronograma"
+  contenido String   @default("")
+  updatedAt DateTime @updatedAt
+}

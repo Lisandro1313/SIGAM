@@ -193,4 +193,17 @@ export class CronogramaController {
   cancelar(@Param('id') id: string) {
     return this.cronogramaService.cancelarEntrega(+id);
   }
+
+  // ── Bloc de notas ────────────────────────────────────────────────────────
+  @Get('nota/:clave')
+  @ApiOperation({ summary: 'Obtener nota/borrador por clave' })
+  getNota(@Param('clave') clave: string) {
+    return this.cronogramaService.getNotaBorrador(clave);
+  }
+
+  @Patch('nota/:clave')
+  @ApiOperation({ summary: 'Guardar nota/borrador por clave' })
+  saveNota(@Param('clave') clave: string, @Body() body: { contenido: string }) {
+    return this.cronogramaService.saveNotaBorrador(clave, body.contenido);
+  }
 }

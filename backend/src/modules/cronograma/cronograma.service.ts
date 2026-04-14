@@ -647,4 +647,19 @@ export class CronogramaService {
 
     return remito;
   }
+
+  // ── Bloc de notas ────────────────────────────────────────────────────────
+  async getNotaBorrador(clave: string) {
+    const nota = await this.prisma.notaBorrador.findUnique({ where: { clave } });
+    return { contenido: nota?.contenido ?? '' };
+  }
+
+  async saveNotaBorrador(clave: string, contenido: string) {
+    const nota = await this.prisma.notaBorrador.upsert({
+      where: { clave },
+      update: { contenido },
+      create: { clave, contenido },
+    });
+    return { contenido: nota.contenido };
+  }
 }

@@ -12,6 +12,7 @@ import {
   AutoAwesome as GenerarIcon, PersonAdd as PersonAddIcon,
   PictureAsPdf as PdfIcon, Email as EmailIcon,
   PlaylistAddCheck as AgregarRemitoIcon, Undo as UndoIcon, WhatsApp as WspIcon, Check as CheckIcon,
+  EditNote as NotaIcon, Save as SaveIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -97,6 +98,12 @@ export default function CronogramaPage() {
   // Últimas entregas por beneficiario
   const [ultimasEntregas, setUltimasEntregas] = useState<Record<number, UltimaEntrega>>({});
 
+  // Bloc de notas
+  const [nota, setNota] = useState('');
+  const [notaGuardando, setNotaGuardando] = useState(false);
+  const [notaGuardada, setNotaGuardada] = useState(false);
+  const notaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Dialog exportar cronograma
   const [exportOpen, setExportOpen] = useState(false);
   const [exportDesde, setExportDesde] = useState('');
@@ -134,14 +141,32 @@ export default function CronogramaPage() {
       api.get('/beneficiarios?limit=500'),
       api.get('/programas'),
       api.get('/cronograma/ultimas-entregas'),
-    ]).then(([depR, benR, proR, ultR]) => {
+      api.get('/cronograma/nota/cronograma'),
+    ]).then(([depR, benR, proR, ultR, notaR]) => {
       setDepositos(depR.data);
       if (depR.data.length > 0) setDepDefault(depR.data[0].id);
       setTodosLosBens(benR.data?.data ?? benR.data);
       setProgramas(proR.data.filter((p:any) => p.activo));
       setUltimasEntregas(ultR.data ?? {});
+      setNota(notaR.data?.contenido ?? '');
     }).catch(()=>{});
   }, []);
+
+  function handleNotaChange(valor: string) {
+    setNota(valor);
+    setNotaGuardada(false);
+    if (notaTimer.current) clearTimeout(notaTimer.current);
+    notaTimer.current = setTimeout(async () => {
+      setNotaGuardando(true);
+      try {
+        await api.patch('/cronograma/nota/cronograma', { contenido: valor });
+        setNotaGuardada(true);
+        setTimeout(() => setNotaGuardada(false), 2000);
+      } finally {
+        setNotaGuardando(false);
+      }
+    }, 1000);
+  }
 
   useEffect(() => { loadPlanilla(); }, [semanaInicio, tabIdx, programas]);
 
@@ -540,6 +565,7 @@ export default function CronogramaPage() {
                 return (
                   <Paper key={fila.tempId} elevation={0} sx={{display:'grid',gridTemplateColumns:GRID,alignItems:'center',borderBottom:'1px solid #e8e8e8',bgcolor:tieneRemito?'#f0f7ff':!fila.id&&ben?'#fffde7':'#fff','&:hover':{bgcolor:tieneRemito?'#e3f0fb':'#f5f5f5'},px:0.5,py:0.25,minHeight:44}}>
                     {/* Espacio */}
+                    <Tooltip title={ben?.nombre??''} disableHoverListener={!ben} placement="top" arrow>
                     <Box px={0.5} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0 }}>
                       {ben?.programa?.nombre && (
                         <Typography variant="caption" sx={{ fontSize: 10, color: 'text.disabled', lineHeight: 1.2, mb: 0.2, fontStyle: 'italic' }} noWrap>
@@ -567,20 +593,27 @@ export default function CronogramaPage() {
                       )}
                     </Box>
                     </Box>
+                    </Tooltip>
                     {/* Referente */}
-                    <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.responsableNombre??'—'}</Typography></Box>
+                    <Tooltip title={ben?.responsableNombre??''} disableHoverListener={!ben?.responsableNombre} placement="top" arrow>
+                      <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.responsableNombre??'—'}</Typography></Box>
+                    </Tooltip>
                     {/* Hora */}
                     <Box px={0.5}>
                       <TextField size="small" value={fila.hora} onChange={e=>handleField(dia.fecha,fila,'hora',e.target.value)} placeholder="10:00" disabled={tieneRemito} variant="standard" InputProps={{disableUnderline:tieneRemito}} sx={{width:'100%','& input':{fontSize:13}}}/>
                     </Box>
                     {/* Direccion */}
-                    <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.direccion??'—'}</Typography></Box>
+                    <Tooltip title={ben?.direccion??''} disableHoverListener={!ben?.direccion} placement="top" arrow>
+                      <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.direccion??'—'}</Typography></Box>
+                    </Tooltip>
                     {/* Kilos */}
                     <Box px={0.5}>
                       <TextField size="small" value={fila.kilos} onChange={e=>handleField(dia.fecha,fila,'kilos',e.target.value)} placeholder="0" type="number" disabled={tieneRemito} variant="standard" InputProps={{disableUnderline:tieneRemito}} sx={{width:'100%','& input':{fontSize:13}}}/>
                     </Box>
                     {/* Telefono */}
-                    <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.telefono??'—'}</Typography></Box>
+                    <Tooltip title={ben?.telefono??''} disableHoverListener={!ben?.telefono} placement="top" arrow>
+                      <Box px={0.5}><Typography variant="body2" fontSize={12} color={ben?'text.primary':'text.disabled'} noWrap>{ben?.telefono??'—'}</Typography></Box>
+                    </Tooltip>
                     {/* Deposito */}
                     <Box px={0.5}>
                       <Select size="small" value={fila.depositoId} onChange={e=>{const upd={...fila,depositoId:Number(e.target.value)};setFila(dia.fecha,fila.tempId,{depositoId:Number(e.target.value)});if(fila.beneficiario)scheduleSave(dia.fecha,upd);}} disabled={tieneRemito} variant="standard" disableUnderline={tieneRemito} sx={{fontSize:13,width:'100%'}}>
@@ -826,6 +859,45 @@ export default function CronogramaPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ── Bloc de notas ───────────────────────────────────────────────── */}
+      <Paper elevation={2} sx={{ mt: 4, mb: 2, borderRadius: 2, overflow: 'hidden', border: '1px solid #e0e0e0' }}>
+        <Box sx={{ bgcolor: '#fff8e1', px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid #ffe082' }}>
+          <NotaIcon sx={{ color: '#f9a825', fontSize: 20 }} />
+          <Typography variant="subtitle2" fontWeight="bold" color="#5d4037" sx={{ flex: 1 }}>
+            Borrador / Notas del cronograma
+          </Typography>
+          {notaGuardando && <CircularProgress size={14} sx={{ color: '#f9a825' }} />}
+          {notaGuardada && !notaGuardando && (
+            <Box display="flex" alignItems="center" gap={0.5}>
+              <SaveIcon sx={{ fontSize: 14, color: 'success.main' }} />
+              <Typography variant="caption" color="success.main">Guardado</Typography>
+            </Box>
+          )}
+          {!notaGuardando && !notaGuardada && nota && (
+            <Typography variant="caption" color="text.disabled">Guardado automático</Typography>
+          )}
+        </Box>
+        <TextField
+          multiline
+          minRows={4}
+          maxRows={12}
+          fullWidth
+          placeholder={"Ej: María Rodríguez pide fecha para la semana del 21...\nComedor CCC no recibe el martes, llamar antes...\nJuan vino a la oficina a pedir turno — darle el jueves 17..."}
+          value={nota}
+          onChange={e => handleNotaChange(e.target.value)}
+          variant="outlined"
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 0,
+              bgcolor: '#fffde7',
+              fontSize: 14,
+              fontFamily: 'monospace',
+              '& fieldset': { border: 'none' },
+            },
+          }}
+        />
+      </Paper>
 
       <BeneficiarioForm
         open={openNuevoBen}
