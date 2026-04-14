@@ -34,6 +34,7 @@ interface FilaData {
   remito?: { id: number; numero: string; estado: string } | null;
   saving?: boolean;
   avisadoWsp?: boolean;
+  observacion?: string;
 }
 interface DiaEntry { fecha: string; filas: FilaData[]; }
 
@@ -60,7 +61,7 @@ const COLS = [
   { label:'HORA', w:55 }, { label:'DIRECCION', w:160 },
   { label:'KG', w:60 }, { label:'TELEFONO', w:105 },
   { label:'DEP.', w:80 }, { label:'RESP. RETIRO', w:150 },
-  { label:'', w:120 },
+  { label:'', w:120 }, { label:'OBSERVACIÓN', w:170 },
 ];
 const GRID = COLS.map(c=>`${c.w}px`).join(' ');
 const MINW = COLS.reduce((a,c)=>a+c.w,0);
@@ -188,7 +189,7 @@ export default function CronogramaPage() {
           hora: e.hora ?? '',
           kilos: e.kilos != null ? String(e.kilos) : (e.beneficiario?.kilosHabitual ?? ''),
           responsableRetiro: e.responsableRetiro ?? '',
-          depositoId: e.depositoId ?? e.remito?.depositoId ?? depDefault, estado: e.estado, remito: e.remito ?? null, avisadoWsp: !!e.avisadoWsp,
+          depositoId: e.depositoId ?? e.remito?.depositoId ?? depDefault, estado: e.estado, remito: e.remito ?? null, avisadoWsp: !!e.avisadoWsp, observacion: e.observaciones ?? '',
         });
       });
       const nuevoDias: DiaEntry[] = [];
@@ -226,6 +227,7 @@ export default function CronogramaPage() {
           kilos: fila.kilos?parseFloat(fila.kilos):undefined,
           responsableRetiro: fila.responsableRetiro||undefined,
           depositoId: fila.depositoId||undefined,
+          observaciones: fila.observacion||undefined,
         });
         setFila(fecha,fila.tempId,{id:r.data.id,saving:false});
       } else {
@@ -234,6 +236,7 @@ export default function CronogramaPage() {
           kilos: fila.kilos?parseFloat(fila.kilos):undefined,
           responsableRetiro: fila.responsableRetiro||undefined,
           depositoId: fila.depositoId||undefined,
+          observaciones: fila.observacion ?? '',
         });
         setFila(fecha,fila.tempId,{saving:false});
       }
@@ -250,7 +253,7 @@ export default function CronogramaPage() {
     setFila(fecha,fila.tempId,{beneficiario:b, kilos:kilosAuto});
     if (b) scheduleSave(fecha,upd);
   }
-  function handleField(fecha:string, fila:FilaData, field:'hora'|'kilos'|'responsableRetiro', val:string) {
+  function handleField(fecha:string, fila:FilaData, field:'hora'|'kilos'|'responsableRetiro'|'observacion', val:string) {
     const upd = {...fila,[field]:val};
     setFila(fecha,fila.tempId,{[field]:val});
     if (fila.beneficiario) scheduleSave(fecha,upd);
@@ -376,7 +379,7 @@ export default function CronogramaPage() {
     setRemitoFormData(null);
   }
   function handleAgregarFila(fecha:string) {
-    setDias(prev=>prev.map(d=>d.fecha!==fecha?d:{...d,filas:[...d.filas,{tempId:makeTempId(),beneficiario:null,hora:'',kilos:'',responsableRetiro:'',depositoId:depDefault,estado:'PENDIENTE',remito:null}]}));
+    setDias(prev=>prev.map(d=>d.fecha!==fecha?d:{...d,filas:[...d.filas,{tempId:makeTempId(),beneficiario:null,hora:'',kilos:'',responsableRetiro:'',depositoId:depDefault,estado:'PENDIENTE',remito:null,observacion:''}]}));
   }
 
   const colorTab = (i:number) => COLORES_TAB[i % COLORES_TAB.length];
@@ -671,6 +674,19 @@ export default function CronogramaPage() {
                           <DeleteIcon fontSize="small"/>
                         </IconButton>
                       </span></Tooltip>
+                    </Box>
+                    {/* Observación */}
+                    <Box px={0.5}>
+                      <TextField
+                        size="small"
+                        value={fila.observacion ?? ''}
+                        onChange={e=>handleField(dia.fecha,fila,'observacion',e.target.value)}
+                        placeholder="Observación..."
+                        variant="standard"
+                        multiline
+                        maxRows={3}
+                        sx={{width:'100%','& input':{fontSize:12},'& textarea':{fontSize:12}}}
+                      />
                     </Box>
                   </Paper>
                 );
