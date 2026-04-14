@@ -754,6 +754,24 @@ model RelevamientoNutricional {
   // Fotos del relevamiento (JSON array de URLs)
   fotos               String?      // JSON: ["url1", "url2"]
 
+  // Enfermedades crónicas reportadas en el espacio
+  enfermedadesCronicas        String?  // JSON: ["OBESIDAD","DIABETES_T1","DIABETES_T2",...]
+
+  // Asistencias especiales que recibe el espacio
+  asistenciasEspeciales       String?  // JSON: ["CELIAQUIA","DISCAPACIDAD","OTRO"]
+  asistenciasEspecialesDetalle String?
+
+  // Recibe alimentos de otra red
+  recibeOtraRed               Boolean  @default(false)
+  otraRedDetalle              String?
+
+  // Agua corriente (diferente de agua potable — puede haber agua corriente no potable)
+  aguaCorriente               Boolean  @default(false)
+
+  // Sugerencias nutricionales
+  alimentosIntegrar           String?
+  alimentosModificar          String?
+
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
@@ -811,6 +829,9 @@ model ActividadTerreno {
 
   // Fotos/archivos (JSON array de URLs)
   fotos             String?          // JSON: ["url1", "url2"]
+
+  // Documentos adjuntos (fotos, PDFs, etc.)
+  documentos        String?          // JSON: [{url, nombre, tipo}]
 
   createdAt         DateTime         @default(now())
 

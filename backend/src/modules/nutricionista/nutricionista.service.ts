@@ -27,10 +27,18 @@ export class NutricionistaService {
         tieneCocina: dto.tieneCocina ?? false,
         aguaPotable: dto.aguaPotable ?? false,
         tieneHeladera: dto.tieneHeladera ?? false,
+        aguaCorriente: dto.aguaCorriente ?? false,
         estadoGeneral: dto.estadoGeneral ?? null,
         necesidades: dto.necesidades ?? null,
         observaciones: dto.observaciones ?? null,
         fotos: dto.fotos ? JSON.stringify(dto.fotos) : null,
+        enfermedadesCronicas: dto.enfermedadesCronicas?.length ? JSON.stringify(dto.enfermedadesCronicas) : null,
+        asistenciasEspeciales: dto.asistenciasEspeciales?.length ? JSON.stringify(dto.asistenciasEspeciales) : null,
+        asistenciasEspecialesDetalle: dto.asistenciasEspecialesDetalle ?? null,
+        recibeOtraRed: dto.recibeOtraRed ?? false,
+        otraRedDetalle: dto.otraRedDetalle ?? null,
+        alimentosIntegrar: dto.alimentosIntegrar ?? null,
+        alimentosModificar: dto.alimentosModificar ?? null,
       },
       include: {
         beneficiario: { select: { id: true, nombre: true, direccion: true } },
@@ -55,10 +63,18 @@ export class NutricionistaService {
     if (dto.tieneCocina !== undefined) data.tieneCocina = dto.tieneCocina;
     if (dto.aguaPotable !== undefined) data.aguaPotable = dto.aguaPotable;
     if (dto.tieneHeladera !== undefined) data.tieneHeladera = dto.tieneHeladera;
+    if (dto.aguaCorriente !== undefined) data.aguaCorriente = dto.aguaCorriente;
     if (dto.estadoGeneral !== undefined) data.estadoGeneral = dto.estadoGeneral;
     if (dto.necesidades !== undefined) data.necesidades = dto.necesidades;
     if (dto.observaciones !== undefined) data.observaciones = dto.observaciones;
     if (dto.fotos !== undefined) data.fotos = JSON.stringify(dto.fotos);
+    if (dto.enfermedadesCronicas !== undefined) data.enfermedadesCronicas = dto.enfermedadesCronicas?.length ? JSON.stringify(dto.enfermedadesCronicas) : null;
+    if (dto.asistenciasEspeciales !== undefined) data.asistenciasEspeciales = dto.asistenciasEspeciales?.length ? JSON.stringify(dto.asistenciasEspeciales) : null;
+    if (dto.asistenciasEspecialesDetalle !== undefined) data.asistenciasEspecialesDetalle = dto.asistenciasEspecialesDetalle;
+    if (dto.recibeOtraRed !== undefined) data.recibeOtraRed = dto.recibeOtraRed;
+    if (dto.otraRedDetalle !== undefined) data.otraRedDetalle = dto.otraRedDetalle;
+    if (dto.alimentosIntegrar !== undefined) data.alimentosIntegrar = dto.alimentosIntegrar;
+    if (dto.alimentosModificar !== undefined) data.alimentosModificar = dto.alimentosModificar;
 
     return this.prisma.relevamientoNutricional.update({
       where: { id },
@@ -79,7 +95,12 @@ export class NutricionistaService {
       },
     });
     if (!rel) throw new NotFoundException('Relevamiento no encontrado');
-    return { ...rel, fotos: rel.fotos ? JSON.parse(rel.fotos) : [] };
+    return {
+      ...rel,
+      fotos: rel.fotos ? JSON.parse(rel.fotos) : [],
+      enfermedadesCronicas: rel.enfermedadesCronicas ? JSON.parse(rel.enfermedadesCronicas) : [],
+      asistenciasEspeciales: rel.asistenciasEspeciales ? JSON.parse(rel.asistenciasEspeciales) : [],
+    };
   }
 
   async listarRelevamientos(filtros: any, nutricionistaId: number, rol: string) {
@@ -106,7 +127,15 @@ export class NutricionistaService {
       this.prisma.relevamientoNutricional.count({ where }),
     ]);
 
-    return { data: data.map(r => ({ ...r, fotos: r.fotos ? JSON.parse(r.fotos) : [] })), total, page, limit };
+    return {
+      data: data.map(r => ({
+        ...r,
+        fotos: r.fotos ? JSON.parse(r.fotos) : [],
+        enfermedadesCronicas: r.enfermedadesCronicas ? JSON.parse(r.enfermedadesCronicas) : [],
+        asistenciasEspeciales: r.asistenciasEspeciales ? JSON.parse(r.asistenciasEspeciales) : [],
+      })),
+      total, page, limit,
+    };
   }
 
   async eliminarRelevamiento(id: number, nutricionistaId: number, rol: string) {
@@ -126,7 +155,12 @@ export class NutricionistaService {
       include: { nutricionista: { select: { id: true, nombre: true } } },
       orderBy: { fecha: 'desc' },
     });
-    return data.map(r => ({ ...r, fotos: r.fotos ? JSON.parse(r.fotos) : [] }));
+    return data.map(r => ({
+      ...r,
+      fotos: r.fotos ? JSON.parse(r.fotos) : [],
+      enfermedadesCronicas: r.enfermedadesCronicas ? JSON.parse(r.enfermedadesCronicas) : [],
+      asistenciasEspeciales: r.asistenciasEspeciales ? JSON.parse(r.asistenciasEspeciales) : [],
+    }));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -193,7 +227,11 @@ export class NutricionistaService {
     if (!prog) throw new NotFoundException('Programa de terreno no encontrado');
     return {
       ...prog,
-      actividades: prog.actividades.map(a => ({ ...a, fotos: a.fotos ? JSON.parse(a.fotos) : [] })),
+      actividades: prog.actividades.map(a => ({
+        ...a,
+        fotos: a.fotos ? JSON.parse(a.fotos) : [],
+        documentos: a.documentos ? JSON.parse(a.documentos) : [],
+      })),
     };
   }
 
@@ -250,7 +288,11 @@ export class NutricionistaService {
     });
     return data.map(p => ({
       ...p,
-      actividades: p.actividades.map(a => ({ ...a, fotos: a.fotos ? JSON.parse(a.fotos) : [] })),
+      actividades: p.actividades.map(a => ({
+        ...a,
+        fotos: a.fotos ? JSON.parse(a.fotos) : [],
+        documentos: a.documentos ? JSON.parse(a.documentos) : [],
+      })),
     }));
   }
 
@@ -281,6 +323,7 @@ export class NutricionistaService {
         asistentes: dto.asistentes ?? null,
         observaciones: dto.observaciones ?? null,
         fotos: dto.fotos ? JSON.stringify(dto.fotos) : null,
+        documentos: dto.documentos?.length ? JSON.stringify(dto.documentos) : null,
       },
     });
   }
@@ -300,6 +343,7 @@ export class NutricionistaService {
     if (dto.asistentes !== undefined) data.asistentes = dto.asistentes;
     if (dto.observaciones !== undefined) data.observaciones = dto.observaciones;
     if (dto.fotos !== undefined) data.fotos = JSON.stringify(dto.fotos);
+    if (dto.documentos !== undefined) data.documentos = dto.documentos?.length ? JSON.stringify(dto.documentos) : null;
     if (dto.fecha !== undefined) data.fecha = new Date(dto.fecha);
 
     return this.prisma.actividadTerreno.update({ where: { id }, data });

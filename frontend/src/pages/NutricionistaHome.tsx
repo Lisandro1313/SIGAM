@@ -25,6 +25,13 @@ import {
   EscalatorWarning as AdolescentIcon,
   Person as AdultIcon,
   Delete as DeleteIcon,
+  AttachFile as AttachIcon,
+  PictureAsPdf as PdfIcon,
+  Image as ImageIcon,
+  InsertDriveFile as FileIcon,
+  OpenInNew as OpenIcon,
+  Vaccines as EnfermedadIcon,
+  Groups as RedesIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
@@ -47,10 +54,18 @@ interface Relevamiento {
   tieneCocina: boolean;
   aguaPotable: boolean;
   tieneHeladera: boolean;
+  aguaCorriente: boolean;
   estadoGeneral?: string;
   necesidades?: string;
   observaciones?: string;
   fotos: string[];
+  enfermedadesCronicas: string[];
+  asistenciasEspeciales: string[];
+  asistenciasEspecialesDetalle?: string;
+  recibeOtraRed: boolean;
+  otraRedDetalle?: string;
+  alimentosIntegrar?: string;
+  alimentosModificar?: string;
 }
 
 interface ProgramaTerreno {
@@ -76,6 +91,7 @@ interface Actividad {
   asistentes?: number;
   observaciones?: string;
   fotos: string[];
+  documentos: { url: string; nombre: string; tipo: string }[];
 }
 
 interface DashboardData {
@@ -136,6 +152,24 @@ const ESTADO_PROGRAMA_COLORS: Record<string, string> = {
   FINALIZADO: '#546e7a',
   CANCELADO: '#e53935',
 };
+
+const ENFERMEDADES = [
+  { key: 'OBESIDAD',       label: 'Obesidad' },
+  { key: 'DIABETES_T1',    label: 'Diabetes Tipo 1' },
+  { key: 'DIABETES_T2',    label: 'Diabetes Tipo 2' },
+  { key: 'HIPERTENSION',   label: 'Hipertensión' },
+  { key: 'DISLIPEMIA',     label: 'Dislipemia' },
+  { key: 'ANEMIA',         label: 'Anemia' },
+  { key: 'DESNUTRICION',   label: 'Desnutrición' },
+  { key: 'CELIAQUIA',      label: 'Celiaquía' },
+  { key: 'ALERGIAS',       label: 'Alergias alimentarias' },
+];
+
+const ASISTENCIAS_ESPECIALES = [
+  { key: 'CELIAQUIA',    label: 'Celiaquía' },
+  { key: 'DISCAPACIDAD', label: 'Discapacidad' },
+  { key: 'OTRO',         label: 'Otro' },
+];
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
@@ -467,15 +501,52 @@ export default function NutricionistaHome() {
                         )}
                       </Grid>
 
-                      <Stack direction="row" spacing={1.5} sx={{ mt: 1.5 }}>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1.5, gap: 0.5 }}>
                         {rel.tieneCocina && <Chip icon={<KitchenIcon />} label="Cocina" size="small" variant="outlined" color="success" />}
                         {rel.aguaPotable && <Chip icon={<WaterIcon />} label="Agua potable" size="small" variant="outlined" color="info" />}
+                        {rel.aguaCorriente && <Chip icon={<WaterIcon />} label="Agua corriente" size="small" variant="outlined" color="primary" />}
                         {rel.tieneHeladera && <Chip icon={<FridgeIcon />} label="Heladera" size="small" variant="outlined" color="secondary" />}
+                        {rel.recibeOtraRed && <Chip icon={<RedesIcon />} label={rel.otraRedDetalle ? `Otra red: ${rel.otraRedDetalle}` : 'Recibe otra red'} size="small" variant="outlined" color="warning" />}
                       </Stack>
+
+                      {rel.enfermedadesCronicas?.length > 0 && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            <EnfermedadIcon sx={{ fontSize: 13, mr: 0.3, verticalAlign: 'middle' }} />
+                            Enf. crónicas:
+                          </Typography>
+                          <Stack direction="row" flexWrap="wrap" sx={{ gap: 0.5, mt: 0.3 }}>
+                            {rel.enfermedadesCronicas.map(e => (
+                              <Chip key={e} label={ENFERMEDADES.find(x => x.key === e)?.label ?? e} size="small" sx={{ bgcolor: '#ffebee', color: '#c62828', fontSize: 11 }} />
+                            ))}
+                          </Stack>
+                        </Box>
+                      )}
+
+                      {rel.asistenciasEspeciales?.length > 0 && (
+                        <Box sx={{ mt: 0.8 }}>
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>Asistencias especiales: </Typography>
+                          {rel.asistenciasEspeciales.map(a => (
+                            <Chip key={a} label={ASISTENCIAS_ESPECIALES.find(x => x.key === a)?.label ?? a} size="small" sx={{ mr: 0.5, bgcolor: '#e8eaf6', color: '#283593', fontSize: 11 }} />
+                          ))}
+                          {rel.asistenciasEspecialesDetalle && <Typography variant="caption" color="text.secondary"> ({rel.asistenciasEspecialesDetalle})</Typography>}
+                        </Box>
+                      )}
 
                       {rel.necesidades && (
                         <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
                           <b>Necesidades:</b> {rel.necesidades}
+                        </Typography>
+                      )}
+
+                      {rel.alimentosIntegrar && (
+                        <Typography variant="body2" sx={{ mt: 0.5, color: 'text.secondary' }}>
+                          <b>Alimentos a integrar:</b> {rel.alimentosIntegrar}
+                        </Typography>
+                      )}
+                      {rel.alimentosModificar && (
+                        <Typography variant="body2" sx={{ mt: 0.5, color: 'text.secondary' }}>
+                          <b>Alimentos a modificar:</b> {rel.alimentosModificar}
                         </Typography>
                       )}
                     </CardContent>
@@ -616,12 +687,34 @@ export default function NutricionistaHome() {
                               {act.observaciones && (
                                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{act.observaciones}</Typography>
                               )}
-                              {act.fotos && act.fotos.length > 0 && (
-                                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                                  {act.fotos.map((foto, i) => (
-                                    <Box key={i} component="img" src={foto} sx={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 1 }} />
-                                  ))}
-                                </Stack>
+                              {(act.fotos?.length > 0 || act.documentos?.length > 0) && (
+                                <Box sx={{ mt: 1 }}>
+                                  {act.fotos?.length > 0 && (
+                                    <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 0.5 }}>
+                                      {act.fotos.map((foto, i) => (
+                                        <Box key={i} component="a" href={foto} target="_blank" rel="noopener">
+                                          <Box component="img" src={foto} sx={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 1, cursor: 'pointer', '&:hover': { opacity: 0.85 } }} />
+                                        </Box>
+                                      ))}
+                                    </Stack>
+                                  )}
+                                  {act.documentos?.length > 0 && (
+                                    <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ gap: 0.5 }}>
+                                      {act.documentos.map((doc, i) => (
+                                        <Chip
+                                          key={i}
+                                          size="small"
+                                          icon={doc.tipo === 'pdf' ? <PdfIcon /> : doc.tipo === 'foto' ? <ImageIcon /> : <FileIcon />}
+                                          label={doc.nombre.length > 20 ? doc.nombre.slice(0, 20) + '...' : doc.nombre}
+                                          onClick={() => window.open(doc.url, '_blank')}
+                                          onDelete={() => window.open(doc.url, '_blank')}
+                                          deleteIcon={<OpenIcon />}
+                                          sx={{ cursor: 'pointer', bgcolor: doc.tipo === 'pdf' ? '#ffebee' : '#e3f2fd' }}
+                                        />
+                                      ))}
+                                    </Stack>
+                                  )}
+                                </Box>
                               )}
                             </Paper>
                           ))}
@@ -724,6 +817,17 @@ function RelevamientoDialog({ open, onClose, onSave, initial, setBeneSearch, ben
   const [saving, setSaving] = useState(false);
   const [selectedBene, setSelectedBene] = useState<Beneficiario | null>(null);
 
+  const emptyForm = () => ({
+    poblacionInfantil05: '', poblacionInfantil612: '', poblacionAdolescente: '', poblacionAdulta: '',
+    modalidad: '', tieneCocina: false, aguaPotable: false, tieneHeladera: false, aguaCorriente: false,
+    estadoGeneral: '', necesidades: '', observaciones: '',
+    enfermedadesCronicas: [] as string[],
+    asistenciasEspeciales: [] as string[],
+    asistenciasEspecialesDetalle: '',
+    recibeOtraRed: false, otraRedDetalle: '',
+    alimentosIntegrar: '', alimentosModificar: '',
+  });
+
   useEffect(() => {
     if (open) {
       if (initial) {
@@ -736,21 +840,32 @@ function RelevamientoDialog({ open, onClose, onSave, initial, setBeneSearch, ben
           tieneCocina: initial.tieneCocina ?? false,
           aguaPotable: initial.aguaPotable ?? false,
           tieneHeladera: initial.tieneHeladera ?? false,
+          aguaCorriente: initial.aguaCorriente ?? false,
           estadoGeneral: initial.estadoGeneral ?? '',
           necesidades: initial.necesidades ?? '',
           observaciones: initial.observaciones ?? '',
+          enfermedadesCronicas: initial.enfermedadesCronicas ?? [],
+          asistenciasEspeciales: initial.asistenciasEspeciales ?? [],
+          asistenciasEspecialesDetalle: initial.asistenciasEspecialesDetalle ?? '',
+          recibeOtraRed: initial.recibeOtraRed ?? false,
+          otraRedDetalle: initial.otraRedDetalle ?? '',
+          alimentosIntegrar: initial.alimentosIntegrar ?? '',
+          alimentosModificar: initial.alimentosModificar ?? '',
         });
         setSelectedBene(initial.beneficiario);
       } else {
-        setForm({
-          poblacionInfantil05: '', poblacionInfantil612: '', poblacionAdolescente: '', poblacionAdulta: '',
-          modalidad: '', tieneCocina: false, aguaPotable: false, tieneHeladera: false,
-          estadoGeneral: '', necesidades: '', observaciones: '',
-        });
+        setForm(emptyForm());
         setSelectedBene(null);
       }
     }
   }, [open, initial]);
+
+  const toggleArr = (field: string, key: string) => {
+    setForm((f: any) => {
+      const arr: string[] = f[field] ?? [];
+      return { ...f, [field]: arr.includes(key) ? arr.filter((x: string) => x !== key) : [...arr, key] };
+    });
+  };
 
   const handleSubmit = async () => {
     if (!initial && !selectedBene) return;
@@ -767,6 +882,10 @@ function RelevamientoDialog({ open, onClose, onSave, initial, setBeneSearch, ben
         estadoGeneral: form.estadoGeneral || null,
         necesidades: form.necesidades || null,
         observaciones: form.observaciones || null,
+        asistenciasEspecialesDetalle: form.asistenciasEspecialesDetalle || null,
+        otraRedDetalle: form.otraRedDetalle || null,
+        alimentosIntegrar: form.alimentosIntegrar || null,
+        alimentosModificar: form.alimentosModificar || null,
       });
     } catch { /* ignore */ }
     setSaving(false);
@@ -795,6 +914,7 @@ function RelevamientoDialog({ open, onClose, onSave, initial, setBeneSearch, ben
           <Alert severity="info" sx={{ mb: 2 }}>Espacio: <b>{initial.beneficiario.nombre}</b></Alert>
         )}
 
+        {/* Población */}
         <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Población</Typography>
         <Grid container spacing={2}>
           <Grid item xs={6} sm={3}>
@@ -817,6 +937,7 @@ function RelevamientoDialog({ open, onClose, onSave, initial, setBeneSearch, ben
 
         <Divider sx={{ my: 2 }} />
 
+        {/* Modalidad e infraestructura */}
         <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Modalidad alimentaria e infraestructura</Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
@@ -838,21 +959,81 @@ function RelevamientoDialog({ open, onClose, onSave, initial, setBeneSearch, ben
             </TextField>
           </Grid>
         </Grid>
-
-        <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-          <FormControlLabel control={<Checkbox checked={form.tieneCocina} onChange={e => setForm({ ...form, tieneCocina: e.target.checked })} />}
-            label="Tiene cocina" />
-          <FormControlLabel control={<Checkbox checked={form.aguaPotable} onChange={e => setForm({ ...form, aguaPotable: e.target.checked })} />}
-            label="Agua potable" />
-          <FormControlLabel control={<Checkbox checked={form.tieneHeladera} onChange={e => setForm({ ...form, tieneHeladera: e.target.checked })} />}
-            label="Heladera" />
+        <Stack direction="row" flexWrap="wrap" sx={{ mt: 1.5, gap: 0 }}>
+          <FormControlLabel control={<Checkbox checked={form.tieneCocina} onChange={e => setForm({ ...form, tieneCocina: e.target.checked })} size="small" />} label="Cocina" />
+          <FormControlLabel control={<Checkbox checked={form.aguaPotable} onChange={e => setForm({ ...form, aguaPotable: e.target.checked })} size="small" />} label="Agua potable" />
+          <FormControlLabel control={<Checkbox checked={form.aguaCorriente} onChange={e => setForm({ ...form, aguaCorriente: e.target.checked })} size="small" />} label="Agua corriente" />
+          <FormControlLabel control={<Checkbox checked={form.tieneHeladera} onChange={e => setForm({ ...form, tieneHeladera: e.target.checked })} size="small" />} label="Heladera" />
         </Stack>
 
         <Divider sx={{ my: 2 }} />
 
+        {/* Enfermedades crónicas */}
+        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+          <EnfermedadIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle', color: '#c62828' }} />
+          Enfermedades crónicas reportadas en el espacio
+        </Typography>
+        <Grid container>
+          {ENFERMEDADES.map(e => (
+            <Grid item xs={6} sm={4} key={e.key}>
+              <FormControlLabel
+                control={<Checkbox size="small" checked={(form.enfermedadesCronicas ?? []).includes(e.key)} onChange={() => toggleArr('enfermedadesCronicas', e.key)} />}
+                label={<Typography variant="body2">{e.label}</Typography>}
+              />
+            </Grid>
+          ))}
+        </Grid>
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Asistencias especiales */}
+        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Asistencias especiales que recibe el espacio</Typography>
+        <Stack direction="row" flexWrap="wrap" sx={{ gap: 0 }}>
+          {ASISTENCIAS_ESPECIALES.map(a => (
+            <FormControlLabel key={a.key}
+              control={<Checkbox size="small" checked={(form.asistenciasEspeciales ?? []).includes(a.key)} onChange={() => toggleArr('asistenciasEspeciales', a.key)} />}
+              label={<Typography variant="body2">{a.label}</Typography>}
+            />
+          ))}
+        </Stack>
+        {(form.asistenciasEspeciales ?? []).includes('OTRO') && (
+          <TextField label="Especificar otra asistencia" fullWidth size="small" sx={{ mt: 1 }}
+            value={form.asistenciasEspecialesDetalle} onChange={e => setForm({ ...form, asistenciasEspecialesDetalle: e.target.value })} />
+        )}
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Otras redes */}
+        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+          <RedesIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle', color: '#e65100' }} />
+          Otras redes alimentarias
+        </Typography>
+        <FormControlLabel
+          control={<Checkbox checked={form.recibeOtraRed} onChange={e => setForm({ ...form, recibeOtraRed: e.target.checked })} size="small" />}
+          label="Recibe alimentos de otra red / programa"
+        />
+        {form.recibeOtraRed && (
+          <TextField label="¿Cuál red o programa?" fullWidth size="small" sx={{ mt: 1 }}
+            value={form.otraRedDetalle} onChange={e => setForm({ ...form, otraRedDetalle: e.target.value })} />
+        )}
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Sugerencias de alimentos */}
+        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>Sugerencias nutricionales</Typography>
+        <TextField label="Alimentos a integrar" multiline rows={2} fullWidth size="small" sx={{ mb: 2 }}
+          placeholder="Ej: incorporar legumbres, frutas de estación..."
+          value={form.alimentosIntegrar} onChange={e => setForm({ ...form, alimentosIntegrar: e.target.value })} />
+        <TextField label="Alimentos a modificar / reemplazar" multiline rows={2} fullWidth size="small" sx={{ mb: 2 }}
+          placeholder="Ej: reducir harinas refinadas, reemplazar aceite por..."
+          value={form.alimentosModificar} onChange={e => setForm({ ...form, alimentosModificar: e.target.value })} />
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Observaciones */}
         <TextField label="Necesidades detectadas" multiline rows={2} fullWidth sx={{ mb: 2 }}
           value={form.necesidades} onChange={e => setForm({ ...form, necesidades: e.target.value })} />
-        <TextField label="Observaciones" multiline rows={2} fullWidth
+        <TextField label="Observaciones generales" multiline rows={2} fullWidth
           value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })} />
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>
@@ -994,10 +1175,32 @@ function ProgramaDialog({ open, onClose, onSave, initial, setBeneSearch, beneOpt
 function ActividadDialog({ open, onClose, onSave, isMobile }: any) {
   const [form, setForm] = useState({ descripcion: '', asistentes: '', observaciones: '', fecha: new Date().toISOString().slice(0, 10) });
   const [saving, setSaving] = useState(false);
+  const [documentos, setDocumentos] = useState<{ url: string; nombre: string; tipo: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    if (open) setForm({ descripcion: '', asistentes: '', observaciones: '', fecha: new Date().toISOString().slice(0, 10) });
+    if (open) {
+      setForm({ descripcion: '', asistentes: '', observaciones: '', fecha: new Date().toISOString().slice(0, 10) });
+      setDocumentos([]);
+    }
   }, [open]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await api.post('/nutricionista/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const tipo = file.type.startsWith('image/') ? 'foto' : file.type === 'application/pdf' ? 'pdf' : 'documento';
+      setDocumentos(prev => [...prev, { url: data.url, nombre: file.name, tipo }]);
+    } catch { /* ignore */ }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  const removeDoc = (idx: number) => setDocumentos(prev => prev.filter((_, i) => i !== idx));
 
   const handleSubmit = async () => {
     if (!form.descripcion.trim()) return;
@@ -1008,6 +1211,7 @@ function ActividadDialog({ open, onClose, onSave, isMobile }: any) {
         asistentes: form.asistentes ? +form.asistentes : null,
         observaciones: form.observaciones || null,
         fecha: form.fecha,
+        documentos: documentos.length ? documentos : undefined,
       });
     } catch { /* ignore */ }
     setSaving(false);
@@ -1024,8 +1228,40 @@ function ActividadDialog({ open, onClose, onSave, isMobile }: any) {
           placeholder="Ej: Preparación de suelo y siembra de hortalizas" />
         <TextField label="Cantidad de asistentes" type="number" fullWidth size="small" sx={{ mb: 2 }}
           value={form.asistentes} onChange={e => setForm({ ...form, asistentes: e.target.value })} />
-        <TextField label="Observaciones" multiline rows={2} fullWidth
+        <TextField label="Observaciones" multiline rows={2} fullWidth sx={{ mb: 2 }}
           value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })} />
+
+        {/* Documentación adjunta */}
+        <Divider sx={{ mb: 2 }} />
+        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+          <AttachIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle' }} />
+          Documentación adjunta
+        </Typography>
+        <Button
+          component="label"
+          variant="outlined"
+          size="small"
+          startIcon={uploading ? <CircularProgress size={14} /> : <AttachIcon />}
+          disabled={uploading}
+          sx={{ mb: 1.5 }}
+        >
+          {uploading ? 'Subiendo...' : 'Adjuntar archivo (foto, PDF, etc.)'}
+          <input type="file" hidden accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={handleFileUpload} />
+        </Button>
+        {documentos.length > 0 && (
+          <Stack spacing={0.5}>
+            {documentos.map((doc, i) => (
+              <Chip
+                key={i}
+                size="small"
+                icon={doc.tipo === 'pdf' ? <PdfIcon /> : doc.tipo === 'foto' ? <ImageIcon /> : <FileIcon />}
+                label={doc.nombre.length > 35 ? doc.nombre.slice(0, 35) + '...' : doc.nombre}
+                onDelete={() => removeDoc(i)}
+                sx={{ justifyContent: 'flex-start', bgcolor: doc.tipo === 'pdf' ? '#ffebee' : '#e8f5e9' }}
+              />
+            ))}
+          </Stack>
+        )}
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>
         <Button onClick={onClose}>Cancelar</Button>
