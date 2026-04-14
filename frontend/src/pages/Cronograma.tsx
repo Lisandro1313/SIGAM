@@ -98,8 +98,8 @@ export default function CronogramaPage() {
   // Últimas entregas por beneficiario
   const [ultimasEntregas, setUltimasEntregas] = useState<Record<number, UltimaEntrega>>({});
 
-  // Bloc de notas
-  const [nota, setNota] = useState('');
+  // Bloc de notas (no controlado para no re-renderizar el componente en cada tecla)
+  const notaRef = useRef<HTMLTextAreaElement>(null);
   const [notaGuardando, setNotaGuardando] = useState(false);
   const [notaGuardada, setNotaGuardada] = useState(false);
   const notaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -148,15 +148,15 @@ export default function CronogramaPage() {
       setTodosLosBens(benR.data?.data ?? benR.data);
       setProgramas(proR.data.filter((p:any) => p.activo));
       setUltimasEntregas(ultR.data ?? {});
-      setNota(notaR.data?.contenido ?? '');
+      if (notaRef.current) notaRef.current.value = notaR.data?.contenido ?? '';
     }).catch(()=>{});
   }, []);
 
-  function handleNotaChange(valor: string) {
-    setNota(valor);
+  function handleNotaChange() {
     setNotaGuardada(false);
     if (notaTimer.current) clearTimeout(notaTimer.current);
     notaTimer.current = setTimeout(async () => {
+      const valor = notaRef.current?.value ?? '';
       setNotaGuardando(true);
       try {
         await api.patch('/cronograma/nota/cronograma', { contenido: valor });
@@ -874,27 +874,27 @@ export default function CronogramaPage() {
               <Typography variant="caption" color="success.main">Guardado</Typography>
             </Box>
           )}
-          {!notaGuardando && !notaGuardada && nota && (
+          {!notaGuardando && !notaGuardada && (
             <Typography variant="caption" color="text.disabled">Guardado automático</Typography>
           )}
         </Box>
-        <TextField
-          multiline
-          minRows={4}
-          maxRows={12}
-          fullWidth
+        <textarea
+          ref={notaRef}
+          onChange={handleNotaChange}
           placeholder={"Ej: María Rodríguez pide fecha para la semana del 21...\nComedor CCC no recibe el martes, llamar antes...\nJuan vino a la oficina a pedir turno — darle el jueves 17..."}
-          value={nota}
-          onChange={e => handleNotaChange(e.target.value)}
-          variant="outlined"
-          sx={{
-            '& .MuiOutlinedInput-root': {
-              borderRadius: 0,
-              bgcolor: '#fffde7',
-              fontSize: 14,
-              fontFamily: 'monospace',
-              '& fieldset': { border: 'none' },
-            },
+          rows={5}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            border: 'none',
+            outline: 'none',
+            resize: 'vertical',
+            backgroundColor: '#fffde7',
+            fontSize: 14,
+            fontFamily: 'monospace',
+            padding: '12px 16px',
+            lineHeight: 1.6,
+            color: '#333',
           }}
         />
       </Paper>
