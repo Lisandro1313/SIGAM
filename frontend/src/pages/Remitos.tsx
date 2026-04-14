@@ -77,7 +77,7 @@ function buildWhatsappUrl(remito: any): string {
     .replace(/{nombre}/g, remito.beneficiario?.nombre ?? remito.caso?.nombreSolicitante ?? '')
     .replace(/{fecha}/g, fecha)
     .replace(/{hora}/g, remito.horaRetiro ?? '')
-    .replace(/{deposito}/g, remito.deposito?.nombre ?? '')
+    .replace(/{deposito}/g, remito.deposito ? `${remito.deposito.nombre}${remito.deposito.direccion ? ` (${remito.deposito.direccion})` : ''}` : '')
     .replace(/{direccion}/g, remito.deposito?.direccion ?? '')
     .replace(/{numero}/g, String(remito.numero ?? ''));
 

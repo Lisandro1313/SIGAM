@@ -342,7 +342,7 @@ export default function CronogramaPage() {
         .replace(/\{nombre\}/g, ben.nombre)
         .replace(/\{fecha\}/g, diaStr)
         .replace(/\{hora\}/g, fila.hora || '')
-        .replace(/\{deposito\}/g, dep?.nombre || '')
+        .replace(/\{deposito\}/g, dep ? `${dep.nombre}${dep.direccion ? ` (${dep.direccion})` : ''}` : '')
         .replace(/\{direccion\}/g, dep?.direccion || ben.direccion || '')
         .replace(/\{numero\}/g, numeroRemito);
     } else {
