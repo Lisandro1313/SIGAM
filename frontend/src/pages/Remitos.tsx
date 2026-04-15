@@ -563,21 +563,21 @@ export default function RemitosPage() {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h4" fontWeight="bold">
+      <Box display="flex" justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} flexDirection={{ xs: 'column', sm: 'row' }} gap={1} mb={2}>
+        <Typography variant="h4" fontWeight="bold" fontSize={{ xs: '1.5rem', sm: '2.125rem' }}>
           Remitos
         </Typography>
         {puedeCrear && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)} size="small">
             Nuevo Remito
           </Button>
         )}
       </Box>
 
-      <Box mb={2} display="flex" gap={2} alignItems="center" flexWrap="wrap">
+      <Box mb={2} display="flex" gap={1.5} alignItems="center" flexWrap="wrap">
         <TextField
           size="small"
-          placeholder="Buscar por nombre, DNI o número de remito..."
+          placeholder="Buscar por nombre, DNI o número..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           InputProps={{
@@ -587,9 +587,9 @@ export default function RemitosPage() {
               </InputAdornment>
             ),
           }}
-          sx={{ width: 380 }}
+          sx={{ width: { xs: '100%', sm: 340 }, flexShrink: 0 }}
         />
-        <FormControl size="small" sx={{ minWidth: 170 }}>
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 }, flexShrink: 0 }}>
           <InputLabel>Estado</InputLabel>
           <Select
             value={estadoFiltro}
@@ -697,11 +697,11 @@ export default function RemitosPage() {
         </Paper>
       )}
 
-      <TableContainer component={Paper} elevation={2}>
-        <Table>
+      <TableContainer component={Paper} elevation={2} sx={{ overflowX: 'auto' }}>
+        <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell padding="checkbox">
+              <TableCell padding="checkbox" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                 <Checkbox
                   indeterminate={selectedIds.size > 0 && selectedIds.size < remitosVisibles.length}
                   checked={remitosVisibles.length > 0 && selectedIds.size === remitosVisibles.length}
@@ -714,7 +714,7 @@ export default function RemitosPage() {
                   Número
                 </TableSortLabel>
               </TableCell>
-              <TableCell sortDirection={sortField === 'fecha' ? sortDir : false} sx={{ cursor: 'pointer' }}>
+              <TableCell sortDirection={sortField === 'fecha' ? sortDir : false} sx={{ cursor: 'pointer', display: { xs: 'none', sm: 'table-cell' } }}>
                 <TableSortLabel active={sortField === 'fecha'} direction={sortField === 'fecha' ? sortDir : 'asc'} onClick={() => handleSort('fecha')} sx={{ color: 'inherit !important', '& .MuiTableSortLabel-icon': { color: 'inherit !important' } }}>
                   Fecha
                 </TableSortLabel>
@@ -724,8 +724,8 @@ export default function RemitosPage() {
                   Beneficiario
                 </TableSortLabel>
               </TableCell>
-              <TableCell>Depósito</TableCell>
-              <TableCell align="right">Total Kg</TableCell>
+              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Depósito</TableCell>
+              <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Total Kg</TableCell>
               <TableCell sortDirection={sortField === 'estado' ? sortDir : false} sx={{ cursor: 'pointer' }}>
                 <TableSortLabel active={sortField === 'estado'} direction={sortField === 'estado' ? sortDir : 'asc'} onClick={() => handleSort('estado')} sx={{ color: 'inherit !important', '& .MuiTableSortLabel-icon': { color: 'inherit !important' } }}>
                   Estado
@@ -737,7 +737,7 @@ export default function RemitosPage() {
           <TableBody>
             {remitosOrdenados.map((remito) => (
               <TableRow key={remito.id} hover selected={selectedIds.has(remito.id)}>
-                <TableCell padding="checkbox">
+                <TableCell padding="checkbox" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                   <Checkbox
                     checked={selectedIds.has(remito.id)}
                     onChange={() => toggleSelect(remito.id)}
@@ -747,7 +747,7 @@ export default function RemitosPage() {
                 <TableCell>
                   <strong>{remito.numero || 'BORRADOR'}</strong>
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                   {format(new Date(remito.fecha), 'dd/MM/yyyy', { locale: es })}
                 </TableCell>
                 <TableCell>
@@ -758,8 +758,8 @@ export default function RemitosPage() {
                     </Typography>
                   )}
                 </TableCell>
-                <TableCell>{remito.deposito?.nombre}</TableCell>
-                <TableCell align="right">
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{remito.deposito?.nombre}</TableCell>
+                <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                   <strong>{remito.totalKg.toFixed(2)}</strong>
                 </TableCell>
                 <TableCell>

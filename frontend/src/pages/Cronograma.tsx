@@ -5,6 +5,7 @@ import {
   MenuItem, FormControl, Tab, Tabs, Dialog, DialogTitle,
   DialogContent, DialogActions, Alert, InputAdornment,
   Table, TableHead, TableRow, TableCell, TableBody, TableContainer,
+  useTheme, useMediaQuery,
 } from '@mui/material';
 import {
   ChevronLeft, ChevronRight, Add as AddIcon, Delete as DeleteIcon,
@@ -69,6 +70,8 @@ const MINW = COLS.reduce((a,c)=>a+c.w,0);
 interface UltimaEntrega { fecha: string; estado: string; }
 
 export default function CronogramaPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { showNotification } = useNotificationStore();
   const [semanaInicio, setSemanaInicio] = useState<Date>(()=>startOfWeek(new Date()));
   const [dias, setDias] = useState<DiaEntry[]>([]);
@@ -495,22 +498,36 @@ export default function CronogramaPage() {
   return (
     <Box>
       {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={1} flexWrap="wrap" gap={1}>
-        <Typography variant="h4" fontWeight="bold">Cronograma</Typography>
-        <Box display="flex" alignItems="center" gap={1}>
-          <Tooltip title="Semana anterior"><IconButton onClick={()=>setSemanaInicio(p=>addDays(p,-7))}><ChevronLeft/></IconButton></Tooltip>
-          <Typography variant="body1" fontWeight="bold" minWidth={230} textAlign="center">{semanaLabel}</Typography>
-          <Tooltip title="Semana siguiente"><IconButton onClick={()=>setSemanaInicio(p=>addDays(p,7))}><ChevronRight/></IconButton></Tooltip>
-          <Tooltip title="Hoy"><IconButton onClick={()=>setSemanaInicio(startOfWeek(new Date()))}><TodayIcon/></IconButton></Tooltip>
-          <Button variant="outlined" startIcon={<PdfIcon/>} onClick={handleOpenExport} size="small" color="secondary">
-            Exportar cronograma
-          </Button>
-          <Button variant="outlined" startIcon={<ReceiptIcon/>} onClick={handleOpenSemanaGen} size="small" color="success">
-            Remitos semana
-          </Button>
+      <Box display="flex" alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between" mb={1} flexWrap="wrap" gap={1} flexDirection={{ xs: 'column', sm: 'row' }}>
+        <Typography variant="h4" fontWeight="bold" fontSize={{ xs: '1.5rem', sm: '2.125rem' }}>Cronograma</Typography>
+        <Box display="flex" alignItems="center" gap={0.5} flexWrap="wrap">
+          <Tooltip title="Semana anterior"><IconButton size="small" onClick={()=>setSemanaInicio(p=>addDays(p,-7))}><ChevronLeft/></IconButton></Tooltip>
+          <Typography variant="body2" fontWeight="bold" minWidth={{ xs: 160, sm: 230 }} textAlign="center" fontSize={{ xs: '0.8rem', sm: '1rem' }}>{semanaLabel}</Typography>
+          <Tooltip title="Semana siguiente"><IconButton size="small" onClick={()=>setSemanaInicio(p=>addDays(p,7))}><ChevronRight/></IconButton></Tooltip>
+          <Tooltip title="Hoy"><IconButton size="small" onClick={()=>setSemanaInicio(startOfWeek(new Date()))}><TodayIcon/></IconButton></Tooltip>
+          {!isMobile && (
+            <>
+              <Button variant="outlined" startIcon={<PdfIcon/>} onClick={handleOpenExport} size="small" color="secondary">
+                Exportar cronograma
+              </Button>
+              <Button variant="outlined" startIcon={<ReceiptIcon/>} onClick={handleOpenSemanaGen} size="small" color="success">
+                Remitos semana
+              </Button>
+            </>
+          )}
           <Button variant="contained" startIcon={<GenerarIcon/>} onClick={handleOpenGen} size="small" sx={{bgcolor:'#1a237e'}}>
-            Generar mes
+            {isMobile ? 'Generar' : 'Generar mes'}
           </Button>
+          {isMobile && (
+            <>
+              <Button variant="outlined" startIcon={<ReceiptIcon/>} onClick={handleOpenSemanaGen} size="small" color="success">
+                Remitos
+              </Button>
+              <Button variant="outlined" startIcon={<PdfIcon/>} onClick={handleOpenExport} size="small" color="secondary">
+                PDF
+              </Button>
+            </>
+          )}
         </Box>
       </Box>
 
@@ -547,7 +564,121 @@ export default function CronogramaPage() {
 
       {loading ? (
         <Box display="flex" justifyContent="center" mt={6}><CircularProgress/></Box>
+      ) : isMobile ? (
+        /* ── Vista mobile: tarjetas por fila ── */
+        <Box>
+          {dias.map((dia,idx)=>(
+            <Box key={dia.fecha} mb={1.5}>
+              <Box sx={{bgcolor:COLORES_DIA[idx%COLORES_DIA.length],color:'#fff',px:2,py:0.75,borderRadius:'6px 6px 0 0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <Typography variant="subtitle2" fontWeight="bold" sx={{textTransform:'uppercase',letterSpacing:0.5,fontSize:12}}>{formatFechaHeader(dia.fecha)}</Typography>
+                <Typography variant="caption" sx={{opacity:0.85}}>{dia.filas.filter(f=>f.id).length} entregas</Typography>
+              </Box>
+              {dia.filas.map(fila=>{
+                const ben=fila.beneficiario;
+                const tieneRemito=!!fila.remito;
+                const dep=depositos.find(d=>d.id===fila.depositoId);
+                return (
+                  <Paper key={fila.tempId} elevation={1} sx={{mb:0.75,mx:0.5,p:1.25,bgcolor:tieneRemito?'#f0f7ff':!fila.id&&ben?'#fffde7':'#fff',borderLeft:`3px solid ${COLORES_DIA[idx%COLORES_DIA.length]}`}}>
+                    {/* Nombre + estado */}
+                    <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1} mb={0.5}>
+                      <Box flex={1} minWidth={0}>
+                        {ben?.programa?.nombre && (
+                          <Typography variant="caption" sx={{fontSize:10,color:'text.disabled',fontStyle:'italic'}} noWrap>{ben.programa.nombre}</Typography>
+                        )}
+                        <Typography variant="body2" fontWeight="bold" noWrap>{ben?.nombre ?? <span style={{color:'#bbb'}}>Sin beneficiario</span>}</Typography>
+                        {ben?.responsableNombre && (
+                          <Typography variant="caption" color="text.secondary" noWrap>{ben.responsableNombre}</Typography>
+                        )}
+                      </Box>
+                      <Box display="flex" alignItems="center" gap={0.5} flexShrink={0}>
+                        {fila.saving && <CircularProgress size={12}/>}
+                        {tieneRemito
+                          ? <Chip label={fila.remito!.numero} size="small" color={fila.remito!.estado==='PREPARADO'?'warning':'success'} variant="outlined" icon={<ReceiptIcon style={{fontSize:11}}/>} sx={{fontSize:10,height:20,cursor:'pointer'}} onClick={()=>handleVerRemito(fila.remito!.id)}/>
+                          : fila.id ? <Chip label="PENDIENTE" size="small" variant="outlined" sx={{fontSize:10,height:20}}/> : null
+                        }
+                      </Box>
+                    </Box>
+                    {/* Info secundaria */}
+                    <Box display="flex" gap={1} mb={0.75} flexWrap="wrap">
+                      {fila.hora && <Typography variant="caption" color="text.secondary">⏰ {fila.hora} hs</Typography>}
+                      {fila.kilos && <Typography variant="caption" color="text.secondary">📦 {fila.kilos} kg</Typography>}
+                      {dep && <Chip label={dep.codigo} size="small" color={dep.codigo==='LOGISTICA'?'primary':'warning'} sx={{fontSize:10,height:18}}/>}
+                      {ben?.direccion && <Typography variant="caption" color="text.secondary" noWrap>📍 {ben.direccion}</Typography>}
+                    </Box>
+                    {/* Observación */}
+                    <TextField
+                      size="small" fullWidth
+                      value={fila.observacion ?? ''}
+                      onChange={e=>handleField(dia.fecha,fila,'observacion',e.target.value)}
+                      placeholder="Observación..."
+                      variant="standard"
+                      multiline maxRows={3}
+                      sx={{'& textarea':{fontSize:12},'& input':{fontSize:12},mb:0.5}}
+                    />
+                    {/* Botones de acción */}
+                    <Box display="flex" gap={0.5} flexWrap="wrap" alignItems="center" mt={0.25}>
+                      {tieneRemito ? (
+                        <>
+                          {fila.remito!.estado==='PREPARADO' && (
+                            <Tooltip title="Deshacer remito"><span>
+                              <IconButton size="small" color="warning" onClick={()=>handleDeshacerRemito(dia.fecha,fila)} disabled={fila.saving}>
+                                <UndoIcon sx={{fontSize:18}}/>
+                              </IconButton>
+                            </span></Tooltip>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <Tooltip title="Agregar a remitos"><span>
+                            <IconButton size="small" color="success" onClick={()=>handleAgregarARemitos(dia.fecha,fila)} disabled={!fila.id||fila.saving}>
+                              <AgregarRemitoIcon sx={{fontSize:18}}/>
+                            </IconButton>
+                          </span></Tooltip>
+                          <Tooltip title="Crear remito completo"><span>
+                            <IconButton size="small" color="primary" onClick={()=>handleGenerarRemito(dia.fecha,fila)} disabled={!fila.id||fila.saving}>
+                              <ReceiptIcon sx={{fontSize:18}}/>
+                            </IconButton>
+                          </span></Tooltip>
+                        </>
+                      )}
+                      {ben?.telefono && (
+                        <Tooltip title={fila.avisadoWsp?'Ya avisado (reenviar)':'Avisar por WhatsApp'}><span>
+                          <IconButton size="small" onClick={()=>handleAvisarWsp(dia.fecha,fila)} disabled={!fila.id||fila.saving}
+                            sx={{color:fila.avisadoWsp?'#4caf50':'#25D366'}}>
+                            {fila.avisadoWsp?<CheckIcon sx={{fontSize:18}}/>:<WspIcon sx={{fontSize:18}}/>}
+                          </IconButton>
+                        </span></Tooltip>
+                      )}
+                      {!tieneRemito && (
+                        <Tooltip title="Eliminar"><span>
+                          <IconButton size="small" color="error" onClick={()=>handleEliminar(dia.fecha,fila)} disabled={fila.saving}>
+                            <DeleteIcon sx={{fontSize:18}}/>
+                          </IconButton>
+                        </span></Tooltip>
+                      )}
+                    </Box>
+                  </Paper>
+                );
+              })}
+              <Button startIcon={<AddIcon/>} size="small" onClick={()=>handleAgregarFila(dia.fecha)} sx={{ml:0.5,color:COLORES_DIA[idx%COLORES_DIA.length]}}>
+                Agregar espacio
+              </Button>
+            </Box>
+          ))}
+          <Box mt={1}>
+            <Button startIcon={<PasteIcon/>} variant="outlined" size="small"
+              onClick={()=>{
+                const ultima=dias.length>0?dias[dias.length-1].fecha:toDateStr(semanaInicio);
+                const [y,m,d]=ultima.split('-').map(Number);
+                const sig=toDateStr(addDays(new Date(y,m-1,d),1));
+                setDias(prev=>[...prev,{fecha:sig,filas:[]}]);
+              }}>
+              Agregar día
+            </Button>
+          </Box>
+        </Box>
       ) : (
+        /* ── Vista desktop: grilla ── */
         <Box sx={{overflowX:'auto',mx:-1,px:1}}>
           {/* Cabecera columnas */}
           <Box sx={{display:'grid',gridTemplateColumns:GRID,bgcolor:'#1a237e',color:'#fff',borderRadius:'8px 8px 0 0',px:1,py:0.75,minWidth:MINW,position:'sticky',top:0,zIndex:10}}>

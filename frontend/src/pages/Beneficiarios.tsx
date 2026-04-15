@@ -387,9 +387,9 @@ export default function BeneficiariosPage() {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight="bold">Beneficiarios</Typography>
-        <Box display="flex" gap={2}>
+      <Box display="flex" justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} flexDirection={{ xs: 'column', sm: 'row' }} gap={1} mb={3}>
+        <Typography variant="h4" fontWeight="bold" fontSize={{ xs: '1.5rem', sm: '2.125rem' }}>Beneficiarios</Typography>
+        <Box display="flex" gap={1} flexWrap="wrap">
           {puedeEditar && (
             <ExportExcelButton
               onExport={async () => {
@@ -431,15 +431,15 @@ export default function BeneficiariosPage() {
         />
       </Box>
 
-      <TableContainer component={Paper} elevation={2}>
-        <Table>
+      <TableContainer component={Paper} elevation={2} sx={{ overflowX: 'auto' }}>
+        <Table size="small">
           <TableHead>
             <TableRow>
               <TableCell>Nombre</TableCell>
-              <TableCell>Tipo</TableCell>
-              <TableCell>Localidad</TableCell>
-              <TableCell>Programa</TableCell>
-              <TableCell>Frecuencia</TableCell>
+              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Tipo</TableCell>
+              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Localidad</TableCell>
+              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Programa</TableCell>
+              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Frecuencia</TableCell>
               <TableCell align="center">Acciones</TableCell>
             </TableRow>
           </TableHead>
@@ -472,12 +472,12 @@ export default function BeneficiariosPage() {
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                     <Chip label={beneficiario.tipo} size="small" />
                   </TableCell>
-                  <TableCell>{beneficiario.localidad}</TableCell>
-                  <TableCell>{beneficiario.programa?.nombre || '—'}</TableCell>
-                  <TableCell>
+                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{beneficiario.localidad}</TableCell>
+                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{beneficiario.programa?.nombre || '—'}</TableCell>
+                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                     <Chip
                       label={beneficiario.frecuenciaEntrega}
                       size="small"

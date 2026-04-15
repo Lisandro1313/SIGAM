@@ -285,7 +285,7 @@ export default function Dashboard() {
                   ))}
                 </Tabs>
                 <Divider sx={{ mb: 1 }} />
-                <TableContainer>
+                <TableContainer sx={{ overflowX: 'auto' }}>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
@@ -362,7 +362,7 @@ export default function Dashboard() {
                   ))}
                 </Tabs>
                 <Divider sx={{ mb: 1 }} />
-                <TableContainer>
+                <TableContainer sx={{ overflowX: 'auto' }}>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
@@ -549,7 +549,7 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </Grid>
             <Grid item xs={12} md={7}>
-              <TableContainer>
+              <TableContainer sx={{ overflowX: 'auto' }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'grey.50' }}>
@@ -668,7 +668,7 @@ export default function Dashboard() {
             {buscarQ ? 'Sin resultados para esa búsqueda' : 'No hay remitos anteriores'}
           </Typography>
         ) : (
-          <TableContainer>
+          <TableContainer sx={{ overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>

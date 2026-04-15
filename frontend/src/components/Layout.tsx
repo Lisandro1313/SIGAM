@@ -353,6 +353,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 component={Link}
                 to={item.path}
                 selected={active}
+                onClick={() => setMobileOpen(false)}
                 sx={{
                   mx: 1,
                   borderRadius: 1,
@@ -395,7 +396,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <MenuIcon />
             </IconButton>
           )}
-          <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" noWrap sx={{ flexGrow: 1, fontSize: { xs: '0.95rem', sm: '1.25rem' } }}>
             {esChofer ? 'SIGAM — Reparto' : esNutricionista ? 'SIGAM — Nutrición' : 'Sistema de Gestión Alimentaria'}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: esChofer ? 0.5 : 1.5 }}>
@@ -404,7 +405,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <Chip
                   label={rolLabel}
                   size="small"
-                  sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.7rem' }}
+                  sx={{ display: { xs: 'none', sm: 'flex' }, bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.7rem' }}
                 />
                 <Tooltip title="Buscar (Ctrl+K)">
                   <IconButton color="inherit" size="small" onClick={() => setSearchOpen(true)}>
@@ -418,7 +419,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     </Badge>
                   </IconButton>
                 )}
-                <Typography variant="body2">{user?.nombre}</Typography>
+                <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>{user?.nombre}</Typography>
               </>
             )}
             <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} size="small">
@@ -450,7 +451,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <Paper sx={{ width: 380, maxHeight: 520, display: 'flex', flexDirection: 'column' }}>
+        <Paper sx={{ width: { xs: 'calc(100vw - 32px)', sm: 380 }, maxHeight: 520, display: 'flex', flexDirection: 'column' }}>
           {/* Header */}
           <Box sx={{ px: 2, pt: 1.5, pb: 0, borderBottom: '1px solid', borderColor: 'divider' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -706,7 +707,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
           <Box component="main" sx={{ flexGrow: 1, width: { sm: `calc(100% - ${drawerWidth}px)` }, mt: 8, display: 'flex', flexDirection: 'column' }}>
             <NewsTicker />
-            <Box sx={{ p: 3, flex: 1 }}>
+            <Box sx={{ p: { xs: 1.5, sm: 3 }, flex: 1 }}>
               {children}
             </Box>
           </Box>
