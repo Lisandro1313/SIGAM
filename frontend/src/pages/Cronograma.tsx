@@ -669,11 +669,13 @@ export default function CronogramaPage() {
                           </IconButton>
                         </span></Tooltip>
                       )}
-                      <Tooltip title="Eliminar"><span>
-                        <IconButton size="small" color="error" onClick={()=>handleEliminar(dia.fecha,fila)} disabled={tieneRemito||fila.saving}>
-                          <DeleteIcon fontSize="small"/>
-                        </IconButton>
-                      </span></Tooltip>
+                      {!tieneRemito && (
+                        <Tooltip title="Eliminar"><span>
+                          <IconButton size="small" color="error" onClick={()=>handleEliminar(dia.fecha,fila)} disabled={fila.saving}>
+                            <DeleteIcon fontSize="small"/>
+                          </IconButton>
+                        </span></Tooltip>
+                      )}
                     </Box>
                     {/* Observación */}
                     <Box px={0.5}>
