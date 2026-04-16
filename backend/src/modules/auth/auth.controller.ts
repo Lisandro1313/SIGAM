@@ -10,8 +10,11 @@ import { LoginDto } from './dto/login.dto';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  // Máximo 5 intentos de login por minuto por IP
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  // Doble ventana: 5 intentos/min y 30 intentos/hora por IP (anti brute-force)
+  @Throttle({
+    'login-min': { ttl: 60_000, limit: 5 },
+    'login-hour': { ttl: 60 * 60_000, limit: 30 },
+  })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @ApiOperation({ summary: 'Iniciar sesión' })

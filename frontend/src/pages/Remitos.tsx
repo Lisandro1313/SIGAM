@@ -55,6 +55,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
+import { useConfirm } from '../hooks/useConfirm';
 import RemitoForm from '../components/RemitoForm';
 import { useNotificationStore } from '../stores/notificationStore';
 import { useAuthStore } from '../stores/authStore';
@@ -98,6 +99,7 @@ function buildWhatsappUrl(remito: any): string {
 }
 
 export default function RemitosPage() {
+  const { confirm, ConfirmDialog } = useConfirm();
   const [remitos, setRemitos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -357,7 +359,13 @@ export default function RemitosPage() {
 
   const handleAnular = async () => {
     if (!gestionRemito) return;
-    if (!window.confirm(`¿Anular el remito ${gestionRemito.numero}? ${gestionRemito.estado !== 'BORRADOR' ? 'El stock será restaurado.' : ''}`)) return;
+    const ok = await confirm({
+      title: 'Anular remito',
+      message: `¿Anular el remito ${gestionRemito.numero}?${gestionRemito.estado !== 'BORRADOR' ? ' El stock será restaurado.' : ''}`,
+      confirmText: 'Anular',
+      confirmColor: 'error',
+    });
+    if (!ok) return;
     setGestionando(true);
     try {
       await api.delete(`/remitos/${gestionRemito.id}/anular`);
@@ -490,7 +498,8 @@ export default function RemitosPage() {
   };
 
   const handleEliminar = async (id: number) => {
-    if (!window.confirm('¿Eliminar este borrador?')) return;
+    const ok = await confirm({ title: 'Eliminar borrador', message: '¿Eliminar este borrador?', confirmText: 'Eliminar', confirmColor: 'error' });
+    if (!ok) return;
     try {
       await api.delete(`/remitos/${id}`);
       showNotification('Remito eliminado', 'success');
@@ -1447,6 +1456,7 @@ export default function RemitosPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      {ConfirmDialog}
     </Box>
   );
 }

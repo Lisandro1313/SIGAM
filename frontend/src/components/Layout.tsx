@@ -57,12 +57,15 @@ import {
   Close as CloseIcon,
   Badge as BadgeIcon,
   Search as SearchIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
   CheckCircle as EntregaOkIcon,
   History as HistoryIcon,
   DoneAll as MarcarTodasIcon,
   Restaurant as NutricionIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
+import { useColorMode } from '../theme/ColorModeContext';
 import { puedeAcceder, ROL_LABELS, Rol } from '../utils/permisos';
 import api from '../services/api';
 import NewsTicker from './NewsTicker';
@@ -129,6 +132,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [updateBanner, setUpdateBanner] = useState<{ msg: string; tipo: string } | null>(null);
   const { user, logout } = useAuthStore();
+  const { mode, toggle: toggleColorMode } = useColorMode();
   const navigate = useNavigate();
 
   // Clave de localStorage por usuario — cargamos las leídas cuando user está listo
@@ -410,6 +414,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <Tooltip title="Buscar (Ctrl+K)">
                   <IconButton color="inherit" size="small" onClick={() => setSearchOpen(true)}>
                     <SearchIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={mode === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
+                  <IconButton color="inherit" size="small" onClick={toggleColorMode}>
+                    {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
                   </IconButton>
                 </Tooltip>
                 {!esNutricionista && (

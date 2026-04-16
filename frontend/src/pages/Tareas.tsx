@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Box, Typography, Paper, Button, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, FormControl, InputLabel, Select, MenuItem,
-  Chip, IconButton, Tooltip, Alert, CircularProgress, Grid, Card,
+  Chip, IconButton, Tooltip, Alert, CircularProgress, Grid, Card, Skeleton,
   CardContent, CardActions, List, ListItem, ListItemText, ListItemSecondaryAction,
   Divider,
 } from '@mui/material';
@@ -15,6 +15,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { useConfirm } from '../hooks/useConfirm';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 const PRIORIDAD_COLOR: Record<string, 'error' | 'warning' | 'default' | 'info'> = {
   URGENTE: 'error',
@@ -32,13 +34,14 @@ const ESTADO_COLOR: Record<string, 'warning' | 'info' | 'success' | 'error'> = {
 
 export default function Tareas() {
   const { user } = useAuthStore();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [tareas, setTareas]           = useState<any[]>([]);
   const [programas, setProgramas]     = useState<any[]>([]);
   const [personalList, setPersonalList] = useState<any[]>([]);
   const [loading, setLoading]         = useState(false);
-  const [filtroEstado, setFiltroEstado]       = useState('ACTIVAS');
-  const [filtroPrioridad, setFiltroPrioridad] = useState('');
-  const [filtroPrograma, setFiltroPrograma]   = useState('');
+  const [filtroEstado, setFiltroEstado]       = useLocalStorage('tareas.filtroEstado', 'ACTIVAS');
+  const [filtroPrioridad, setFiltroPrioridad] = useLocalStorage('tareas.filtroPrioridad', '');
+  const [filtroPrograma, setFiltroPrograma]   = useLocalStorage('tareas.filtroPrograma', '');
 
   // Dialog crear
   const [crearOpen, setCrearOpen]     = useState(false);
@@ -140,7 +143,8 @@ export default function Tareas() {
   };
 
   const handleEliminar = async (id: number) => {
-    if (!window.confirm('¿Eliminar esta tarea?')) return;
+    const ok = await confirm({ title: 'Eliminar tarea', message: '¿Seguro que querés eliminar esta tarea?', confirmText: 'Eliminar', confirmColor: 'error' });
+    if (!ok) return;
     await api.delete(`/tareas/${id}`).catch(() => {});
     cargarTareas();
   };
@@ -280,7 +284,21 @@ export default function Tareas() {
       </Paper>
 
       {loading ? (
-        <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+        <Grid container spacing={2}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Grid item xs={12} sm={6} md={4} key={i}>
+              <Card variant="outlined" sx={{ p: 2 }}>
+                <Skeleton variant="text" width="70%" height={28} />
+                <Skeleton variant="text" width="40%" />
+                <Skeleton variant="rectangular" height={48} sx={{ mt: 1, borderRadius: 1 }} />
+                <Box display="flex" gap={1} mt={1}>
+                  <Skeleton variant="rounded" width={60} height={24} />
+                  <Skeleton variant="rounded" width={80} height={24} />
+                </Box>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
       ) : activeList.length === 0 ? (
         <Alert severity="info">No hay tareas con los filtros aplicados.</Alert>
       ) : (
@@ -572,6 +590,7 @@ export default function Tareas() {
           <Button onClick={() => setAdjuntosOpen(false)}>Cerrar</Button>
         </DialogActions>
       </Dialog>
+      {ConfirmDialog}
     </Box>
   );
 }

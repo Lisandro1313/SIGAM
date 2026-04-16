@@ -21,6 +21,7 @@ import {
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
+import { useConfirm } from '../hooks/useConfirm';
 import { useNotificationStore } from '../stores/notificationStore';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ interface ItemRemito { articuloId: string; cantidad: string; }
 
 export default function CasosParticulares() {
   const { showNotification } = useNotificationStore();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [casos, setCasos]         = useState<any[]>([]);
   const [loading, setLoading]     = useState(false);
   const [tabEstado, setTabEstado] = useState('TODOS');
@@ -238,7 +240,12 @@ export default function CasosParticulares() {
   // ── Convertir caso en beneficiario ────────────────────────────────────────
   const handleConvertirBeneficiario = async () => {
     if (!casoSel) return;
-    if (!window.confirm(`¿Registrar a "${casoSel.nombreSolicitante}" como beneficiario del sistema?`)) return;
+    const ok = await confirm({
+      title: 'Registrar como beneficiario',
+      message: `¿Registrar a "${casoSel.nombreSolicitante}" como beneficiario del sistema?`,
+      confirmText: 'Registrar',
+    });
+    if (!ok) return;
     setConvirtiendo(true);
     try {
       const res = await api.post('/beneficiarios', {
@@ -704,6 +711,7 @@ export default function CasosParticulares() {
           </Button>
         </DialogActions>
       </Dialog>
+      {ConfirmDialog}
     </Box>
   );
 }

@@ -29,13 +29,19 @@ async function bootstrap() {
   mkdirSync(join(process.cwd(), 'uploads', 'remitos'), { recursive: true });
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
 
-  // CORS: en producción sólo permite el dominio del frontend
+  // CORS: en producción sólo permite el/los dominio(s) del frontend.
+  // Se pueden definir múltiples orígenes separados por coma en FRONTEND_URL (p.ej. staging + prod).
   const allowedOrigins = isProd
-    ? [process.env.FRONTEND_URL]
+    ? (process.env.FRONTEND_URL ?? '').split(',').map((s) => s.trim()).filter(Boolean)
     : ['http://localhost:5173', 'http://localhost:5174'];
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // curl / health-checks sin Origin
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error(`CORS: origen no permitido (${origin})`), false);
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
   // Validación global

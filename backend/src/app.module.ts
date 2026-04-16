@@ -38,12 +38,11 @@ import { PushModule } from './shared/push/push.module';
     // Tareas programadas (backup semanal, etc.)
     ScheduleModule.forRoot(),
 
-    // Rate limiting global: máximo 300 requests por minuto por IP
+    // Rate limiting global: 300 req/min general; ventanas más estrictas para login.
     ThrottlerModule.forRoot([
-      {
-        ttl: 60000,
-        limit: 300,
-      },
+      { name: 'default', ttl: 60_000, limit: 300 },
+      { name: 'login-min', ttl: 60_000, limit: 5 },
+      { name: 'login-hour', ttl: 60 * 60_000, limit: 30 },
     ]),
 
     // Base de datos

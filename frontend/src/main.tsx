@@ -1,9 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
 import App from './App';
+import { ColorModeProvider } from './theme/ColorModeContext';
 
 // Cuando un chunk lazy ya no existe (nuevo deploy), recarga una vez para obtener el index.html fresco
 window.addEventListener('unhandledrejection', (event) => {
@@ -17,27 +16,15 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
-});
-
 // Si la app cargó bien, limpiar la marca para que futuros deploys puedan recargar de nuevo
 sessionStorage.removeItem('sigam_chunk_reload');
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
+      <ColorModeProvider>
         <App />
-      </ThemeProvider>
+      </ColorModeProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

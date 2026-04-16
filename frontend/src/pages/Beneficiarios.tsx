@@ -56,6 +56,7 @@ import api from '../services/api';
 import BeneficiarioForm from '../components/BeneficiarioForm';
 import SearchBar from '../components/SearchBar';
 import ExportExcelButton from '../components/ExportExcelButton';
+import TableSkeleton from '../components/TableSkeleton';
 import { useAuthStore } from '../stores/authStore';
 import { puedeHacer } from '../utils/permisos';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -445,9 +446,7 @@ export default function BeneficiariosPage() {
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center"><CircularProgress size={28} /></TableCell>
-              </TableRow>
+              <TableSkeleton rows={rowsPerPage > 10 ? 8 : rowsPerPage} columns={6} />
             ) : beneficiarios.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} align="center">
