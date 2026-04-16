@@ -208,6 +208,16 @@ function PersonalTab() {
     }
   };
 
+  const testPush = async (p: any) => {
+    try {
+      const { data } = await api.post(`/personal/${p.id}/test-push`);
+      showNotification(data.message, data.ok ? 'success' : 'warning');
+      if (!data.ok && data.message.includes('expiró')) loadPersonal();
+    } catch {
+      showNotification('Error al enviar push de prueba', 'error');
+    }
+  };
+
   if (loading) {
     return <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>;
   }
@@ -279,11 +289,11 @@ function PersonalTab() {
                     <Typography variant="body2" color="text.secondary">{p.email || '--'}</Typography>
                   </TableCell>
                   <TableCell align="center">
-                    <Tooltip title={p.pushSubscription ? 'Notificaciones activas' : 'Activar notificaciones en este dispositivo'}>
+                    <Tooltip title={p.pushSubscription ? 'Enviar push de prueba' : 'Activar notificaciones en este dispositivo'}>
                       <IconButton
                         size="small"
                         color={p.pushSubscription ? 'success' : 'default'}
-                        onClick={() => activarNotificaciones(p)}
+                        onClick={() => p.pushSubscription ? testPush(p) : activarNotificaciones(p)}
                         disabled={subscribingId === p.id}
                       >
                         {subscribingId === p.id ? (

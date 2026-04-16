@@ -63,4 +63,23 @@ export class PersonalController {
     return this.personalService.savePushSubscription(+id, subscription);
   }
 
+  @Post(':id/test-push')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Enviar push de prueba a un personal' })
+  async testPush(@Param('id') id: string) {
+    const personal = await this.personalService.findOne(+id);
+    if (!personal.pushSubscription) {
+      return { ok: false, message: 'Esta persona no tiene notificaciones activadas' };
+    }
+    const result = await this.pushService.send(personal.pushSubscription, {
+      title: 'Prueba SIGAM',
+      body: `Hola ${personal.nombre}, las notificaciones funcionan correctamente!`,
+      url: '/tareas',
+    });
+    if (result?.expired) {
+      await this.personalService.savePushSubscription(+id, '');
+      return { ok: false, message: 'La suscripción expiró, hay que activar de nuevo' };
+    }
+    return { ok: true, message: 'Push enviado correctamente' };
+  }
 }
