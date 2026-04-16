@@ -24,6 +24,8 @@ import { EventsModule } from './modules/events/events.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { NoticiasModule } from './modules/noticias/noticias.module';
 import { NutricionistaModule } from './modules/nutricionista/nutricionista.module';
+import { PersonalModule } from './modules/personal/personal.module';
+import { PushModule } from './shared/push/push.module';
 
 @Module({
   imports: [
@@ -67,6 +69,8 @@ import { NutricionistaModule } from './modules/nutricionista/nutricionista.modul
     BackupModule,
     NoticiasModule,
     NutricionistaModule,
+    PersonalModule,
+    PushModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente

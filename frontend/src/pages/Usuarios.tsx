@@ -24,6 +24,8 @@ import {
   Tooltip,
   Alert,
   Divider,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -31,6 +33,12 @@ import {
   Block as DeactivateIcon,
   CheckCircleOutline as ActivateIcon,
   Key as PasswordIcon,
+  Phone as PhoneIcon,
+  WhatsApp as WhatsAppIcon,
+  People as PeopleIcon,
+  Badge as BadgeIcon,
+  NotificationsActive as NotifIcon,
+  NotificationsOff as NotifOffIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -69,7 +77,321 @@ const ROL_DESC: Record<Rol, string> = {
   NUTRICIONISTA:      'Visita espacios, hace relevamientos nutricionales y gestiona programas de terreno.',
 };
 
-export default function UsuariosPage() {
+// ============================================================================
+// Tab Personal
+// ============================================================================
+function PersonalTab() {
+  const [personal, setPersonal] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [selected, setSelected] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const { showNotification } = useNotificationStore();
+
+  const [nombre, setNombre] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [cargo, setCargo] = useState('');
+  const [email, setEmail] = useState('');
+  const [activo, setActivo] = useState(true);
+  const [subscribingId, setSubscribingId] = useState<number | null>(null);
+
+  useEffect(() => { loadPersonal(); }, []);
+
+  const loadPersonal = async () => {
+    try {
+      const res = await api.get('/personal?includeInactive=true');
+      setPersonal(res.data);
+    } catch {
+      showNotification('Error al cargar personal', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openForm = (p?: any) => {
+    if (p) {
+      setSelected(p);
+      setNombre(p.nombre);
+      setTelefono(p.telefono || '');
+      setCargo(p.cargo || '');
+      setEmail(p.email || '');
+      setActivo(p.activo);
+    } else {
+      setSelected(null);
+      setNombre('');
+      setTelefono('');
+      setCargo('');
+      setEmail('');
+      setActivo(true);
+    }
+    setFormOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!nombre) {
+      showNotification('El nombre es requerido', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload: any = { nombre, telefono: telefono || null, cargo: cargo || null, email: email || null };
+      if (selected) payload.activo = activo;
+
+      if (selected) {
+        await api.patch(`/personal/${selected.id}`, payload);
+        showNotification('Personal actualizado', 'success');
+      } else {
+        await api.post('/personal', payload);
+        showNotification('Personal agregado', 'success');
+      }
+      setFormOpen(false);
+      loadPersonal();
+    } catch (error: any) {
+      showNotification(error.response?.data?.message || 'Error al guardar', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggle = async (p: any) => {
+    try {
+      await api.patch(`/personal/${p.id}`, { activo: !p.activo });
+      showNotification(`${p.nombre} ${p.activo ? 'desactivado' : 'activado'}`, 'info');
+      loadPersonal();
+    } catch {
+      showNotification('Error al cambiar estado', 'error');
+    }
+  };
+
+  const activarNotificaciones = async (p: any) => {
+    setSubscribingId(p.id);
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        showNotification('Este navegador no soporta notificaciones push', 'error');
+        return;
+      }
+
+      const permiso = await Notification.requestPermission();
+      if (permiso !== 'granted') {
+        showNotification('Permiso de notificaciones denegado', 'warning');
+        return;
+      }
+
+      // Registrar service worker
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      // Obtener VAPID key del backend
+      const { data: vapidData } = await api.get('/personal/push/vapid-key');
+      if (!vapidData.publicKey) {
+        showNotification('Push notifications no configuradas en el servidor', 'warning');
+        return;
+      }
+
+      // Suscribirse
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidData.publicKey,
+      });
+
+      // Guardar suscripción en el backend
+      await api.post(`/personal/${p.id}/push-subscription`, {
+        subscription: JSON.stringify(subscription),
+      });
+
+      showNotification(`Notificaciones activadas para ${p.nombre}`, 'success');
+      loadPersonal();
+    } catch (err: any) {
+      showNotification(`Error: ${err.message}`, 'error');
+    } finally {
+      setSubscribingId(null);
+    }
+  };
+
+  if (loading) {
+    return <Box display="flex" justifyContent="center" mt={4}><CircularProgress /></Box>;
+  }
+
+  const activos = personal.filter(p => p.activo);
+  const inactivos = personal.filter(p => !p.activo);
+
+  return (
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="body2" color="text.secondary">
+          {activos.length} activos · {inactivos.length} inactivos
+        </Typography>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => openForm()}>
+          Agregar
+        </Button>
+      </Box>
+
+      <TableContainer component={Paper} elevation={2} sx={{ mb: 4 }}>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ bgcolor: 'grey.50' }}>
+              <TableCell><strong>Nombre</strong></TableCell>
+              <TableCell><strong>Cargo</strong></TableCell>
+              <TableCell><strong>Teléfono</strong></TableCell>
+              <TableCell><strong>Email</strong></TableCell>
+              <TableCell align="center"><strong>Acciones</strong></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {activos.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                  No hay personal cargado. Hacé clic en "Agregar" para empezar.
+                </TableCell>
+              </TableRow>
+            ) : (
+              activos.map((p) => (
+                <TableRow key={p.id} hover>
+                  <TableCell><strong>{p.nombre}</strong></TableCell>
+                  <TableCell>
+                    {p.cargo ? (
+                      <Chip label={p.cargo} size="small" variant="outlined" />
+                    ) : (
+                      <Typography variant="caption" color="text.disabled">--</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {p.telefono ? (
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        <PhoneIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <Typography variant="body2">{p.telefono}</Typography>
+                        <Tooltip title="Enviar WhatsApp">
+                          <IconButton
+                            size="small"
+                            color="success"
+                            href={`https://wa.me/${p.telefono.replace(/\D/g, '')}`}
+                            target="_blank"
+                          >
+                            <WhatsAppIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    ) : (
+                      <Typography variant="caption" color="text.disabled">--</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="text.secondary">{p.email || '--'}</Typography>
+                  </TableCell>
+                  <TableCell align="center">
+                    <Tooltip title={p.pushSubscription ? 'Notificaciones activas' : 'Activar notificaciones en este dispositivo'}>
+                      <IconButton
+                        size="small"
+                        color={p.pushSubscription ? 'success' : 'default'}
+                        onClick={() => activarNotificaciones(p)}
+                        disabled={subscribingId === p.id}
+                      >
+                        {subscribingId === p.id ? (
+                          <CircularProgress size={18} />
+                        ) : p.pushSubscription ? (
+                          <NotifIcon fontSize="small" />
+                        ) : (
+                          <NotifOffIcon fontSize="small" />
+                        )}
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Editar">
+                      <IconButton size="small" onClick={() => openForm(p)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Desactivar">
+                      <IconButton size="small" color="warning" onClick={() => handleToggle(p)}>
+                        <DeactivateIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {inactivos.length > 0 && (
+        <>
+          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            Inactivos ({inactivos.length})
+          </Typography>
+          <TableContainer component={Paper} elevation={1} sx={{ opacity: 0.65 }}>
+            <Table size="small">
+              <TableBody>
+                {inactivos.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell sx={{ color: 'text.disabled' }}>{p.nombre}</TableCell>
+                    <TableCell sx={{ color: 'text.disabled' }}>{p.cargo || '--'}</TableCell>
+                    <TableCell sx={{ color: 'text.disabled' }}>{p.telefono || '--'}</TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Reactivar">
+                        <IconButton size="small" color="success" onClick={() => handleToggle(p)}>
+                          <ActivateIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </>
+      )}
+
+      {/* Dialog crear/editar personal */}
+      <Dialog open={formOpen} onClose={() => setFormOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{selected ? `Editar: ${selected.nombre}` : 'Agregar Personal'}</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth label="Nombre completo"
+            value={nombre} onChange={(e) => setNombre(e.target.value)}
+            margin="normal" required
+          />
+          <TextField
+            fullWidth label="Cargo / Rol"
+            value={cargo} onChange={(e) => setCargo(e.target.value)}
+            margin="normal"
+            placeholder="Ej: Chofer, Coordinador, Nutricionista..."
+          />
+          <TextField
+            fullWidth label="Teléfono"
+            value={telefono} onChange={(e) => setTelefono(e.target.value)}
+            margin="normal"
+            placeholder="Ej: 5491112345678"
+            helperText="Con código de país para WhatsApp (ej: 549...)"
+          />
+          <TextField
+            fullWidth label="Email"
+            type="email"
+            value={email} onChange={(e) => setEmail(e.target.value)}
+            margin="normal"
+          />
+          {selected && (
+            <FormControlLabel
+              control={<Switch checked={activo} onChange={(e) => setActivo(e.target.checked)} color="success" />}
+              label={activo ? 'Activo' : 'Inactivo'}
+              sx={{ mt: 2 }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFormOpen(false)} disabled={saving}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSave} disabled={saving}>
+            {saving ? <CircularProgress size={24} /> : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
+
+// ============================================================================
+// Tab Usuarios (código original)
+// ============================================================================
+function UsuariosTab() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [programas, setProgramas] = useState<any[]>([]);
   const [depositos, setDepositos] = useState<any[]>([]);
@@ -129,7 +451,6 @@ export default function UsuariosPage() {
     setFormOpen(true);
   };
 
-  // Al cambiar rol, limpiar campos que no corresponden
   const handleRolChange = (nuevoRol: Rol) => {
     setRol(nuevoRol);
     if (nuevoRol !== 'OPERADOR_PROGRAMA') setProgramaId('');
@@ -189,18 +510,14 @@ export default function UsuariosPage() {
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">Usuarios</Typography>
-          <Typography variant="body2" color="text.secondary">
-            {activos.length} activos · {inactivos.length} inactivos
-          </Typography>
-        </Box>
+        <Typography variant="body2" color="text.secondary">
+          {activos.length} activos · {inactivos.length} inactivos
+        </Typography>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => openForm()}>
           Nuevo Usuario
         </Button>
       </Box>
 
-      {/* Usuarios activos */}
       <TableContainer component={Paper} elevation={2} sx={{ mb: 4 }}>
         <Table>
           <TableHead>
@@ -239,7 +556,7 @@ export default function UsuariosPage() {
                       <Chip label={u.programa.nombre} size="small" variant="outlined" color="primary" />
                     )}
                     {!u.deposito && !u.programa && (
-                      <Typography variant="caption" color="text.disabled">—</Typography>
+                      <Typography variant="caption" color="text.disabled">--</Typography>
                     )}
                   </TableCell>
                   <TableCell align="center">
@@ -261,7 +578,6 @@ export default function UsuariosPage() {
         </Table>
       </TableContainer>
 
-      {/* Usuarios inactivos */}
       {inactivos.length > 0 && (
         <>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
@@ -344,7 +660,6 @@ export default function UsuariosPage() {
             ))}
           </TextField>
 
-          {/* Depósito — solo para LOGISTICA */}
           {rol === 'LOGISTICA' && (
             <TextField
               select fullWidth label="Depósito asignado *"
@@ -359,7 +674,6 @@ export default function UsuariosPage() {
             </TextField>
           )}
 
-          {/* Programa — solo para OPERADOR_PROGRAMA */}
           {rol === 'OPERADOR_PROGRAMA' && (
             <TextField
               select fullWidth label="Programa asignado *"
@@ -374,7 +688,6 @@ export default function UsuariosPage() {
             </TextField>
           )}
 
-          {/* Alertas informativas */}
           {rol === 'ADMIN' && (
             <Alert severity="warning" sx={{ mt: 1 }}>
               Acceso total al sistema, incluida la gestión de usuarios.
@@ -406,6 +719,31 @@ export default function UsuariosPage() {
           </Button>
         </DialogActions>
       </Dialog>
+    </Box>
+  );
+}
+
+// ============================================================================
+// Página principal con Tabs
+// ============================================================================
+export default function UsuariosPage() {
+  const [tab, setTab] = useState(0);
+
+  return (
+    <Box>
+      <Typography variant="h4" fontWeight="bold" mb={1}>Usuarios y Personal</Typography>
+
+      <Tabs
+        value={tab}
+        onChange={(_, v) => setTab(v)}
+        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab icon={<PeopleIcon />} iconPosition="start" label="Usuarios del Sistema" />
+        <Tab icon={<BadgeIcon />} iconPosition="start" label="Personal / Equipo" />
+      </Tabs>
+
+      {tab === 0 && <UsuariosTab />}
+      {tab === 1 && <PersonalTab />}
     </Box>
   );
 }

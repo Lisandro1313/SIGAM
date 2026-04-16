@@ -1,12 +1,16 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../shared/storage/storage.service';
+import { PushService } from '../../shared/push/push.service';
 
 @Injectable()
 export class TareasService {
+  private readonly logger = new Logger(TareasService.name);
+
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private push: PushService,
   ) {}
 
   findAll(filtros?: { estado?: string; programaId?: number; prioridad?: string; secretaria?: string | null }) {
@@ -22,6 +26,7 @@ export class TareasService {
       where,
       include: {
         programa: { select: { id: true, nombre: true } },
+        personal: { select: { id: true, nombre: true, telefono: true, cargo: true } },
         documentos: { orderBy: { createdAt: 'asc' } },
       },
       orderBy: [
@@ -32,28 +37,47 @@ export class TareasService {
     });
   }
 
-  create(data: {
+  async create(data: {
     titulo: string;
     descripcion?: string;
     prioridad?: string;
     asignadoA?: string;
+    personalId?: number;
     programaId?: number;
     vencimiento?: string;
   }) {
-    return this.prisma.tarea.create({
+    const tarea = await this.prisma.tarea.create({
       data: {
         titulo: data.titulo,
         descripcion: data.descripcion,
         prioridad: data.prioridad ?? 'MEDIA',
         asignadoA: data.asignadoA,
+        personalId: data.personalId,
         programaId: data.programaId,
         vencimiento: data.vencimiento ? new Date(data.vencimiento) : undefined,
       },
       include: {
         programa: { select: { id: true, nombre: true } },
+        personal: { select: { id: true, nombre: true, telefono: true, cargo: true, pushSubscription: true } },
         documentos: true,
       },
     });
+
+    // Enviar push notification si hay personal asignado con suscripción
+    if (tarea.personal?.pushSubscription) {
+      this.push.send(tarea.personal.pushSubscription, {
+        title: 'Nueva tarea asignada',
+        body: `${tarea.titulo}${tarea.prioridad === 'URGENTE' ? ' (URGENTE)' : ''}`,
+        url: '/tareas',
+      }).catch((err) => this.logger.error('Error enviando push:', err));
+    }
+
+    // No exponer pushSubscription al cliente
+    if (tarea.personal) {
+      delete (tarea.personal as any).pushSubscription;
+    }
+
+    return tarea;
   }
 
   async update(id: number, data: {
@@ -61,6 +85,7 @@ export class TareasService {
     descripcion?: string;
     prioridad?: string;
     asignadoA?: string;
+    personalId?: number;
     programaId?: number;
     vencimiento?: string;
     estado?: string;
@@ -75,6 +100,7 @@ export class TareasService {
       },
       include: {
         programa: { select: { id: true, nombre: true } },
+        personal: { select: { id: true, nombre: true, telefono: true, cargo: true } },
         documentos: true,
       },
     });

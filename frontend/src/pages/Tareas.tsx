@@ -34,6 +34,7 @@ export default function Tareas() {
   const { user } = useAuthStore();
   const [tareas, setTareas]           = useState<any[]>([]);
   const [programas, setProgramas]     = useState<any[]>([]);
+  const [personalList, setPersonalList] = useState<any[]>([]);
   const [loading, setLoading]         = useState(false);
   const [filtroEstado, setFiltroEstado]       = useState('ACTIVAS');
   const [filtroPrioridad, setFiltroPrioridad] = useState('');
@@ -43,7 +44,7 @@ export default function Tareas() {
   const [crearOpen, setCrearOpen]     = useState(false);
   const [form, setForm]               = useState({
     titulo: '', descripcion: '', prioridad: 'MEDIA',
-    asignadoA: '', programaId: '', vencimiento: '',
+    personalId: '', programaId: '', vencimiento: '',
   });
   const [saving, setSaving]           = useState(false);
 
@@ -67,6 +68,7 @@ export default function Tareas() {
 
   useEffect(() => {
     api.get('/programas').then((r) => setProgramas(r.data.filter((p: any) => p.activo))).catch(() => {});
+    api.get('/personal').then((r) => setPersonalList(r.data)).catch(() => {});
     cargarTareas();
   }, [filtroEstado, filtroPrioridad, filtroPrograma]);
 
@@ -95,11 +97,18 @@ export default function Tareas() {
     setSaving(true);
     try {
       const body: any = { ...form };
+      if (body.personalId === '') delete body.personalId;
+      else body.personalId = parseInt(body.personalId);
       if (body.programaId === '') delete body.programaId;
       if (body.vencimiento === '') delete body.vencimiento;
+      // Autocompletar asignadoA con el nombre del personal seleccionado
+      if (body.personalId) {
+        const p = personalList.find((x: any) => x.id === body.personalId);
+        if (p) body.asignadoA = p.nombre;
+      }
       await api.post('/tareas', body);
       setCrearOpen(false);
-      setForm({ titulo: '', descripcion: '', prioridad: 'MEDIA', asignadoA: '', programaId: '', vencimiento: '' });
+      setForm({ titulo: '', descripcion: '', prioridad: 'MEDIA', personalId: '', programaId: '', vencimiento: '' });
       cargarTareas();
     } catch {
     } finally {
@@ -327,9 +336,10 @@ export default function Tareas() {
                       )}
                     </Box>
 
-                    {tarea.asignadoA && (
+                    {(tarea.personal || tarea.asignadoA) && (
                       <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                        Asignado a: <strong>{tarea.asignadoA}</strong>
+                        Asignado a: <strong>{tarea.personal?.nombre || tarea.asignadoA}</strong>
+                        {tarea.personal?.cargo && ` (${tarea.personal.cargo})`}
                       </Typography>
                     )}
 
@@ -423,11 +433,21 @@ export default function Tareas() {
                 </Select>
               </FormControl>
             </Box>
-            <TextField
-              label="Asignado a" fullWidth size="small"
-              value={form.asignadoA} onChange={(e) => setForm({ ...form, asignadoA: e.target.value })}
-              placeholder="Nombre de la persona responsable"
-            />
+            <FormControl size="small" fullWidth>
+              <InputLabel>Asignar a</InputLabel>
+              <Select
+                value={form.personalId}
+                label="Asignar a"
+                onChange={(e) => setForm({ ...form, personalId: e.target.value })}
+              >
+                <MenuItem value="">Sin asignar</MenuItem>
+                {personalList.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    {p.nombre}{p.cargo ? ` — ${p.cargo}` : ''}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               label="Fecha de vencimiento" type="date" size="small"
               value={form.vencimiento} onChange={(e) => setForm({ ...form, vencimiento: e.target.value })}

@@ -543,6 +543,8 @@ model Tarea {
   estado              String    @default("PENDIENTE") // PENDIENTE, EN_CURSO, COMPLETADA, CANCELADA
   prioridad           String    @default("MEDIA")     // BAJA, MEDIA, ALTA, URGENTE
   asignadoA           String?
+  personal            Personal? @relation("TareaPersonal", fields: [personalId], references: [id])
+  personalId          Int?
   secretaria          String    @default("PA")
   programa            Programa? @relation(fields: [programaId], references: [id])
   programaId          Int?
@@ -557,6 +559,7 @@ model Tarea {
 
   @@index([estado])
   @@index([programaId])
+  @@index([personalId])
   @@index([createdAt])
 }
 
@@ -583,6 +586,23 @@ model DocumentoTarea {
   createdAt DateTime @default(now())
 
   @@index([tareaId])
+}
+
+// ============================================================================
+// PERSONAL (directorio de equipo)
+// ============================================================================
+
+model Personal {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  telefono  String?
+  cargo     String?  // Ej: "Logística", "Chofer", "Nutricionista", "Coordinador"
+  email     String?
+  activo    Boolean  @default(true)
+  pushSubscription String? // Web Push subscription JSON
+  tareas    Tarea[]  @relation("TareaPersonal")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ============================================================================
