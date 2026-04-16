@@ -177,9 +177,18 @@ function PersonalTab() {
         return;
       }
 
-      // Registrar service worker
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      await navigator.serviceWorker.ready;
+      // Registrar service worker (forzar actualización)
+      const registration = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
+      // Esperar a que esté activo
+      if (registration.installing) {
+        await new Promise<void>((resolve) => {
+          registration.installing!.addEventListener('statechange', (e) => {
+            if ((e.target as ServiceWorker).state === 'activated') resolve();
+          });
+        });
+      } else if (!registration.active) {
+        await navigator.serviceWorker.ready;
+      }
 
       // Obtener VAPID key del backend
       const { data: vapidData } = await api.get('/personal/push/vapid-key');
