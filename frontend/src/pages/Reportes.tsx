@@ -1086,8 +1086,8 @@ export default function ReportesPage() {
           )}
         </Paper>
       )}
-      {/* ── Tab 9: Entregas a Domicilio ── */}
-      {tabIdx === 9 && (
+      {/* ── Tab 10: Entregas a Domicilio ── */}
+      {tabIdx === 10 && (
         <Box>
           {loadingDomicilio ? (
             <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
