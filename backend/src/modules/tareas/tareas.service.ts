@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../shared/storage/storage.service';
 import { PushService } from '../../shared/push/push.service';
+import { EmailService } from '../remitos/services/email.service';
 
 @Injectable()
 export class TareasService {
@@ -11,6 +12,7 @@ export class TareasService {
     private prisma: PrismaService,
     private storage: StorageService,
     private push: PushService,
+    private email: EmailService,
   ) {}
 
   findAll(filtros?: { estado?: string; programaId?: number; prioridad?: string; secretaria?: string | null }) {
@@ -63,17 +65,47 @@ export class TareasService {
       },
     });
 
-    // Enviar push notification si hay personal asignado con suscripción
-    if (tarea.personal?.pushSubscription) {
-      this.push.send(tarea.personal.pushSubscription, {
-        title: 'Nueva tarea asignada',
-        body: `${tarea.titulo}${tarea.prioridad === 'URGENTE' ? ' (URGENTE)' : ''}`,
-        url: '/tareas',
-      }).catch((err) => this.logger.error('Error enviando push:', err));
-    }
-
-    // No exponer pushSubscription al cliente
+    // Notificar al personal asignado
     if (tarea.personal) {
+      const prioridadTxt = tarea.prioridad === 'URGENTE' ? ' (URGENTE)' : '';
+
+      // Push notification
+      if (tarea.personal.pushSubscription) {
+        this.push.send(tarea.personal.pushSubscription, {
+          title: 'Nueva tarea asignada',
+          body: `${tarea.titulo}${prioridadTxt}`,
+          url: '/tareas',
+        }).catch((err) => this.logger.error('Error enviando push:', err));
+      }
+
+      // Email
+      const personalCompleto = await this.prisma.personal.findUnique({ where: { id: tarea.personal.id } });
+      if (personalCompleto?.email) {
+        const venc = tarea.vencimiento
+          ? `\nFecha de vencimiento: ${new Date(tarea.vencimiento).toLocaleDateString('es-AR')}`
+          : '';
+        this.email.enviarSimple(
+          personalCompleto.email,
+          `SIGAM — Nueva tarea asignada${prioridadTxt}: ${tarea.titulo}`,
+          [
+            `Hola ${tarea.personal.nombre},`,
+            '',
+            `Se te asignó una nueva tarea en SIGAM:`,
+            '',
+            `Título: ${tarea.titulo}`,
+            `Prioridad: ${tarea.prioridad}`,
+            tarea.descripcion ? `Descripción: ${tarea.descripcion}` : '',
+            venc,
+            '',
+            `Podés verla en: ${process.env.FRONTEND_URL || 'https://sigam-nine.vercel.app'}/tareas`,
+            '',
+            'Saludos,',
+            'SIGAM — Sistema de Gestión Alimentaria',
+          ].filter(Boolean).join('\n'),
+        ).catch((err) => this.logger.error('Error enviando email de tarea:', err));
+      }
+
+      // No exponer pushSubscription al cliente
       delete (tarea.personal as any).pushSubscription;
     }
 

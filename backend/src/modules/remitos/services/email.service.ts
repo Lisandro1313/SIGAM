@@ -126,6 +126,22 @@ export class EmailService {
     await this.sendViaBrevio(body);
   }
 
+  async enviarSimple(destinatario: string, asunto: string, texto: string): Promise<void> {
+    if (!this.apiKey) {
+      console.warn('[EmailService] Email no enviado: BREVO_API_KEY no configurada');
+      return;
+    }
+
+    const body = JSON.stringify({
+      sender: { name: this.fromName, email: this.fromEmail },
+      to: [{ email: destinatario }],
+      subject: asunto,
+      textContent: texto,
+    });
+
+    await this.sendViaBrevio(body);
+  }
+
   private async sendViaBrevio(body: string): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const req = https.request(
