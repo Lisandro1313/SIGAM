@@ -147,7 +147,8 @@ export default function UsuariosPage() {
     }
     setSaving(true);
     try {
-      const payload: any = { nombre, email, rol, activo };
+      const payload: any = { nombre, email, rol };
+      if (selected) payload.activo = activo;
       payload.programaId = rol === 'OPERADOR_PROGRAMA' && programaId ? parseInt(programaId) : null;
       payload.depositoId = rol === 'LOGISTICA' && depositoId ? parseInt(depositoId) : null;
       if (password) payload.password = password;
