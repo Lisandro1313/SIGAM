@@ -29,6 +29,8 @@ const CasosParticulares  = lazy(() => import('./pages/CasosParticulares'));
 const BusquedaDNI        = lazy(() => import('./pages/BusquedaDNI'));
 const ChoferHome         = lazy(() => import('./pages/ChoferHome'));
 const NutricionistaHome  = lazy(() => import('./pages/NutricionistaHome'));
+const SugerenciasPage    = lazy(() => import('./pages/Sugerencias'));
+const DocumentacionPage  = lazy(() => import('./pages/Documentacion'));
 
 function HomeRedirect() {
   const { user } = useAuthStore();
@@ -73,6 +75,8 @@ function App() {
             <Route path="/busqueda-dni" element={<ProtectedRoute seccion="busqueda-dni"><BusquedaDNI /></ProtectedRoute>} />
             <Route path="/mis-entregas" element={<ProtectedRoute seccion="mis-entregas"><ChoferHome /></ProtectedRoute>} />
             <Route path="/nutricionista" element={<ProtectedRoute seccion="nutricionista"><NutricionistaHome /></ProtectedRoute>} />
+            <Route path="/sugerencias" element={<ProtectedRoute seccion="sugerencias"><SugerenciasPage /></ProtectedRoute>} />
+            <Route path="/documentacion" element={<ProtectedRoute seccion="documentacion"><DocumentacionPage /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Suspense>

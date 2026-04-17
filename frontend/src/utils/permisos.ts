@@ -54,6 +54,8 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'casos-particulares',
     'busqueda-dni',
     'nutricionista',
+    'sugerencias',
+    'documentacion',
   ],
   LOGISTICA: [
     'dashboard',
@@ -64,6 +66,8 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'reportes',
     'historial-entregas',
     'tareas',
+    'sugerencias',
+    'documentacion',
   ],
   OPERADOR_PROGRAMA: [
     'dashboard',
@@ -76,6 +80,8 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'casos-particulares',
     'busqueda-dni',
     'nutricionista',
+    'sugerencias',
+    'documentacion',
   ],
   TRABAJADORA_SOCIAL: [
     'beneficiarios',
@@ -105,6 +111,8 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'beneficiarios',
     'reportes',
     'busqueda-dni',
+    'sugerencias',
+    'documentacion',
   ],
   CHOFER: [
     'mis-entregas',

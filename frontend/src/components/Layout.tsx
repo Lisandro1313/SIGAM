@@ -63,6 +63,8 @@ import {
   History as HistoryIcon,
   DoneAll as MarcarTodasIcon,
   Restaurant as NutricionIcon,
+  AutoAwesome as SugerenciasIcon,
+  Description as DocumentacionIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { useColorMode } from '../theme/ColorModeContext';
@@ -92,6 +94,8 @@ const menuItems = [
   { text: 'Mis Casos',          icon: <MisCasosIcon />,            path: '/mis-casos',          seccion: 'mis-casos' },
   { text: 'Búsqueda por DNI',   icon: <BadgeIcon />,               path: '/busqueda-dni',       seccion: 'busqueda-dni' },
   { text: 'Nutrición',          icon: <NutricionIcon />,           path: '/nutricionista',      seccion: 'nutricionista' },
+  { text: 'Sugerencias',        icon: <SugerenciasIcon />,         path: '/sugerencias',        seccion: 'sugerencias' },
+  { text: 'Documentación',      icon: <DocumentacionIcon />,       path: '/documentacion',      seccion: 'documentacion' },
 ];
 
 // Menú restringido para usuarios de depósito (LOGISTICA + depositoId)
