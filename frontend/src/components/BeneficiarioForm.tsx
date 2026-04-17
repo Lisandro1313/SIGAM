@@ -23,7 +23,7 @@ import api from '../services/api';
 interface BeneficiarioFormProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (beneficiario?: any) => void;
   beneficiario?: any;
 }
 
@@ -88,13 +88,14 @@ export default function BeneficiarioForm({
         kilosHabitual: formData.kilosHabitual ? parseFloat(formData.kilosHabitual as any) : null,
       };
       if (beneficiario) {
-        await api.patch(`/beneficiarios/${beneficiario.id}`, data);
+        const res = await api.patch(`/beneficiarios/${beneficiario.id}`, data);
         showNotification('Beneficiario actualizado correctamente', 'success');
+        onSuccess(res.data);
       } else {
-        await api.post('/beneficiarios', data);
+        const res = await api.post('/beneficiarios', data);
         showNotification('Beneficiario creado correctamente', 'success');
+        onSuccess(res.data);
       }
-      onSuccess();
       onClose();
     } catch (error: any) {
       showNotification(

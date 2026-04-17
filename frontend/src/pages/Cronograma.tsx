@@ -1057,7 +1057,7 @@ export default function CronogramaPage() {
         onClose={() => setOpenNuevoBen(false)}
         onSuccess={async () => {
           setOpenNuevoBen(false);
-          const r = await api.get('/beneficiarios?limit=500');
+          const r = await api.get('/beneficiarios?limit=5000');
           setTodosLosBens(r.data?.data ?? r.data);
         }}
       />

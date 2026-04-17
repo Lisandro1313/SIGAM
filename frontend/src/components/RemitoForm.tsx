@@ -110,15 +110,14 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
     }
   }, [open]);
 
-  const loadBeneficiarios = async (autoSelectLatest = false) => {
+  const loadBeneficiarios = async (selectBeneficiario?: any) => {
     try {
-      const response = await api.get('/beneficiarios', { params: { limit: 500 } });
+      const response = await api.get('/beneficiarios', { params: { limit: 5000 } });
       const activos = (response.data.data ?? response.data).filter((b: any) => b.activo);
       setBeneficiarios(activos);
-      if (autoSelectLatest && activos.length > 0) {
-        const ultimo = activos.reduce((a: any, b: any) => (b.id > a.id ? b : a));
-        setBeneficiarioId(String(ultimo.id));
-        if (ultimo.programaId) setProgramaId(String(ultimo.programaId));
+      if (selectBeneficiario) {
+        setBeneficiarioId(String(selectBeneficiario.id));
+        if (selectBeneficiario.programaId) setProgramaId(String(selectBeneficiario.programaId));
       }
     } catch (error) {
       console.error('Error cargando beneficiarios:', error);
@@ -828,9 +827,9 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
       <BeneficiarioForm
         open={openNuevoBeneficiario}
         onClose={() => setOpenNuevoBeneficiario(false)}
-        onSuccess={() => {
+        onSuccess={(nuevoBeneficiario) => {
           setOpenNuevoBeneficiario(false);
-          loadBeneficiarios(true);
+          loadBeneficiarios(nuevoBeneficiario);
         }}
       />
     </Dialog>
