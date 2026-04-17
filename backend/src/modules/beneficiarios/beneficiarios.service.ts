@@ -63,8 +63,24 @@ export class BeneficiariosService {
         { responsableDNI: { contains: filtros.buscar, mode: 'insensitive' } },
       ];
     }
-    // Filtrar por secretaría del programa (null = LOGISTICA/VISOR, ve todo)
-    if (secretaria) where.programa = { secretaria };
+    // Filtrar por secretaría: incluye beneficiarios del programa de esa secretaría
+    // Y también los sin programa (casos particulares, CASO_PARTICULAR sin programaId)
+    if (secretaria) {
+      const condSecretaria = [
+        { programa: { secretaria } },
+        { programaId: null },
+      ];
+      if (where.OR) {
+        // Ya hay un OR de búsqueda — envolvemos todo con AND
+        where.AND = [
+          { OR: where.OR },
+          { OR: condSecretaria },
+        ];
+        delete where.OR;
+      } else {
+        where.OR = condSecretaria;
+      }
+    }
 
     const page = filtros?.page ? parseInt(filtros.page) : 1;
     const limit = filtros?.limit ? parseInt(filtros.limit) : 50;
