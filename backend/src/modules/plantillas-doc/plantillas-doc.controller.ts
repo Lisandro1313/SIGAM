@@ -62,4 +62,22 @@ export class PlantillasDocController {
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Restaurar plantillas built-in al contenido original' })
   resetDefaults() { return this.service.resetDefaults(); }
+
+  // ─── Historial de documentos generados ───
+  @Post('historial/registrar')
+  @Roles(...ROLES_LECTURA)
+  @ApiOperation({ summary: 'Registrar que se generó/imprimió un documento' })
+  registrarGeneracion(
+    @Body() data: { plantillaId?: number; plantillaTitulo: string; cantidadEspacios?: number; contexto?: any },
+    @Request() req,
+  ) {
+    return this.service.registrarGeneracion(data, { id: req.user.id, nombre: req.user.nombre, rol: req.user.rol });
+  }
+
+  @Get('historial/listar')
+  @Roles(...ROLES_LECTURA)
+  @ApiOperation({ summary: 'Historial de documentos generados' })
+  listarHistorial(@Request() req) {
+    return this.service.historialGeneraciones(getSecretaria(req));
+  }
 }

@@ -49,14 +49,65 @@ export class SugerenciasService {
       }
     }
 
+    // Filtrar las que tengan estado activo (hechas/descartadas) que no haya expirado
+    const estados = await this.prisma.sugerenciaEstado.findMany({
+      where: {
+        expiraEn: { gte: new Date() },
+        ...(secretaria ? { secretaria } : {}),
+      },
+      select: { clave: true },
+    });
+    const ocultas = new Set(estados.map((e) => e.clave));
+    const visibles = sugerencias.filter((s) => !ocultas.has(s.id));
+
     const orden: Record<Nivel, number> = { alta: 0, media: 1, baja: 2 };
-    sugerencias.sort((a, b) => orden[a.nivel] - orden[b.nivel]);
+    visibles.sort((a, b) => orden[a.nivel] - orden[b.nivel]);
 
     return {
       generadoEn: new Date().toISOString(),
-      total: sugerencias.length,
-      sugerencias,
+      total: visibles.length,
+      sugerencias: visibles,
     };
+  }
+
+  async accion(
+    clave: string,
+    accion: 'HECHA' | 'DESCARTADA',
+    dias: number,
+    user: { id: number; nombre: string; rol: string },
+  ) {
+    const secretaria = user.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    const expiraEn = new Date(Date.now() + dias * 24 * 3600 * 1000);
+    // Solo mantenemos el último estado por clave+secretaria
+    await this.prisma.sugerenciaEstado.deleteMany({ where: { clave, secretaria } });
+    await this.prisma.sugerenciaEstado.create({
+      data: {
+        clave,
+        accion,
+        usuarioId: user.id,
+        usuarioNombre: user.nombre,
+        secretaria,
+        expiraEn,
+      },
+    });
+    return { ok: true, clave, accion, expiraEn };
+  }
+
+  async reactivar(clave: string, user: { rol: string }) {
+    const secretaria = user.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    await this.prisma.sugerenciaEstado.deleteMany({ where: { clave, secretaria } });
+    return { ok: true };
+  }
+
+  async historialAcciones(secretaria: string | null) {
+    return this.prisma.sugerenciaEstado.findMany({
+      where: {
+        expiraEn: { gte: new Date() },
+        ...(secretaria ? { secretaria } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
   }
 
   // ──────────────────────────────────────────────────────────────────────

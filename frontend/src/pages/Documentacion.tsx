@@ -29,6 +29,7 @@ import {
   Restaurant as RestaurantIcon,
   FilterList as FilterIcon,
   Visibility as PreviewIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
@@ -360,10 +361,12 @@ export default function DocumentacionPage() {
     if (!plantillaRendir) { setSnack({ msg: 'Elegí un modelo', type: 'error' }); return; }
     const p = plantillas.find((x) => x.id === plantillaRendir);
     if (!p) return;
-    imprimir(p.contenido, `${p.titulo} — ${espaciosSeleccionados.length} espacios`, {
-      usuario: user?.nombre,
-      seleccionados: espaciosSeleccionados,
-    });
+    imprimirYRegistrar(
+      p,
+      `${p.titulo} — ${espaciosSeleccionados.length} espacios`,
+      { usuario: user?.nombre, seleccionados: espaciosSeleccionados },
+      espaciosSeleccionados,
+    );
     setRendirOpen(false);
   };
 
@@ -427,6 +430,39 @@ export default function DocumentacionPage() {
     catch (e: any) { setSnack({ msg: e?.response?.data?.message ?? 'Error', type: 'error' }); }
   };
 
+  // ── Historial de documentos generados ────────────────────────────────
+  interface HistorialItem {
+    id: number;
+    plantillaTitulo: string;
+    usuarioNombre?: string;
+    cantidadEspacios: number;
+    contexto?: string;
+    createdAt: string;
+  }
+  const [historial, setHistorial] = useState<HistorialItem[]>([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+
+  const cargarHistorial = async () => {
+    setLoadingHistorial(true);
+    try {
+      const { data } = await api.get('/plantillas-doc/historial/listar');
+      setHistorial(data ?? []);
+    } catch {/* silent */}
+    finally { setLoadingHistorial(false); }
+  };
+
+  useEffect(() => { if (tab === 3) cargarHistorial(); }, [tab]);
+
+  const imprimirYRegistrar = (plantilla: Plantilla, tituloExtra: string, ctx: any, espacios?: EspacioTracking[]) => {
+    imprimir(plantilla.contenido, tituloExtra, ctx);
+    api.post('/plantillas-doc/historial/registrar', {
+      plantillaId: plantilla.id,
+      plantillaTitulo: plantilla.titulo,
+      cantidadEspacios: espacios?.length ?? 0,
+      contexto: espacios?.length ? { espacios: espacios.map((e) => e.nombre) } : undefined,
+    }).catch(() => {/* no-op: no bloqueamos al usuario si falla el log */});
+  };
+
   return (
     <Box>
       <Paper
@@ -454,6 +490,7 @@ export default function DocumentacionPage() {
           <Tab label="Modelos" icon={<PrintIcon />} iconPosition="start" />
           <Tab label={`Tracking de espacios${seleccionados.size > 0 ? ` (${seleccionados.size})` : ''}`} icon={<CheckIcon />} iconPosition="start" />
           <Tab label="Repositorio" icon={<UploadIcon />} iconPosition="start" />
+          <Tab label="Historial" icon={<HistoryIcon />} iconPosition="start" />
         </Tabs>
 
         {/* ── Tab 0: Modelos ─────────────────────────────────────────────── */}
@@ -511,7 +548,7 @@ export default function DocumentacionPage() {
                     )}
                   </CardContent>
                   <CardActions sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                    <Button size="small" variant="contained" startIcon={<PrintIcon />} onClick={() => imprimir(p.contenido, p.titulo, { usuario: user?.nombre })} sx={{ bgcolor: p.color ?? '#1976d2', flex: 1 }}>
+                    <Button size="small" variant="contained" startIcon={<PrintIcon />} onClick={() => imprimirYRegistrar(p, p.titulo, { usuario: user?.nombre })} sx={{ bgcolor: p.color ?? '#1976d2', flex: 1 }}>
                       Imprimir
                     </Button>
                     {puedeEditarPlantilla && (
@@ -626,7 +663,7 @@ export default function DocumentacionPage() {
                           <Tooltip title="Imprimir acta para este espacio">
                             <IconButton size="small" onClick={() => {
                               const p = plantillas.find((x) => x.titulo.toLowerCase().includes('acta'));
-                              if (p) imprimir(p.contenido, `${p.titulo} — ${t.nombre}`, { usuario: user?.nombre, seleccionados: [t] });
+                              if (p) imprimirYRegistrar(p, `${p.titulo} — ${t.nombre}`, { usuario: user?.nombre, seleccionados: [t] }, [t]);
                             }}>
                               <PrintIcon fontSize="small" />
                             </IconButton>
@@ -731,6 +768,67 @@ export default function DocumentacionPage() {
                                 </IconButton>
                               </Tooltip>
                             )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        )}
+
+        {/* ── Tab 3: Historial ────────────────────────────────────────── */}
+        {tab === 3 && (
+          <Box sx={{ p: 3 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} justifyContent="space-between" spacing={1.5} sx={{ mb: 2 }}>
+              <Box>
+                <Typography variant="subtitle1" fontWeight="bold">Historial de documentos generados</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Registro de cada impresión: qué modelo se usó, quién lo generó y cuándo. Últimos 200.
+                </Typography>
+              </Box>
+              <Button size="small" onClick={cargarHistorial}>Actualizar</Button>
+            </Stack>
+
+            {loadingHistorial ? (
+              <LinearProgress />
+            ) : historial.length === 0 ? (
+              <Alert severity="info">Todavía no hay documentos generados.</Alert>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Fecha</TableCell>
+                      <TableCell>Modelo</TableCell>
+                      <TableCell>Generado por</TableCell>
+                      <TableCell align="right">Espacios</TableCell>
+                      <TableCell>Incluyó</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {historial.map((h) => {
+                      let nombres: string[] = [];
+                      if (h.contexto) {
+                        try {
+                          const p = JSON.parse(h.contexto);
+                          nombres = Array.isArray(p?.espacios) ? p.espacios : [];
+                        } catch {/* ignore */}
+                      }
+                      return (
+                        <TableRow key={h.id} hover>
+                          <TableCell>{new Date(h.createdAt).toLocaleString('es-AR')}</TableCell>
+                          <TableCell sx={{ fontWeight: 500 }}>{h.plantillaTitulo}</TableCell>
+                          <TableCell>{h.usuarioNombre ?? '—'}</TableCell>
+                          <TableCell align="right">{h.cantidadEspacios || '—'}</TableCell>
+                          <TableCell sx={{ maxWidth: 400 }}>
+                            {nombres.length > 0 ? (
+                              <Typography variant="caption" sx={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {nombres.slice(0, 6).join(', ')}{nombres.length > 6 ? ` · +${nombres.length - 6}` : ''}
+                              </Typography>
+                            ) : '—'}
                           </TableCell>
                         </TableRow>
                       );

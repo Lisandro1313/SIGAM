@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SugerenciasService } from './sugerencias.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -7,19 +7,44 @@ import { SetMetadata } from '@nestjs/common';
 
 const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 
+function getSecretaria(req: any): string | null {
+  const rol = req.user?.rol;
+  if (rol === 'ASISTENCIA_CRITICA') return 'AC';
+  if (rol === 'LOGISTICA' || rol === 'VISOR' || rol === 'ADMIN') return null;
+  return 'PA';
+}
+
 @ApiTags('sugerencias')
 @Controller('sugerencias')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
-@Roles('ADMIN', 'VISOR', 'LOGISTICA', 'OPERADOR_PROGRAMA')
+@Roles('ADMIN', 'VISOR', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'ASISTENCIA_CRITICA')
 export class SugerenciasController {
   constructor(private readonly service: SugerenciasService) {}
 
   @Get()
   @ApiOperation({ summary: 'Sugerencias inteligentes generadas a partir del estado actual del sistema' })
   listar(@Request() req) {
-    const rol = req.user?.rol;
-    const secretaria = rol === 'ASISTENCIA_CRITICA' ? 'AC' : (rol === 'LOGISTICA' || rol === 'VISOR' ? null : 'PA');
-    return this.service.generar(secretaria);
+    return this.service.generar(getSecretaria(req));
+  }
+
+  @Get('historial-acciones')
+  @ApiOperation({ summary: 'Sugerencias marcadas como hechas o descartadas recientemente' })
+  historial(@Request() req) {
+    return this.service.historialAcciones(getSecretaria(req));
+  }
+
+  @Post(':clave/accion')
+  @ApiOperation({ summary: 'Marcar sugerencia como hecha o descartada' })
+  accion(@Param('clave') clave: string, @Body() body: { accion: 'HECHA' | 'DESCARTADA'; dias?: number }, @Request() req) {
+    const accion = body.accion === 'DESCARTADA' ? 'DESCARTADA' : 'HECHA';
+    const dias = Math.max(1, Math.min(90, body.dias ?? (accion === 'HECHA' ? 14 : 30)));
+    return this.service.accion(clave, accion, dias, { id: req.user.id, nombre: req.user.nombre, rol: req.user.rol });
+  }
+
+  @Post(':clave/reactivar')
+  @ApiOperation({ summary: 'Volver a mostrar una sugerencia oculta' })
+  reactivar(@Param('clave') clave: string, @Request() req) {
+    return this.service.reactivar(clave, { rol: req.user.rol });
   }
 }

@@ -88,6 +88,37 @@ export class PlantillasDocService {
     return { ok: true };
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // Historial de documentos generados (auditoría de impresiones)
+  // ─────────────────────────────────────────────────────────────
+  async registrarGeneracion(
+    data: { plantillaId?: number | null; plantillaTitulo: string; cantidadEspacios?: number; contexto?: any },
+    user: { id: number; nombre: string; rol: string },
+  ) {
+    const secretaria = user.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    return this.prisma.documentoGenerado.create({
+      data: {
+        plantillaId: data.plantillaId ?? null,
+        plantillaTitulo: data.plantillaTitulo,
+        cantidadEspacios: data.cantidadEspacios ?? 0,
+        contexto: data.contexto ? JSON.stringify(data.contexto).slice(0, 4000) : null,
+        usuarioId: user.id,
+        usuarioNombre: user.nombre,
+        secretaria,
+      },
+    });
+  }
+
+  async historialGeneraciones(secretaria: string | null, limite = 200) {
+    const where: any = {};
+    if (secretaria) where.secretaria = secretaria;
+    return this.prisma.documentoGenerado.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limite, 500),
+    });
+  }
+
   async resetDefaults() {
     // Reinicia las plantillas built-in a su contenido original (mantiene las custom)
     for (const p of PLANTILLAS_DEFAULT) {

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Chip, Button, Stack, Skeleton,
   IconButton, Tooltip, Alert, ToggleButtonGroup, ToggleButton, Divider,
-  LinearProgress, Paper, useTheme,
+  LinearProgress, Paper, useTheme, Snackbar,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -22,6 +22,8 @@ import {
   PendingActions as PendingActionsIcon,
   ArrowForward as ArrowForwardIcon,
   Lightbulb as LightbulbIcon,
+  Done as DoneIcon,
+  NotInterested as DismissIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 
@@ -70,6 +72,8 @@ export default function SugerenciasPage() {
   const [error, setError] = useState<string | null>(null);
   const [filtroNivel, setFiltroNivel] = useState<'todas' | 'alta' | 'media' | 'baja'>('todas');
   const [filtroCat, setFiltroCat] = useState<string>('todas');
+  const [accionEnCurso, setAccionEnCurso] = useState<string | null>(null);
+  const [mensaje, setMensaje] = useState<string | null>(null);
   const navigate = useNavigate();
   const theme = useTheme();
 
@@ -87,6 +91,19 @@ export default function SugerenciasPage() {
   };
 
   useEffect(() => { cargar(); }, []);
+
+  const marcarAccion = async (clave: string, accion: 'HECHA' | 'DESCARTADA') => {
+    setAccionEnCurso(clave);
+    try {
+      await api.post(`/sugerencias/${encodeURIComponent(clave)}/accion`, { accion });
+      setData((prev) => prev ? { ...prev, sugerencias: prev.sugerencias.filter((s) => s.id !== clave), total: prev.total - 1 } : prev);
+      setMensaje(accion === 'HECHA' ? 'Marcada como hecha. Se oculta por 14 días.' : 'Descartada. Se oculta por 30 días.');
+    } catch (e: any) {
+      setMensaje(e?.response?.data?.message ?? 'No se pudo actualizar la sugerencia.');
+    } finally {
+      setAccionEnCurso(null);
+    }
+  };
 
   const categorias = useMemo(() => {
     if (!data) return [];
@@ -278,8 +295,8 @@ export default function SugerenciasPage() {
                           </Typography>
                         </>
                       )}
-                      {s.accion && (
-                        <Box sx={{ mt: 1.5 }}>
+                      <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: 'wrap', gap: 1 }}>
+                        {s.accion && (
                           <Button
                             size="small"
                             variant="outlined"
@@ -288,8 +305,28 @@ export default function SugerenciasPage() {
                           >
                             {s.accion.label}
                           </Button>
-                        </Box>
-                      )}
+                        )}
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="success"
+                          startIcon={<DoneIcon />}
+                          disabled={accionEnCurso === s.id}
+                          onClick={() => marcarAccion(s.id, 'HECHA')}
+                        >
+                          Marcar hecha
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="text"
+                          color="inherit"
+                          startIcon={<DismissIcon />}
+                          disabled={accionEnCurso === s.id}
+                          onClick={() => marcarAccion(s.id, 'DESCARTADA')}
+                        >
+                          Descartar
+                        </Button>
+                      </Stack>
                     </Box>
                   </Stack>
                 </CardContent>
@@ -306,6 +343,14 @@ export default function SugerenciasPage() {
           </Box>
         </>
       )}
+
+      <Snackbar
+        open={!!mensaje}
+        autoHideDuration={3000}
+        onClose={() => setMensaje(null)}
+        message={mensaje}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Box>
   );
 }

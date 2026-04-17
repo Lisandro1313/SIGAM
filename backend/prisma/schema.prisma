@@ -911,3 +911,41 @@ model PlantillaDocumento {
   @@index([categoria])
   @@index([secretaria])
 }
+
+// ============================================================================
+// ESTADO DE SUGERENCIAS (hecha / descartada / snooze)
+// ============================================================================
+
+model SugerenciaEstado {
+  id              Int      @id @default(autoincrement())
+  clave           String                              // id de sugerencia (ej: "stock-agotarse")
+  accion          String                              // HECHA | DESCARTADA
+  usuarioId       Int?
+  usuarioNombre   String?
+  secretaria      String   @default("PA")
+  expiraEn        DateTime                            // hasta cuándo ocultar
+  createdAt       DateTime @default(now())
+
+  @@index([clave, expiraEn])
+  @@index([secretaria])
+}
+
+// ============================================================================
+// HISTORIAL DE DOCUMENTOS GENERADOS (auditoría de impresiones)
+// ============================================================================
+
+model DocumentoGenerado {
+  id               Int      @id @default(autoincrement())
+  plantillaId      Int?                                // puede ser null si la plantilla fue eliminada
+  plantillaTitulo  String
+  usuarioId        Int?
+  usuarioNombre    String?
+  secretaria       String   @default("PA")
+  cantidadEspacios Int      @default(0)                // cuántos espacios incluyó (si aplicó)
+  contexto         String?                             // JSON con nombres de espacios, etc.
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([secretaria])
+  @@index([plantillaId])
+}
