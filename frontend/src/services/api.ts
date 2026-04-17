@@ -45,16 +45,18 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Retry automático en 429 (rate limit) — máximo 3 intentos con backoff
+    // Retry automático en 429 (rate limit) — máximo 3 intentos con backoff + jitter
+    // El jitter evita que múltiples requests reintentan al mismo tiempo (thundering herd)
     const config = error.config;
-    if (error.response?.status === 429 && config && !config._retryCount) {
-      config._retryCount = 0;
-    }
-    if (error.response?.status === 429 && config && config._retryCount < 3) {
-      config._retryCount += 1;
-      const delay = config._retryCount * 2000; // 2s, 4s, 6s
-      await new Promise(res => setTimeout(res, delay));
-      return api(config);
+    if (error.response?.status === 429 && config) {
+      if (config._retryCount === undefined) config._retryCount = 0;
+      if (config._retryCount < 3) {
+        config._retryCount += 1;
+        const base = config._retryCount * 2000; // 2s, 4s, 6s
+        const jitter = Math.random() * 1000;     // +0–1s aleatorio
+        await new Promise(res => setTimeout(res, base + jitter));
+        return api(config);
+      }
     }
 
     return Promise.reject(error);

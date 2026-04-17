@@ -61,6 +61,9 @@ import { useNotificationStore } from '../stores/notificationStore';
 import { useAuthStore } from '../stores/authStore';
 import LoadingPage from '../components/LoadingPage';
 
+const COL_SM = { display: { xs: 'none', sm: 'table-cell' } } as const;
+const COL_MD = { display: { xs: 'none', md: 'table-cell' } } as const;
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 function resolveUrl(url: string) {
   return url.startsWith('http') ? url : `${API_BASE}/${url.replace(/^\//, '')}`;
@@ -710,7 +713,7 @@ export default function RemitosPage() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell padding="checkbox" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+              <TableCell padding="checkbox" sx={COL_SM}>
                 <Checkbox
                   indeterminate={selectedIds.size > 0 && selectedIds.size < remitosVisibles.length}
                   checked={remitosVisibles.length > 0 && selectedIds.size === remitosVisibles.length}
@@ -733,8 +736,8 @@ export default function RemitosPage() {
                   Beneficiario
                 </TableSortLabel>
               </TableCell>
-              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Depósito</TableCell>
-              <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Total Kg</TableCell>
+              <TableCell sx={COL_MD}>Depósito</TableCell>
+              <TableCell align="right" sx={COL_SM}>Total Kg</TableCell>
               <TableCell sortDirection={sortField === 'estado' ? sortDir : false} sx={{ cursor: 'pointer' }}>
                 <TableSortLabel active={sortField === 'estado'} direction={sortField === 'estado' ? sortDir : 'asc'} onClick={() => handleSort('estado')} sx={{ color: 'inherit !important', '& .MuiTableSortLabel-icon': { color: 'inherit !important' } }}>
                   Estado
@@ -746,7 +749,7 @@ export default function RemitosPage() {
           <TableBody>
             {remitosOrdenados.map((remito) => (
               <TableRow key={remito.id} hover selected={selectedIds.has(remito.id)}>
-                <TableCell padding="checkbox" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                <TableCell padding="checkbox" sx={COL_SM}>
                   <Checkbox
                     checked={selectedIds.has(remito.id)}
                     onChange={() => toggleSelect(remito.id)}
@@ -756,7 +759,7 @@ export default function RemitosPage() {
                 <TableCell>
                   <strong>{remito.numero || 'BORRADOR'}</strong>
                 </TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                <TableCell sx={COL_SM}>
                   {format(new Date(remito.fecha), 'dd/MM/yyyy', { locale: es })}
                 </TableCell>
                 <TableCell>
@@ -767,8 +770,8 @@ export default function RemitosPage() {
                     </Typography>
                   )}
                 </TableCell>
-                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{remito.deposito?.nombre}</TableCell>
-                <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                <TableCell sx={COL_MD}>{remito.deposito?.nombre}</TableCell>
+                <TableCell align="right" sx={COL_SM}>
                   <strong>{remito.totalKg.toFixed(2)}</strong>
                 </TableCell>
                 <TableCell>

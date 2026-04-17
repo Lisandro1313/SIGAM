@@ -22,6 +22,7 @@ export class EventsController {
    * Así el JWT nunca aparece en la URL de EventSource.
    */
   @Post('ticket')
+  @SkipThrottle()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener ticket efímero para abrir SSE' })

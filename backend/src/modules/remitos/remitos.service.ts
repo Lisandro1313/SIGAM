@@ -51,15 +51,17 @@ export class RemitosService {
     const secretaria = usuario.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
     const numero = await this.generarNumeroRemito(secretaria);
 
-    // Calcular peso total
+    // Calcular peso total (batch en vez de N+1)
+    const articuloIds = createRemitoDto.items.map(i => i.articuloId);
+    const articulos = await this.prisma.articulo.findMany({
+      where: { id: { in: articuloIds } },
+      select: { id: true, pesoUnitarioKg: true },
+    });
+    const articuloMap = new Map(articulos.map(a => [a.id, a]));
     let totalKg = 0;
     for (const item of createRemitoDto.items) {
-      const articulo = await this.prisma.articulo.findUnique({
-        where: { id: item.articuloId },
-      });
-      if (articulo?.pesoUnitarioKg) {
-        totalKg += item.cantidad * articulo.pesoUnitarioKg;
-      }
+      const art = articuloMap.get(item.articuloId);
+      if (art?.pesoUnitarioKg) totalKg += item.cantidad * art.pesoUnitarioKg;
     }
 
     let fechaRemito: Date | undefined;
@@ -188,13 +190,17 @@ export class RemitosService {
       throw new BadRequestException('Debe incluir al menos un artículo');
     }
 
-    // Calcular peso total
+    // Calcular peso total (batch en vez de N+1)
+    const articuloIds = items.map((i: any) => i.articuloId);
+    const articulos = await this.prisma.articulo.findMany({
+      where: { id: { in: articuloIds } },
+      select: { id: true, pesoUnitarioKg: true },
+    });
+    const articuloMap = new Map(articulos.map(a => [a.id, a]));
     let totalKg = 0;
     for (const item of items) {
-      const articulo = await this.prisma.articulo.findUnique({ where: { id: item.articuloId } });
-      if (articulo?.pesoUnitarioKg) {
-        totalKg += item.cantidad * articulo.pesoUnitarioKg;
-      }
+      const art = articuloMap.get(item.articuloId);
+      if (art?.pesoUnitarioKg) totalKg += item.cantidad * art.pesoUnitarioKg;
     }
 
     return this.prisma.remito.update({

@@ -62,6 +62,8 @@ import { puedeHacer } from '../utils/permisos';
 import { useNotificationStore } from '../stores/notificationStore';
 
 const TIPOS_DOC = ['DNI', 'INFORME', 'FOTO', 'RELEVAMIENTO', 'RENDICION', 'CONTRATO', 'OTRO'];
+const COL_SM = { display: { xs: 'none', sm: 'table-cell' } } as const;
+const COL_MD = { display: { xs: 'none', md: 'table-cell' } } as const;
 
 const ESTADO_COLOR: Record<string, 'warning' | 'success' | 'error'> = {
   PENDIENTE: 'warning',
@@ -539,10 +541,10 @@ export default function BeneficiariosPage() {
           <TableHead>
             <TableRow>
               <TableCell>Nombre</TableCell>
-              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Tipo</TableCell>
-              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Localidad</TableCell>
-              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Programa</TableCell>
-              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Frecuencia</TableCell>
+              <TableCell sx={COL_SM}>Tipo</TableCell>
+              <TableCell sx={COL_MD}>Localidad</TableCell>
+              <TableCell sx={COL_SM}>Programa</TableCell>
+              <TableCell sx={COL_MD}>Frecuencia</TableCell>
               <TableCell align="center">Acciones</TableCell>
             </TableRow>
           </TableHead>
@@ -573,12 +575,12 @@ export default function BeneficiariosPage() {
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                  <TableCell sx={COL_SM}>
                     <Chip label={beneficiario.tipo} size="small" />
                   </TableCell>
-                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{beneficiario.localidad}</TableCell>
-                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{beneficiario.programa?.nombre || '—'}</TableCell>
-                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                  <TableCell sx={COL_MD}>{beneficiario.localidad}</TableCell>
+                  <TableCell sx={COL_SM}>{beneficiario.programa?.nombre || '—'}</TableCell>
+                  <TableCell sx={COL_MD}>
                     <Chip
                       label={beneficiario.frecuenciaEntrega}
                       size="small"

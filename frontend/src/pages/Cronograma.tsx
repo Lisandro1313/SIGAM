@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Box, Typography, Paper, IconButton, Button, TextField,
   Autocomplete, Tooltip, Chip, CircularProgress, Select,
@@ -138,6 +138,12 @@ export default function CronogramaPage() {
   const bens: Beneficiario[] = programaActivo
     ? todosLosBens.filter(b => b.programaId === programaActivo.id)
     : todosLosBens;
+
+  // Lookup O(1) para depósitos por id (usado en vista mobile)
+  const depositoMap = useMemo(
+    () => Object.fromEntries(depositos.map(d => [d.id, d])),
+    [depositos]
+  );
 
   useEffect(() => {
     Promise.all([
@@ -505,29 +511,23 @@ export default function CronogramaPage() {
           <Typography variant="body2" fontWeight="bold" minWidth={{ xs: 160, sm: 230 }} textAlign="center" fontSize={{ xs: '0.8rem', sm: '1rem' }}>{semanaLabel}</Typography>
           <Tooltip title="Semana siguiente"><IconButton size="small" onClick={()=>setSemanaInicio(p=>addDays(p,7))}><ChevronRight/></IconButton></Tooltip>
           <Tooltip title="Hoy"><IconButton size="small" onClick={()=>setSemanaInicio(startOfWeek(new Date()))}><TodayIcon/></IconButton></Tooltip>
-          {!isMobile && (
-            <>
-              <Button variant="outlined" startIcon={<PdfIcon/>} onClick={handleOpenExport} size="small" color="secondary">
-                Exportar cronograma
-              </Button>
-              <Button variant="outlined" startIcon={<ReceiptIcon/>} onClick={handleOpenSemanaGen} size="small" color="success">
-                Remitos semana
-              </Button>
-            </>
-          )}
+          {(isMobile
+            ? [
+                { label:'Remitos', icon:<ReceiptIcon/>, onClick:handleOpenSemanaGen, color:'success' as const },
+                { label:'PDF',     icon:<PdfIcon/>,    onClick:handleOpenExport,    color:'secondary' as const },
+              ]
+            : [
+                { label:'Exportar cronograma', icon:<PdfIcon/>,    onClick:handleOpenExport,    color:'secondary' as const },
+                { label:'Remitos semana',      icon:<ReceiptIcon/>, onClick:handleOpenSemanaGen, color:'success' as const },
+              ]
+          ).map(b => (
+            <Button key={b.label} variant="outlined" startIcon={b.icon} onClick={b.onClick} size="small" color={b.color}>
+              {b.label}
+            </Button>
+          ))}
           <Button variant="contained" startIcon={<GenerarIcon/>} onClick={handleOpenGen} size="small" sx={{bgcolor:'#1a237e'}}>
             {isMobile ? 'Generar' : 'Generar mes'}
           </Button>
-          {isMobile && (
-            <>
-              <Button variant="outlined" startIcon={<ReceiptIcon/>} onClick={handleOpenSemanaGen} size="small" color="success">
-                Remitos
-              </Button>
-              <Button variant="outlined" startIcon={<PdfIcon/>} onClick={handleOpenExport} size="small" color="secondary">
-                PDF
-              </Button>
-            </>
-          )}
         </Box>
       </Box>
 
@@ -576,7 +576,7 @@ export default function CronogramaPage() {
               {dia.filas.map(fila=>{
                 const ben=fila.beneficiario;
                 const tieneRemito=!!fila.remito;
-                const dep=depositos.find(d=>d.id===fila.depositoId);
+                const dep=depositoMap[fila.depositoId];
                 return (
                   <Paper key={fila.tempId} elevation={1} sx={{mb:0.75,mx:0.5,p:1.25,bgcolor:tieneRemito?'#f0f7ff':!fila.id&&ben?'#fffde7':'#fff',borderLeft:`3px solid ${COLORES_DIA[idx%COLORES_DIA.length]}`}}>
                     {/* Nombre + estado */}
@@ -585,7 +585,9 @@ export default function CronogramaPage() {
                         {ben?.programa?.nombre && (
                           <Typography variant="caption" sx={{fontSize:10,color:'text.disabled',fontStyle:'italic'}} noWrap>{ben.programa.nombre}</Typography>
                         )}
-                        <Typography variant="body2" fontWeight="bold" noWrap>{ben?.nombre ?? <span style={{color:'#bbb'}}>Sin beneficiario</span>}</Typography>
+                        <Typography variant="body2" fontWeight="bold" noWrap color={ben?.nombre ? 'text.primary' : 'text.disabled'}>
+                          {ben?.nombre ?? 'Sin beneficiario'}
+                        </Typography>
                         {ben?.responsableNombre && (
                           <Typography variant="caption" color="text.secondary" noWrap>{ben.responsableNombre}</Typography>
                         )}
@@ -593,7 +595,7 @@ export default function CronogramaPage() {
                       <Box display="flex" alignItems="center" gap={0.5} flexShrink={0}>
                         {fila.saving && <CircularProgress size={12}/>}
                         {tieneRemito
-                          ? <Chip label={fila.remito!.numero} size="small" color={fila.remito!.estado==='PREPARADO'?'warning':'success'} variant="outlined" icon={<ReceiptIcon style={{fontSize:11}}/>} sx={{fontSize:10,height:20,cursor:'pointer'}} onClick={()=>handleVerRemito(fila.remito!.id)}/>
+                          ? <Chip label={fila.remito!.numero} size="small" color={fila.remito!.estado==='PREPARADO'?'warning':'success'} variant="outlined" icon={<ReceiptIcon sx={{fontSize:11}}/>} sx={{fontSize:10,height:20,cursor:'pointer'}} onClick={()=>handleVerRemito(fila.remito!.id)}/>
                           : fila.id ? <Chip label="PENDIENTE" size="small" variant="outlined" sx={{fontSize:10,height:20}}/> : null
                         }
                       </Box>

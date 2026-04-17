@@ -42,9 +42,9 @@ import { ListasSeguimientoModule } from './modules/listas-seguimiento/listas-seg
     // Tareas programadas (backup semanal, etc.)
     ScheduleModule.forRoot(),
 
-    // Rate limiting global: 300 req/min general; ventanas más estrictas para login.
+    // Rate limiting: 2000 req/min general (red de oficina, IP compartida); login más estricto.
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 300 },
+      { name: 'default', ttl: 60_000, limit: 2000 },
       { name: 'login-min', ttl: 60_000, limit: 5 },
       { name: 'login-hour', ttl: 60 * 60_000, limit: 30 },
     ]),
