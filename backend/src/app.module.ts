@@ -28,6 +28,7 @@ import { PersonalModule } from './modules/personal/personal.module';
 import { PushModule } from './shared/push/push.module';
 import { SugerenciasModule } from './modules/sugerencias/sugerencias.module';
 import { DocumentosModule } from './modules/documentos/documentos.module';
+import { PlantillasDocModule } from './modules/plantillas-doc/plantillas-doc.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { DocumentosModule } from './modules/documentos/documentos.module';
     PushModule,
     SugerenciasModule,
     DocumentosModule,
+    PlantillasDocModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente

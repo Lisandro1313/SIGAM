@@ -888,3 +888,26 @@ model Documento {
   @@index([secretaria])
   @@index([createdAt])
 }
+
+// ============================================================================
+// PLANTILLAS DE DOCUMENTO (modelos imprimibles editables)
+// ============================================================================
+
+model PlantillaDocumento {
+  id          Int      @id @default(autoincrement())
+  titulo      String
+  descripcion String
+  categoria   String   @default("Operativo")   // Operativo, Remitos, Beneficiarios, etc.
+  contenido   String                            // HTML body con variables {{FECHA}}, {{LISTA_SELECCIONADOS}}, etc.
+  icono       String?                           // material icon name
+  color       String?                           // hex
+  esBuiltIn   Boolean  @default(false)          // modelos por defecto: no se pueden eliminar pero sí duplicar
+  secretaria  String   @default("PA")
+  creadoPorId Int?
+  creadoPorNombre String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([categoria])
+  @@index([secretaria])
+}
