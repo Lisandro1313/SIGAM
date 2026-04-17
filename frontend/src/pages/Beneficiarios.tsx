@@ -86,6 +86,13 @@ export default function BeneficiariosPage() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
+  // Filtros
+  const [filtroTipo, setFiltroTipo] = useState('');
+  const [filtroLocalidad, setFiltroLocalidad] = useState('');
+  const [filtroProgramaId, setFiltroProgramaId] = useState('');
+  const [programasLista, setProgramasLista] = useState<any[]>([]);
+  const [localidadesLista, setLocalidadesLista] = useState<string[]>([]);
+
   // Relevamiento
   const [relevamientoOpen, setRelevamientoOpen] = useState(false);
   const [relevamientoTarget, setRelevamientoTarget] = useState<any>(null);
@@ -161,11 +168,27 @@ export default function BeneficiariosPage() {
 
   useEffect(() => { loadBeneficiarios(page, rowsPerPage, searchTerm); }, [page, rowsPerPage]);
 
+  // Recargar cuando cambian los filtros
+  useEffect(() => {
+    loadBeneficiarios(0, rowsPerPage, searchTerm);
+    setPage(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroTipo, filtroLocalidad, filtroProgramaId]);
+
+  // Cargar listas de filtros (programas + localidades) al montar
+  useEffect(() => {
+    api.get('/programas').then(r => setProgramasLista(r.data ?? [])).catch(() => {});
+    api.get('/beneficiarios/localidades').then(r => setLocalidadesLista(r.data ?? [])).catch(() => {});
+  }, []);
+
   const loadBeneficiarios = async (pg = page, lim = rowsPerPage, buscar = searchTerm) => {
     setLoading(true);
     try {
       const params: any = { page: pg + 1, limit: lim };
       if (buscar) params.buscar = buscar;
+      if (filtroTipo) params.tipo = filtroTipo;
+      if (filtroLocalidad) params.localidad = filtroLocalidad;
+      if (filtroProgramaId) params.programaId = filtroProgramaId;
       const response = await api.get('/beneficiarios', { params });
       setBeneficiarios(response.data.data);
       setTotal(response.data.total);
@@ -175,6 +198,13 @@ export default function BeneficiariosPage() {
       setLoading(false);
     }
   };
+
+  const limpiarFiltros = () => {
+    setFiltroTipo('');
+    setFiltroLocalidad('');
+    setFiltroProgramaId('');
+  };
+  const hayFiltrosActivos = !!(filtroTipo || filtroLocalidad || filtroProgramaId);
 
   const handleAbrirBaja = (beneficiario: any) => {
     setBajaBeneficiario(beneficiario);
@@ -394,7 +424,15 @@ export default function BeneficiariosPage() {
           {puedeEditar && (
             <ExportExcelButton
               onExport={async () => {
-                const res = await api.get('/beneficiarios', { params: { limit: 10000, ...(searchTerm ? { buscar: searchTerm } : {}) } });
+                const res = await api.get('/beneficiarios', {
+                  params: {
+                    limit: 10000,
+                    ...(searchTerm ? { buscar: searchTerm } : {}),
+                    ...(filtroTipo ? { tipo: filtroTipo } : {}),
+                    ...(filtroLocalidad ? { localidad: filtroLocalidad } : {}),
+                    ...(filtroProgramaId ? { programaId: filtroProgramaId } : {}),
+                  },
+                });
                 return (res.data.data ?? res.data).map((b: any) => ({
                   id: b.id,
                   nombre: b.nombre,
@@ -411,7 +449,7 @@ export default function BeneficiariosPage() {
                   observaciones: b.observaciones ?? '',
                 }));
               }}
-              fileName={`beneficiarios${searchTerm ? '-filtrado' : ''}`}
+              fileName={`beneficiarios${searchTerm || hayFiltrosActivos ? '-filtrado' : ''}`}
               sheetName="Beneficiarios"
               label={`Exportar todos (${total})`}
             />
@@ -424,11 +462,71 @@ export default function BeneficiariosPage() {
         </Box>
       </Box>
 
-      <Box mb={3} maxWidth={400}>
-        <SearchBar
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Buscar por nombre, DNI, responsable, localidad..."
+      <Box mb={2} display="flex" flexWrap="wrap" gap={1.5} alignItems="center">
+        <Box minWidth={260} flex="1 1 280px" maxWidth={400}>
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Buscar por nombre, DNI, responsable, localidad..."
+          />
+        </Box>
+
+        <TextField
+          select
+          size="small"
+          label="Tipo"
+          value={filtroTipo}
+          onChange={(e) => setFiltroTipo(e.target.value)}
+          sx={{ minWidth: 150 }}
+        >
+          <MenuItem value="">Todos</MenuItem>
+          <MenuItem value="ESPACIO">Espacio</MenuItem>
+          <MenuItem value="COMEDOR">Comedor</MenuItem>
+          <MenuItem value="MERENDERO">Merendero</MenuItem>
+          <MenuItem value="ORGANIZACION">Organización</MenuItem>
+          <MenuItem value="CASO_PARTICULAR">Caso particular</MenuItem>
+        </TextField>
+
+        <TextField
+          select
+          size="small"
+          label="Localidad"
+          value={filtroLocalidad}
+          onChange={(e) => setFiltroLocalidad(e.target.value)}
+          sx={{ minWidth: 180 }}
+        >
+          <MenuItem value="">Todas</MenuItem>
+          {localidadesLista.map((loc) => (
+            <MenuItem key={loc} value={loc}>{loc}</MenuItem>
+          ))}
+        </TextField>
+
+        <TextField
+          select
+          size="small"
+          label="Programa"
+          value={filtroProgramaId}
+          onChange={(e) => setFiltroProgramaId(e.target.value)}
+          sx={{ minWidth: 200 }}
+        >
+          <MenuItem value="">Todos</MenuItem>
+          {programasLista.map((p: any) => (
+            <MenuItem key={p.id} value={String(p.id)}>{p.nombre}</MenuItem>
+          ))}
+        </TextField>
+
+        {hayFiltrosActivos && (
+          <Button size="small" onClick={limpiarFiltros} sx={{ textTransform: 'none' }}>
+            Limpiar filtros
+          </Button>
+        )}
+
+        <Box flex={1} />
+        <Chip
+          size="small"
+          label={`${total} resultado${total === 1 ? '' : 's'}`}
+          color={hayFiltrosActivos ? 'primary' : 'default'}
+          variant={hayFiltrosActivos ? 'filled' : 'outlined'}
         />
       </Box>
 
