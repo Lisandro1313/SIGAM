@@ -16,7 +16,10 @@ import {
   Notes as NotesIcon,
   Inbox as InboxIcon,
   Check as CheckIcon,
+  FileDownload as DownloadIcon,
+  FilterList as FilterIcon,
 } from '@mui/icons-material';
+import * as XLSX from 'xlsx';
 import api from '../services/api';
 
 interface ColumnaDef { clave: string; etiqueta: string; color?: string; }
@@ -77,6 +80,10 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
   // selección dentro de la lista activa
   const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
 
+  // filtro de items ("todos" | "pend:<clave>" | "ok:<clave>")
+  const [filtro, setFiltro] = useState<string>('todos');
+  const [busqueda, setBusqueda] = useState('');
+
   // diálogos
   const [listaDialogOpen, setListaDialogOpen] = useState(false);
   const [editandoLista, setEditandoLista] = useState<ListaLite | null>(null);
@@ -110,20 +117,48 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
   };
 
   useEffect(() => { cargarListas(); }, []);
-  useEffect(() => { if (activa != null) cargarDetalle(activa); else setDetalle(null); }, [activa]);
+  useEffect(() => {
+    if (activa != null) { cargarDetalle(activa); setFiltro('todos'); setBusqueda(''); }
+    else setDetalle(null);
+  }, [activa]);
 
-  const items = detalle?.items ?? [];
+  const allItems = detalle?.items ?? [];
   const columnas = detalle?.columnas ?? [];
 
-  // progreso por columna
+  // items filtrados por búsqueda + estado de columna
+  const items = useMemo(() => {
+    let arr = allItems;
+    if (filtro.startsWith('pend:')) {
+      const k = filtro.slice(5);
+      arr = arr.filter((it) => !it.valores?.[k]?.v);
+    } else if (filtro.startsWith('ok:')) {
+      const k = filtro.slice(3);
+      arr = arr.filter((it) => !!it.valores?.[k]?.v);
+    }
+    if (busqueda.trim()) {
+      const q = busqueda.trim().toLowerCase();
+      arr = arr.filter((it) => {
+        const b = it.beneficiario;
+        return (
+          (b?.nombre ?? '').toLowerCase().includes(q) ||
+          (b?.localidad ?? '').toLowerCase().includes(q) ||
+          (b?.responsableNombre ?? '').toLowerCase().includes(q) ||
+          (b?.responsableDNI ?? '').toLowerCase().includes(q)
+        );
+      });
+    }
+    return arr;
+  }, [allItems, filtro, busqueda]);
+
+  // progreso por columna (sobre todos los items, no los filtrados)
   const progresoColumnas = useMemo(() => {
-    if (!detalle || items.length === 0) return [];
+    if (!detalle || allItems.length === 0) return [];
     return columnas.map((c) => {
-      const total = items.length;
-      const completos = items.filter((it) => !!it.valores?.[c.clave]?.v).length;
+      const total = allItems.length;
+      const completos = allItems.filter((it) => !!it.valores?.[c.clave]?.v).length;
       return { ...c, completos, total, pct: total > 0 ? (completos / total) * 100 : 0 };
     });
-  }, [detalle, items, columnas]);
+  }, [detalle, allItems, columnas]);
 
   const toggleCheck = async (item: ItemDetalle, claveCol: string) => {
     const actualVal = item.valores?.[claveCol]?.v ?? false;
@@ -211,6 +246,36 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
     [items, seleccionados],
   );
 
+  const exportarExcel = () => {
+    if (!detalle) return;
+    const rows = allItems.map((it) => {
+      const fila: Record<string, any> = {
+        Espacio: it.beneficiario?.nombre ?? `#${it.beneficiarioId}`,
+        Tipo: it.beneficiario?.tipo ?? '',
+        Localidad: it.beneficiario?.localidad ?? '',
+        Dirección: it.beneficiario?.direccion ?? '',
+        Responsable: it.beneficiario?.responsableNombre ?? '',
+        DNI: it.beneficiario?.responsableDNI ?? '',
+        Teléfono: it.beneficiario?.telefono ?? '',
+      };
+      columnas.forEach((c) => {
+        const val = it.valores?.[c.clave];
+        fila[c.etiqueta] = val?.v ? 'Sí' : 'No';
+        if (val?.v && val.fecha) {
+          fila[`${c.etiqueta} — fecha`] = new Date(val.fecha).toLocaleDateString('es-AR');
+        }
+      });
+      fila.Notas = it.notas ?? '';
+      return fila;
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    const safe = detalle.nombre.replace(/[^\w\s-]/g, '').slice(0, 30) || 'Lista';
+    XLSX.utils.book_append_sheet(wb, ws, safe);
+    const fname = `lista-${detalle.nombre.replace(/[^a-zA-Z0-9]/g, '_')}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fname);
+  };
+
   return (
     <Box>
       {/* ── Header + tabs de listas ─────────────────────────────── */}
@@ -284,19 +349,26 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
                       <Typography variant="caption" color="text.disabled">Creada por {detalle.creadoPorNombre}</Typography>
                     )}
                   </Box>
-                  {puedeEditar && (
-                    <Stack direction="row" spacing={1}>
-                      <Button size="small" startIcon={<GroupAddIcon />} variant="contained" onClick={() => setAddBeneOpen(true)}>
-                        Agregar espacios
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Tooltip title="Exportar lista a Excel">
+                      <Button size="small" startIcon={<DownloadIcon />} onClick={exportarExcel} disabled={allItems.length === 0}>
+                        Excel
                       </Button>
-                      <Tooltip title="Editar lista y columnas">
-                        <IconButton size="small" onClick={abrirEditarLista}><EditIcon fontSize="small" /></IconButton>
-                      </Tooltip>
-                      <Tooltip title="Eliminar lista">
-                        <IconButton size="small" color="error" onClick={eliminarLista}><DeleteIcon fontSize="small" /></IconButton>
-                      </Tooltip>
-                    </Stack>
-                  )}
+                    </Tooltip>
+                    {puedeEditar && (
+                      <>
+                        <Button size="small" startIcon={<GroupAddIcon />} variant="contained" onClick={() => setAddBeneOpen(true)}>
+                          Agregar espacios
+                        </Button>
+                        <Tooltip title="Editar lista y columnas">
+                          <IconButton size="small" onClick={abrirEditarLista}><EditIcon fontSize="small" /></IconButton>
+                        </Tooltip>
+                        <Tooltip title="Eliminar lista">
+                          <IconButton size="small" color="error" onClick={eliminarLista}><DeleteIcon fontSize="small" /></IconButton>
+                        </Tooltip>
+                      </>
+                    )}
+                  </Stack>
                 </Stack>
 
                 {/* barras de progreso */}
@@ -325,6 +397,50 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
                   </Stack>
                 )}
               </Paper>
+
+              {/* filtros + búsqueda dentro de la lista */}
+              {allItems.length > 0 && (
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ mb: 2 }}>
+                  <TextField
+                    size="small"
+                    placeholder="Buscar en esta lista..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    sx={{ flex: 1, minWidth: 220 }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>
+                      ),
+                    }}
+                  />
+                  <TextField
+                    select
+                    size="small"
+                    value={filtro}
+                    onChange={(e) => setFiltro(e.target.value)}
+                    sx={{ minWidth: 240 }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start"><FilterIcon fontSize="small" /></InputAdornment>
+                      ),
+                    }}
+                  >
+                    <MenuItem value="todos">Todos los espacios</MenuItem>
+                    {columnas.flatMap((c) => [
+                      <MenuItem key={`pend:${c.clave}`} value={`pend:${c.clave}`}>Pendientes en "{c.etiqueta}"</MenuItem>,
+                      <MenuItem key={`ok:${c.clave}`} value={`ok:${c.clave}`}>Completados en "{c.etiqueta}"</MenuItem>,
+                    ])}
+                  </TextField>
+                  {(filtro !== 'todos' || busqueda) && (
+                    <Chip
+                      size="small"
+                      label={`${items.length} de ${allItems.length}`}
+                      color="primary"
+                      onDelete={() => { setFiltro('todos'); setBusqueda(''); }}
+                    />
+                  )}
+                </Stack>
+              )}
 
               {/* acciones de selección */}
               {seleccionados.size > 0 && (
