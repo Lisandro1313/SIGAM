@@ -931,6 +931,47 @@ model SugerenciaEstado {
 }
 
 // ============================================================================
+// LISTAS DE SEGUIMIENTO (tabs custom con columnas dinámicas tipo checklist)
+// ============================================================================
+
+model ListaSeguimiento {
+  id              Int      @id @default(autoincrement())
+  nombre          String
+  descripcion     String?
+  color           String   @default("#1976d2")
+  icono           String   @default("folder")
+  columnas        String   @default("[]")      // JSON array: [{clave, etiqueta, color}]
+  orden           Int      @default(0)
+  secretaria      String   @default("PA")
+  creadoPorId     Int?
+  creadoPorNombre String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  items           ListaSeguimientoItem[]
+
+  @@index([secretaria])
+  @@index([orden])
+}
+
+model ListaSeguimientoItem {
+  id              Int      @id @default(autoincrement())
+  listaId         Int
+  beneficiarioId  Int
+  valores         String   @default("{}")       // JSON: { claveColumna: { v: bool, fecha, usuario } }
+  notas           String?
+  actualizadoEn   DateTime @default(now()) @updatedAt
+  actualizadoPor  String?
+  createdAt       DateTime @default(now())
+
+  lista           ListaSeguimiento @relation(fields: [listaId], references: [id], onDelete: Cascade)
+
+  @@unique([listaId, beneficiarioId])
+  @@index([listaId])
+  @@index([beneficiarioId])
+}
+
+// ============================================================================
 // HISTORIAL DE DOCUMENTOS GENERADOS (auditoría de impresiones)
 // ============================================================================
 

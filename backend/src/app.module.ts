@@ -29,6 +29,7 @@ import { PushModule } from './shared/push/push.module';
 import { SugerenciasModule } from './modules/sugerencias/sugerencias.module';
 import { DocumentosModule } from './modules/documentos/documentos.module';
 import { PlantillasDocModule } from './modules/plantillas-doc/plantillas-doc.module';
+import { ListasSeguimientoModule } from './modules/listas-seguimiento/listas-seguimiento.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { PlantillasDocModule } from './modules/plantillas-doc/plantillas-doc.mod
     SugerenciasModule,
     DocumentosModule,
     PlantillasDocModule,
+    ListasSeguimientoModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente

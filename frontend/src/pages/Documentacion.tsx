@@ -4,7 +4,7 @@ import {
   Button, Stack, Chip, TextField, InputAdornment, Table, TableBody,
   TableCell, TableHead, TableRow, TableContainer, IconButton, Tooltip,
   useTheme, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
-  MenuItem, LinearProgress, Snackbar, Checkbox, ToggleButtonGroup, ToggleButton, Divider,
+  MenuItem, LinearProgress, Snackbar, ToggleButtonGroup, ToggleButton,
 } from '@mui/material';
 import {
   Description as DescIcon,
@@ -27,12 +27,12 @@ import {
   Inventory2 as Inventory2Icon,
   ContactMail as ContactMailIcon,
   Restaurant as RestaurantIcon,
-  FilterList as FilterIcon,
   Visibility as PreviewIcon,
   History as HistoryIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import ListasSeguimientoTab from '../components/ListasSeguimientoTab';
 
 const ROLES_SUBIDA = ['ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'ASISTENCIA_CRITICA'];
 const ROLES_EDIT_PLANTILLA = ['ADMIN', 'OPERADOR_PROGRAMA', 'LOGISTICA', 'ASISTENCIA_CRITICA'];
@@ -286,90 +286,6 @@ export default function DocumentacionPage() {
     } catch (e: any) { setSnack({ msg: e?.response?.data?.message ?? 'Error', type: 'error' }); }
   };
 
-  // ── Tracking espacios ──────────────────────────────────────────────────
-  const [tracking, setTracking] = useState<EspacioTracking[]>([]);
-  const [loadingTrack, setLoadingTrack] = useState(false);
-  const [filtroTrack, setFiltroTrack] = useState<'todos' | 'pendientes' | 'alDia' | 'vencidos'>('todos');
-  const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
-  const [rendirOpen, setRendirOpen] = useState(false);
-  const [plantillaRendir, setPlantillaRendir] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (tab !== 1) return;
-    setLoadingTrack(true);
-    api.get('/beneficiarios')
-      .then((r) => {
-        const all = (r.data ?? []) as any[];
-        const espacios = all.filter((b) => b.activo && (b.tipo === 'ESPACIO' || b.tipo === 'COMEDOR' || b.tipo === 'ORGANIZACION'));
-        const data: EspacioTracking[] = espacios.map((b) => {
-          const ultima = b.remitos?.[0]?.fecha ?? null;
-          const dias = ultima ? Math.floor((Date.now() - new Date(ultima).getTime()) / 86400000) : null;
-          let estado: EspacioTracking['estado'] = 'ok';
-          if (!ultima) estado = 'pendiente';
-          else if (dias != null && dias > 35) estado = 'vencido';
-          return {
-            id: b.id,
-            nombre: b.nombre,
-            localidad: b.localidad,
-            responsableNombre: b.responsableNombre,
-            responsableDNI: b.responsableDNI,
-            ultimaEntrega: ultima ? new Date(ultima).toLocaleDateString('es-AR') : undefined,
-            diasSinRetiro: dias,
-            estado,
-          };
-        });
-        setTracking(data.sort((a, b) => (b.diasSinRetiro ?? 999) - (a.diasSinRetiro ?? 999)));
-      })
-      .catch(() => {})
-      .finally(() => setLoadingTrack(false));
-  }, [tab]);
-
-  const trackingFiltrado = useMemo(() => {
-    if (filtroTrack === 'todos') return tracking;
-    if (filtroTrack === 'pendientes') return tracking.filter((t) => t.estado !== 'ok');
-    if (filtroTrack === 'alDia') return tracking.filter((t) => t.estado === 'ok');
-    if (filtroTrack === 'vencidos') return tracking.filter((t) => t.estado === 'vencido');
-    return tracking;
-  }, [tracking, filtroTrack]);
-
-  const toggleSeleccion = (id: number) => {
-    setSeleccionados((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleTodos = () => {
-    const idsVisibles = trackingFiltrado.map((t) => t.id);
-    const todosSeleccionados = idsVisibles.every((id) => seleccionados.has(id));
-    setSeleccionados((prev) => {
-      const next = new Set(prev);
-      if (todosSeleccionados) idsVisibles.forEach((id) => next.delete(id));
-      else idsVisibles.forEach((id) => next.add(id));
-      return next;
-    });
-  };
-
-  const espaciosSeleccionados = useMemo(
-    () => tracking.filter((t) => seleccionados.has(t.id)),
-    [tracking, seleccionados],
-  );
-
-  const generarRendicion = () => {
-    if (espaciosSeleccionados.length === 0) { setSnack({ msg: 'Seleccioná al menos un espacio', type: 'error' }); return; }
-    if (!plantillaRendir) { setSnack({ msg: 'Elegí un modelo', type: 'error' }); return; }
-    const p = plantillas.find((x) => x.id === plantillaRendir);
-    if (!p) return;
-    imprimirYRegistrar(
-      p,
-      `${p.titulo} — ${espaciosSeleccionados.length} espacios`,
-      { usuario: user?.nombre, seleccionados: espaciosSeleccionados },
-      espaciosSeleccionados,
-    );
-    setRendirOpen(false);
-  };
-
   // ── Repositorio de archivos subidos ─────────────────────────────────
   const [docs, setDocs] = useState<DocumentoSubido[]>([]);
   const [conteoCat, setConteoCat] = useState<Record<string, number>>({});
@@ -488,7 +404,7 @@ export default function DocumentacionPage() {
       <Paper sx={{ borderRadius: 2 }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }} variant="scrollable" scrollButtons="auto">
           <Tab label="Modelos" icon={<PrintIcon />} iconPosition="start" />
-          <Tab label={`Tracking de espacios${seleccionados.size > 0 ? ` (${seleccionados.size})` : ''}`} icon={<CheckIcon />} iconPosition="start" />
+          <Tab label="Listas de seguimiento" icon={<CheckIcon />} iconPosition="start" />
           <Tab label="Repositorio" icon={<UploadIcon />} iconPosition="start" />
           <Tab label="Historial" icon={<HistoryIcon />} iconPosition="start" />
         </Tabs>
@@ -587,94 +503,20 @@ export default function DocumentacionPage() {
           </Box>
         )}
 
-        {/* ── Tab 1: Tracking ────────────────────────────────────────────── */}
+        {/* ── Tab 1: Listas de seguimiento ─────────────────────────────── */}
         {tab === 1 && (
-          <Box sx={{ p: 3 }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} justifyContent="space-between" spacing={1.5} sx={{ mb: 2 }}>
-              <Box>
-                <Typography variant="subtitle1" fontWeight="bold">Seguimiento de entregas a espacios</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Seleccioná espacios y generá una planilla con ellos usando cualquier modelo que tenga <code>{'{{LISTA_SELECCIONADOS}}'}</code>.
-                </Typography>
-              </Box>
-              {seleccionados.size > 0 && (
-                <Button variant="contained" startIcon={<PrintIcon />} onClick={() => setRendirOpen(true)}>
-                  Generar planilla ({seleccionados.size})
-                </Button>
+          <Box sx={{ p: { xs: 2, md: 3 } }}>
+            <ListasSeguimientoTab
+              plantillas={plantillas}
+              puedeEditar={puedeEditarPlantilla}
+              userNombre={user?.nombre}
+              onImprimir={(p, titulo, espacios) => imprimirYRegistrar(
+                p as any,
+                titulo,
+                { usuario: user?.nombre, seleccionados: espacios as any[] },
+                espacios as any[],
               )}
-            </Stack>
-
-            <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
-              <ToggleButtonGroup size="small" exclusive value={filtroTrack} onChange={(_, v) => v && setFiltroTrack(v)}>
-                <ToggleButton value="todos">
-                  <FilterIcon fontSize="small" sx={{ mr: 0.5 }} /> Todos ({tracking.length})
-                </ToggleButton>
-                <ToggleButton value="pendientes">Pendientes ({tracking.filter((t) => t.estado !== 'ok').length})</ToggleButton>
-                <ToggleButton value="alDia" sx={{ color: 'success.main' }}>Al día ({tracking.filter((t) => t.estado === 'ok').length})</ToggleButton>
-                <ToggleButton value="vencidos" sx={{ color: 'error.main' }}>Vencidos ({tracking.filter((t) => t.estado === 'vencido').length})</ToggleButton>
-              </ToggleButtonGroup>
-              {seleccionados.size > 0 && (
-                <Button size="small" onClick={() => setSeleccionados(new Set())}>Limpiar selección</Button>
-              )}
-            </Stack>
-
-            {loadingTrack ? (
-              <Typography color="text.secondary">Cargando...</Typography>
-            ) : trackingFiltrado.length === 0 ? (
-              <Alert severity="info">No hay espacios que coincidan con el filtro.</Alert>
-            ) : (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          checked={trackingFiltrado.length > 0 && trackingFiltrado.every((t) => seleccionados.has(t.id))}
-                          indeterminate={trackingFiltrado.some((t) => seleccionados.has(t.id)) && !trackingFiltrado.every((t) => seleccionados.has(t.id))}
-                          onChange={toggleTodos}
-                        />
-                      </TableCell>
-                      <TableCell>Espacio</TableCell>
-                      <TableCell>Localidad</TableCell>
-                      <TableCell>Responsable</TableCell>
-                      <TableCell>Última entrega</TableCell>
-                      <TableCell align="right">Días s/ retirar</TableCell>
-                      <TableCell>Estado</TableCell>
-                      <TableCell align="right">Acción</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {trackingFiltrado.slice(0, 200).map((t) => (
-                      <TableRow key={t.id} hover selected={seleccionados.has(t.id)}>
-                        <TableCell padding="checkbox">
-                          <Checkbox checked={seleccionados.has(t.id)} onChange={() => toggleSeleccion(t.id)} />
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 500 }}>{t.nombre}</TableCell>
-                        <TableCell>{t.localidad ?? '—'}</TableCell>
-                        <TableCell>{t.responsableNombre ?? '—'}</TableCell>
-                        <TableCell>{t.ultimaEntrega ?? '—'}</TableCell>
-                        <TableCell align="right">{t.diasSinRetiro ?? '—'}</TableCell>
-                        <TableCell>
-                          {t.estado === 'ok' && <Chip label="OK" size="small" color="success" />}
-                          {t.estado === 'pendiente' && <Chip label="Sin retiros" size="small" color="warning" />}
-                          {t.estado === 'vencido' && <Chip label="Vencido" size="small" color="error" />}
-                        </TableCell>
-                        <TableCell align="right">
-                          <Tooltip title="Imprimir acta para este espacio">
-                            <IconButton size="small" onClick={() => {
-                              const p = plantillas.find((x) => x.titulo.toLowerCase().includes('acta'));
-                              if (p) imprimirYRegistrar(p, `${p.titulo} — ${t.nombre}`, { usuario: user?.nombre, seleccionados: [t] }, [t]);
-                            }}>
-                              <PrintIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
+            />
           </Box>
         )}
 
@@ -893,40 +735,6 @@ export default function DocumentacionPage() {
             Probar imprimir
           </Button>
           <Button variant="contained" onClick={guardarPlantilla} disabled={saving || !editTitulo.trim()}>Guardar</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ── Dialog generar rendición ───────────────────────────────────── */}
-      <Dialog open={rendirOpen} onClose={() => setRendirOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Generar planilla con {espaciosSeleccionados.length} espacios</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Elegí un modelo. La variable <code>{'{{LISTA_SELECCIONADOS}}'}</code> se va a reemplazar por los espacios que seleccionaste.
-          </Typography>
-          <TextField
-            select fullWidth label="Modelo" value={plantillaRendir ?? ''}
-            onChange={(e) => setPlantillaRendir(Number(e.target.value))}
-          >
-            {plantillas
-              .filter((p) => p.contenido.includes('{{LISTA_SELECCIONADOS}}'))
-              .map((p) => <MenuItem key={p.id} value={p.id}>{p.titulo}{p.esBuiltIn ? ' (default)' : ''}</MenuItem>)}
-          </TextField>
-          {plantillas.filter((p) => p.contenido.includes('{{LISTA_SELECCIONADOS}}')).length === 0 && (
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              No hay modelos con la variable <code>{'{{LISTA_SELECCIONADOS}}'}</code>. Editá uno o creá uno nuevo para poder rendir con espacios seleccionados.
-            </Alert>
-          )}
-          <Divider sx={{ my: 2 }} />
-          <Typography variant="caption" color="text.secondary">Espacios incluidos:</Typography>
-          <Box sx={{ maxHeight: 200, overflow: 'auto', mt: 1 }}>
-            {espaciosSeleccionados.map((e) => (
-              <Chip key={e.id} label={e.nombre} size="small" sx={{ m: 0.25 }} />
-            ))}
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRendirOpen(false)}>Cancelar</Button>
-          <Button variant="contained" startIcon={<PrintIcon />} onClick={generarRendicion} disabled={!plantillaRendir}>Imprimir</Button>
         </DialogActions>
       </Dialog>
 
