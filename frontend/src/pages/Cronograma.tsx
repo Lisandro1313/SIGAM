@@ -16,6 +16,7 @@ import {
   EditNote as NotaIcon, Save as SaveIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
+import { getBeneficiarios, getDepositos, getProgramas } from '../utils/staticCache';
 import { useNotificationStore } from '../stores/notificationStore';
 import BeneficiarioForm from '../components/BeneficiarioForm';
 import RemitoForm from '../components/RemitoForm';
@@ -146,19 +147,20 @@ export default function CronogramaPage() {
   );
 
   useEffect(() => {
+    // Datos estáticos desde caché (5min TTL) + dinámicos en paralelo
     Promise.all([
-      api.get('/depositos'),
-      api.get('/beneficiarios?limit=500'),
-      api.get('/programas'),
-      api.get('/cronograma/ultimas-entregas'),
-      api.get('/cronograma/nota/cronograma'),
-    ]).then(([depR, benR, proR, ultR, notaR]) => {
-      setDepositos(depR.data);
-      if (depR.data.length > 0) setDepDefault(depR.data[0].id);
-      setTodosLosBens(benR.data?.data ?? benR.data);
-      setProgramas(proR.data.filter((p:any) => p.activo));
-      setUltimasEntregas(ultR.data ?? {});
-      if (notaRef.current) notaRef.current.value = notaR.data?.contenido ?? '';
+      getDepositos(),
+      getBeneficiarios(500),
+      getProgramas(),
+      api.get('/cronograma/ultimas-entregas').then(r => r.data),
+      api.get('/cronograma/nota/cronograma').then(r => r.data),
+    ]).then(([deps, bens, progs, ult, nota]) => {
+      setDepositos(deps);
+      if (deps.length > 0) setDepDefault(deps[0].id);
+      setTodosLosBens(bens);
+      setProgramas(progs.filter((p:any) => p.activo));
+      setUltimasEntregas(ult ?? {});
+      if (notaRef.current) notaRef.current.value = nota?.contenido ?? '';
     }).catch(()=>{});
   }, []);
 

@@ -7,6 +7,8 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const compression = require('compression');
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -24,6 +26,9 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Gzip: reduce respuestas JSON en ~70-80% (beneficiarios, cronograma, etc.)
+  app.use(compression());
 
   // Servir archivos estáticos (fotos de remitos)
   mkdirSync(join(process.cwd(), 'uploads', 'remitos'), { recursive: true });

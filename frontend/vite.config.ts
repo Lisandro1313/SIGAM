@@ -86,13 +86,25 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-      '/uploads': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
+      '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      '/uploads': { target: 'http://localhost:3000', changeOrigin: true },
+    },
+  },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('react-dom') || id.includes('react-router')) return 'vendor-react';
+            if (id.includes('@mui/x-charts') || id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
+            if (id.includes('@mui/material') || id.includes('@mui/icons') || id.includes('@emotion')) return 'vendor-mui';
+            if (id.includes('leaflet') || id.includes('react-leaflet')) return 'vendor-leaflet';
+            if (id.includes('xlsx')) return 'vendor-xlsx';
+            if (id.includes('date-fns')) return 'vendor-datefns';
+            if (id.includes('zustand') || id.includes('axios')) return 'vendor-utils';
+          }
+        },
       },
     },
   },
