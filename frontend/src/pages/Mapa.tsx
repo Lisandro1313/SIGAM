@@ -60,11 +60,14 @@ export default function MapaPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/beneficiarios', { params: { limit: 1000 } }),
+      api.get('/beneficiarios', { params: { limit: 5000 } }),
       api.get('/zonas'),
     ]).then(([benR, zonR]) => {
-      setBeneficiarios(benR.data.data ?? benR.data);
-      setZonas(zonR.data);
+      setBeneficiarios(benR.data.data ?? benR.data ?? []);
+      setZonas(zonR.data ?? []);
+    }).catch(() => {
+      setBeneficiarios([]);
+      setZonas([]);
     }).finally(() => setLoading(false));
   }, []);
 

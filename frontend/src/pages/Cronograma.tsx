@@ -1012,13 +1012,13 @@ export default function CronogramaPage() {
       </Dialog>
 
       {/* ── Bloc de notas ───────────────────────────────────────────────── */}
-      <Paper elevation={2} sx={{ mt: 4, mb: 2, borderRadius: 2, overflow: 'hidden', border: '1px solid #e0e0e0' }}>
-        <Box sx={{ bgcolor: '#fff8e1', px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid #ffe082' }}>
-          <NotaIcon sx={{ color: '#f9a825', fontSize: 20 }} />
-          <Typography variant="subtitle2" fontWeight="bold" color="#5d4037" sx={{ flex: 1 }}>
+      <Paper elevation={2} sx={{ mt: 4, mb: 2, borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ bgcolor: 'warning.light', px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid', borderColor: 'warning.main', opacity: theme.palette.mode === 'dark' ? 0.85 : 1 }}>
+          <NotaIcon sx={{ color: 'warning.dark', fontSize: 20 }} />
+          <Typography variant="subtitle2" fontWeight="bold" color="warning.dark" sx={{ flex: 1 }}>
             Borrador / Notas del cronograma
           </Typography>
-          {notaGuardando && <CircularProgress size={14} sx={{ color: '#f9a825' }} />}
+          {notaGuardando && <CircularProgress size={14} sx={{ color: 'warning.main' }} />}
           {notaGuardada && !notaGuardando && (
             <Box display="flex" alignItems="center" gap={0.5}>
               <SaveIcon sx={{ fontSize: 14, color: 'success.main' }} />
@@ -1040,12 +1040,12 @@ export default function CronogramaPage() {
             border: 'none',
             outline: 'none',
             resize: 'vertical',
-            backgroundColor: '#fffde7',
+            backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.paper : '#fffde7',
             fontSize: 14,
             fontFamily: 'monospace',
             padding: '12px 16px',
             lineHeight: 1.6,
-            color: '#333',
+            color: theme.palette.text.primary,
           }}
         />
       </Paper>

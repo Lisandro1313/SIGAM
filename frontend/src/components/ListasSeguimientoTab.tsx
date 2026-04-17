@@ -141,9 +141,11 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
         const b = it.beneficiario;
         return (
           (b?.nombre ?? '').toLowerCase().includes(q) ||
+          (b?.tipo ?? '').toLowerCase().includes(q) ||
           (b?.localidad ?? '').toLowerCase().includes(q) ||
           (b?.responsableNombre ?? '').toLowerCase().includes(q) ||
-          (b?.responsableDNI ?? '').toLowerCase().includes(q)
+          (b?.responsableDNI ?? '').toLowerCase().includes(q) ||
+          (it.notas ?? '').toLowerCase().includes(q)
         );
       });
     }
