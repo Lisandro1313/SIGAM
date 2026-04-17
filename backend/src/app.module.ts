@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
@@ -43,14 +43,11 @@ import { SocialModule } from './modules/social/social.module';
     // Tareas programadas (backup semanal, etc.)
     ScheduleModule.forRoot(),
 
-    // Rate limiting:
-    //   - default: 2000 req/min por IP (red de oficina, IP compartida)
-    //   - login-min / login-hour: definidos con límite altísimo globalmente (nunca disparan),
-    //     pero el endpoint de login los sobreescribe a 5/min y 30/hora via @Throttle()
+    // ThrottlerModule solo para brute-force en login.
+    // El ThrottlerGuard NO se aplica globalmente — solo en AuthController via @UseGuards(ThrottlerGuard).
     ThrottlerModule.forRoot([
-      { name: 'default',     ttl: 60_000,        limit: 2000   },
-      { name: 'login-min',   ttl: 60_000,        limit: 99_999 },
-      { name: 'login-hour',  ttl: 60 * 60_000,   limit: 99_999 },
+      { name: 'login-min',  ttl: 60_000,      limit: 5  },
+      { name: 'login-hour', ttl: 60 * 60_000, limit: 30 },
     ]),
 
     // Base de datos
@@ -85,11 +82,6 @@ import { SocialModule } from './modules/social/social.module';
     SocialModule,
   ],
   providers: [
-    // Aplicar rate limiting globalmente
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
     // Interceptor global de auditoría
     {
       provide: APP_INTERCEPTOR,
