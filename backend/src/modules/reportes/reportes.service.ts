@@ -374,25 +374,32 @@ export class ReportesService {
     };
   }
 
-  // Reporte: Remitos con detalle para exportación personalizada
+  // Reporte: Remitos con detalle para exportación personalizada.
+  // Por defecto incluye solo remitos válidos (CONFIRMADO/ENVIADO/ENTREGADO) — los otros
+  // (BORRADOR/CANCELADA) NO representan distribución real y rompen los totales.
   async remitosDetalle(mes?: number, anio?: number, programaId?: number, estado?: string, secretaria?: string | null, fechaDesde?: string, fechaHasta?: string) {
     const where: any = {};
     const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
     if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
     if (programaId) where.programaId = programaId;
-    if (estado) where.estado = estado;
+    if (estado) {
+      where.estado = estado;
+    } else {
+      where.estado = { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] };
+    }
     if (secretaria) where.secretaria = secretaria;
 
     const remitos = await this.prisma.remito.findMany({
       where,
       include: {
         beneficiario: { select: { nombre: true, tipo: true, localidad: true } },
+        caso:         { select: { nombreSolicitante: true, dni: true } },
         programa: { select: { nombre: true } },
         deposito: { select: { nombre: true } },
         items: { include: { articulo: { select: { nombre: true, categoria: true } } } },
       },
       orderBy: { fecha: 'desc' },
-      take: 500,
+      take: 2000,
     });
 
     return remitos.map(r => ({
@@ -400,15 +407,54 @@ export class ReportesService {
       numero: r.numero,
       fecha: r.fecha.toISOString().slice(0, 10),
       estado: r.estado,
-      beneficiario: r.beneficiario?.nombre ?? '',
-      tipoBeneficiario: r.beneficiario?.tipo ?? '',
+      beneficiario: r.beneficiario?.nombre ?? r.caso?.nombreSolicitante ?? '',
+      tipoBeneficiario: r.caso ? 'CASO_PARTICULAR' : (r.beneficiario?.tipo ?? ''),
       localidad: r.beneficiario?.localidad ?? '',
-      programa: r.programa?.nombre ?? '',
+      programa: r.programa?.nombre ?? (r.caso ? 'Casos Particulares' : 'Sin programa'),
       deposito: r.deposito?.nombre ?? '',
       totalKg: r.totalKg ?? 0,
       items: r.items.map(i => `${i.articulo.nombre} x${i.cantidad}`).join(' | '),
       cantidadItems: r.items.length,
     }));
+  }
+
+  // Reporte: TOTALES agregados del período (no truncados por take).
+  // Estos son los KPIs autoritativos — el frontend NO debe sumar la lista de remitos
+  // porque está limitada a 2000 por performance.
+  async totalesPeriodo(
+    mes?: number, anio?: number,
+    fechaDesde?: string, fechaHasta?: string,
+    programaId?: number, secretaria?: string | null,
+  ) {
+    const where: any = { estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] } };
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
+    if (rango) where.fecha = { gte: rango.inicio, lte: rango.fin };
+    if (programaId) where.programaId = programaId;
+    if (secretaria) where.secretaria = secretaria;
+
+    const [agg, distinctBenef, distinctCaso] = await Promise.all([
+      this.prisma.remito.aggregate({
+        where,
+        _sum:   { totalKg: true },
+        _count: { _all: true },
+      }),
+      this.prisma.remito.findMany({
+        where: { ...where, beneficiarioId: { not: null } },
+        select: { beneficiarioId: true },
+        distinct: ['beneficiarioId'],
+      }),
+      this.prisma.remito.count({
+        where: { ...where, caso: { isNot: null } },
+      }),
+    ]);
+
+    return {
+      totalRemitos: agg._count._all,
+      totalKg: parseFloat((agg._sum.totalKg ?? 0).toFixed(2)),
+      familiasUnicas: distinctBenef.length + distinctCaso,
+      familiasBeneficiarios: distinctBenef.length,
+      familiasCasos: distinctCaso,
+    };
   }
 
   // Reporte: Resumen de entregas del mes (entregadas vs no entregadas)
@@ -669,8 +715,9 @@ export class ReportesService {
     const inicio = new Date(desde); inicio.setHours(0, 0, 0, 0);
     const fin    = new Date(hasta);  fin.setHours(23, 59, 59, 999);
 
+    // ENTREGADO también cuenta como rendido — antes quedaba afuera.
     const whereRemito: any = {
-      estado: { in: ['CONFIRMADO', 'ENVIADO'] },
+      estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO'] },
       fecha:  { gte: inicio, lte: fin },
     };
     if (programaId) whereRemito.programaId = programaId;
@@ -680,35 +727,78 @@ export class ReportesService {
       where: whereRemito,
       select: {
         beneficiarioId: true,
+        totalKg:        true,
         beneficiario: {
           select: {
-            nombre:           true,
+            nombre:            true,
             responsableNombre: true,
-            responsableDNI:   true,
-            direccion:        true,
-            localidad:        true,
-            _count:           { select: { integrantes: true } },
+            responsableDNI:    true,
+            direccion:         true,
+            localidad:         true,
+            _count:            { select: { integrantes: true } },
+          },
+        },
+        caso: {
+          select: {
+            nombreSolicitante: true,
+            dni:               true,
+            direccion:         true,
+            barrio:            true,
           },
         },
       },
     });
 
-    // Deduplicar por beneficiarioId — si retiró varias veces en el período, cuenta 1 vez
+    // Totales globales (no deduplicados — son distribución real de mercadería)
+    const totalKg      = remitos.reduce((s, r) => s + (r.totalKg ?? 0), 0);
+    const totalRemitos = remitos.length;
+
+    // Deduplicar por beneficiarioId; los remitos de casos van como filas individuales
+    // (un caso particular = una familia diferente cada vez, no se deduplican).
     const seen = new Set<number>();
     const filas: any[] = [];
+    let kgFamiliasBenef = 0;
+    let kgCasosParticulares = 0;
+    let cantCasos = 0;
+
     for (const r of remitos) {
-      if (!r.beneficiarioId || seen.has(r.beneficiarioId)) continue;
+      // Caso particular: cada remito = una familia
+      if (r.caso) {
+        const fullName = (r.caso.nombreSolicitante || '').trim();
+        const parts = fullName.split(/\s+/);
+        const apellido = parts.length > 1 ? parts.slice(Math.ceil(parts.length / 2)).join(' ') : fullName;
+        const nombre   = parts.length > 1 ? parts.slice(0, Math.ceil(parts.length / 2)).join(' ')  : '';
+
+        filas.push({
+          apellido,
+          nombre,
+          dni:       r.caso.dni || '',
+          grupo:     1,
+          direccion: [r.caso.direccion, r.caso.barrio].filter(Boolean).join(' - '),
+          tipo:      'CASO',
+          kg:        r.totalKg ?? 0,
+        });
+        kgCasosParticulares += r.totalKg ?? 0;
+        cantCasos++;
+        continue;
+      }
+
+      // Beneficiario regular: deduplicar
+      if (!r.beneficiarioId || seen.has(r.beneficiarioId)) {
+        kgFamiliasBenef += r.totalKg ?? 0; // segundo retiro del mismo beneficiario también suma kg
+        continue;
+      }
       seen.add(r.beneficiarioId);
       const b = r.beneficiario;
       if (!b) continue;
 
-      // Intentar separar apellido/nombre del responsable (último bloque = apellido)
+      // Apellido/nombre del responsable (último bloque = apellido)
       const fullName = (b.responsableNombre || b.nombre || '').trim();
-      const parts = fullName.split(' ');
+      const parts = fullName.split(/\s+/);
       const apellido = parts.length > 1 ? parts.slice(Math.ceil(parts.length / 2)).join(' ') : fullName;
       const nombre   = parts.length > 1 ? parts.slice(0, Math.ceil(parts.length / 2)).join(' ')  : '';
 
-      // Grupo = integrantes activos + 1 (el responsable); mínimo 1
+      // Grupo = integrantes + responsable, mínimo 1
       const grupo = (b._count?.integrantes ?? 0) + 1;
 
       filas.push({
@@ -717,7 +807,10 @@ export class ReportesService {
         dni:       b.responsableDNI || '',
         grupo,
         direccion: [b.direccion, b.localidad].filter(Boolean).join(' - '),
+        tipo:      'BENEFICIARIO',
+        kg:        r.totalKg ?? 0,
       });
+      kgFamiliasBenef += r.totalKg ?? 0;
     }
 
     // Ordenar alfabéticamente por apellido
@@ -736,6 +829,13 @@ export class ReportesService {
 
     return {
       totalBeneficiarios: filas.length,
+      // Resumen cuantitativo del bimestre — antes faltaba.
+      totalKg:            parseFloat(totalKg.toFixed(2)),
+      totalRemitos,
+      totalCasos:         cantCasos,
+      totalFamiliasUnicas: seen.size + cantCasos,
+      kgFamiliasBeneficiarios: parseFloat(kgFamiliasBenef.toFixed(2)),
+      kgCasosParticulares:     parseFloat(kgCasosParticulares.toFixed(2)),
       desde,
       hasta,
       filas,

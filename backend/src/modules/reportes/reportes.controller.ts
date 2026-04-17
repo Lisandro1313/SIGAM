@@ -172,6 +172,22 @@ export class ReportesController {
     return this.reportesService.entregasDomicilio(m, a, fechaDesde, fechaHasta, getSecretaria(req));
   }
 
+  @Get('totales')
+  @ApiOperation({ summary: 'Totales agregados del periodo (KPIs autoritativos sobre los remitos validos)' })
+  totalesPeriodo(
+    @Query('mes') mes: string, @Query('anio') anio: string,
+    @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Query('programaId') programaId: string,
+    @Request() req,
+  ) {
+    const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
+    return this.reportesService.totalesPeriodo(
+      m, a, fechaDesde, fechaHasta,
+      programaId ? parseInt(programaId) : undefined,
+      getSecretaria(req),
+    );
+  }
+
   @Get('resumen-entregas-mes')
   @ApiOperation({ summary: 'Resumen de entregas de un período: pendientes, generadas, entregadas' })
   resumenEntregasMes(

@@ -55,6 +55,7 @@ export default function ReportesPage() {
   const [remitosDetalle, setRemitosDetalle]           = useState<any[]>([]);
   const [resumenEntregas, setResumenEntregas]         = useState<any>(null);
   const [entregasPorLocalidad, setEntregasPorLocalidad] = useState<any[]>([]);
+  const [totalesKPI, setTotalesKPI]                   = useState<{ totalRemitos: number; totalKg: number; familiasUnicas: number; familiasBeneficiarios: number; familiasCasos: number } | null>(null);
   const [crucesMasivos, setCrucesMasivos]             = useState<any[] | null>(null);
   const [loadingCruces, setLoadingCruces]             = useState(false);
   const [sinEntrega, setSinEntrega]                   = useState<any | null>(null);
@@ -120,13 +121,14 @@ export default function ReportesPage() {
       const params = modoFiltro === 'rango' ? paramsRango : paramsMes;
       const pId = programaId ? `&programaId=${programaId}` : '';
 
-      const [kilosRes, artRes, progRes, remRes, entRes, locRes] = await Promise.all([
+      const [kilosRes, artRes, progRes, remRes, entRes, locRes, totRes] = await Promise.all([
         api.get(`/reportes/kilos-por-mes?${modoFiltro === 'mes' ? paramsMes : ''}${pId}`),
         api.get(`/reportes/articulos-mas-distribuidos?${params}${pId}`),
         api.get(`/reportes/entregas-por-programa?${params}${pId}`),
         api.get(`/reportes/remitos-detalle?${params}${pId}`),
         api.get(`/reportes/resumen-entregas-mes?${params}${pId}`),
         api.get(`/reportes/entregas-por-localidad?${params}${pId}`),
+        api.get(`/reportes/totales?${params}${pId}`),
       ]);
       setKilosPorMes(kilosRes.data);
       setTopArticulos(artRes.data.slice(0, 15));
@@ -134,6 +136,7 @@ export default function ReportesPage() {
       setRemitosDetalle(remRes.data);
       setResumenEntregas(entRes.data);
       setEntregasPorLocalidad(locRes.data);
+      setTotalesKPI(totRes.data);
     } catch { /* silent */ }
     finally { setLoading(false); }
   }, [mes, anio, fechaDesde, fechaHasta, modoFiltro, programaId]);
@@ -149,7 +152,12 @@ export default function ReportesPage() {
     .filter(p => p.totalKilos > 0)
     .map(p => ({ name: p.programa, value: parseFloat((p.totalKilos || 0).toFixed(1)) }));
 
-  const totalKgMes = remitosDetalle.reduce((s, r) => s + (r.totalKg ?? 0), 0);
+  // Totales autoritativos del periodo (agregados en DB, no limitados por take).
+  // La tabla de remitos esta topeada en 2000 filas para performance, por eso NO se
+  // puede sumar desde ahi — quedaria subvalorada si hay mas remitos en el rango.
+  const totalKgMes  = totalesKPI?.totalKg ?? 0;
+  const totalRemitos = totalesKPI?.totalRemitos ?? remitosDetalle.length;
+  const familiasUnicas = totalesKPI?.familiasUnicas ?? 0;
 
   if (loading && kilosPorMes.length === 0 && remitosDetalle.length === 0) {
     return <LoadingPage />;
@@ -216,24 +224,46 @@ export default function ReportesPage() {
 
       {loading && <LinearProgress sx={{ mb: 1 }} />}
 
-      {/* KPI cards */}
+      {/* KPI cards — todos vienen de agregados, no de listas paginadas */}
       <Grid container spacing={2} mb={2}>
         {[
-          { label: 'Remitos del mes', value: remitosDetalle.length, icon: <Assignment />, color: '#1565C0' },
-          { label: 'Kg distribuidos', value: `${totalKgMes.toFixed(0)} kg`, icon: <TrendingUp />, color: '#2E7D32' },
-          { label: 'Entregas cronograma', value: resumenEntregas?.total ?? '—', icon: <Inventory />, color: '#6A1B9A' },
-          { label: 'Beneficiarios activos', value: benefPorProg.reduce((s, p) => s + p.total, 0), icon: <Group />, color: '#E65100' },
+          {
+            label: 'Remitos del periodo',
+            value: totalRemitos.toLocaleString('es-AR'),
+            tip: 'CONFIRMADO + ENVIADO + ENTREGADO. Excluye borradores y cancelados.',
+            icon: <Assignment />, color: '#1565C0',
+          },
+          {
+            label: 'Kg distribuidos',
+            value: `${totalKgMes.toLocaleString('es-AR', { maximumFractionDigits: 0 })} kg`,
+            tip: 'Suma agregada en base de datos sobre los remitos validos del periodo.',
+            icon: <TrendingUp />, color: '#2E7D32',
+          },
+          {
+            label: 'Familias asistidas',
+            value: familiasUnicas.toLocaleString('es-AR'),
+            tip: `${totalesKPI?.familiasBeneficiarios ?? 0} beneficiarios + ${totalesKPI?.familiasCasos ?? 0} casos particulares`,
+            icon: <Group />, color: '#6A1B9A',
+          },
+          {
+            label: 'Beneficiarios activos (total)',
+            value: benefPorProg.reduce((s, p) => s + p.total, 0).toLocaleString('es-AR'),
+            tip: 'Padron actual, independiente del periodo.',
+            icon: <Inventory />, color: '#E65100',
+          },
         ].map((kpi, i) => (
           <Grid item xs={6} sm={3} key={i}>
-            <Card elevation={2}>
-              <CardContent sx={{ p: '12px !important' }}>
-                <Box display="flex" alignItems="center" gap={1} mb={0.5}>
-                  <Box sx={{ color: kpi.color }}>{kpi.icon}</Box>
-                  <Typography variant="caption" color="text.secondary">{kpi.label}</Typography>
-                </Box>
-                <Typography variant="h5" fontWeight="bold" sx={{ color: kpi.color }}>{kpi.value}</Typography>
-              </CardContent>
-            </Card>
+            <Tooltip title={kpi.tip} arrow placement="top">
+              <Card elevation={2} sx={{ cursor: 'help' }}>
+                <CardContent sx={{ p: '12px !important' }}>
+                  <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                    <Box sx={{ color: kpi.color }}>{kpi.icon}</Box>
+                    <Typography variant="caption" color="text.secondary">{kpi.label}</Typography>
+                  </Box>
+                  <Typography variant="h5" fontWeight="bold" sx={{ color: kpi.color }}>{kpi.value}</Typography>
+                </CardContent>
+              </Card>
+            </Tooltip>
           </Grid>
         ))}
       </Grid>
@@ -964,10 +994,26 @@ export default function ReportesPage() {
 
           {rendicion && (
             <>
-              {/* Resumen */}
-              <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Chip label={`${rendicion.totalBeneficiarios} familias retiraron`} color="primary" />
-                <Chip label={`${BIMESTRES[bimestreIdx].label} ${anioRendicion}`} variant="outlined" />
+              {/* Resumen cuantitativo del bimestre */}
+              <Grid container spacing={2} mb={2}>
+                {[
+                  { label: 'Familias asistidas', value: rendicion.totalFamiliasUnicas ?? rendicion.totalBeneficiarios, sub: `${rendicion.totalBeneficiarios - (rendicion.totalCasos ?? 0)} regulares + ${rendicion.totalCasos ?? 0} casos`, color: '#1565C0' },
+                  { label: 'Kg distribuidos', value: `${(rendicion.totalKg ?? 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })} kg`, sub: `Promedio ${rendicion.totalBeneficiarios > 0 ? ((rendicion.totalKg ?? 0) / rendicion.totalBeneficiarios).toFixed(1) : '0'} kg/familia`, color: '#2E7D32' },
+                  { label: 'Remitos emitidos', value: rendicion.totalRemitos ?? 0, sub: `Estado CONFIRMADO/ENVIADO/ENTREGADO`, color: '#6A1B9A' },
+                  { label: 'Periodo', value: BIMESTRES[bimestreIdx].label, sub: `Año ${anioRendicion}`, color: '#E65100' },
+                ].map((s, i) => (
+                  <Grid item xs={6} sm={3} key={i}>
+                    <Card variant="outlined" sx={{ borderLeft: `4px solid ${s.color}` }}>
+                      <CardContent sx={{ p: '10px !important' }}>
+                        <Typography variant="caption" color="text.secondary">{s.label}</Typography>
+                        <Typography variant="h6" fontWeight="bold" sx={{ color: s.color, lineHeight: 1.2 }}>{s.value}</Typography>
+                        <Typography variant="caption" color="text.disabled" sx={{ fontSize: 10 }}>{s.sub}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+              <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                 <Button
                   variant="outlined"
                   size="small"
