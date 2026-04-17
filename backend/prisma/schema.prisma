@@ -865,3 +865,26 @@ model NotaBorrador {
   contenido String   @default("")
   updatedAt DateTime @updatedAt
 }
+
+// ============================================================================
+// DOCUMENTOS (repositorio central de documentación)
+// ============================================================================
+
+model Documento {
+  id              Int      @id @default(autoincrement())
+  nombre          String                                // título descriptivo
+  archivo         String                                // filename original
+  url             String                                // URL pública (Supabase) o path local
+  categoria       String   @default("OTRO")             // REMITOS | BENEFICIARIOS | RENDICIONES | NORMATIVA | MODELOS | OTRO
+  descripcion     String?                               // texto libre
+  tipo            String?                               // MIME (application/pdf, image/jpeg, etc.)
+  tamanioBytes    Int?
+  secretaria      String   @default("PA")
+  subidoPorId     Int?
+  subidoPorNombre String?
+  createdAt       DateTime @default(now())
+
+  @@index([categoria])
+  @@index([secretaria])
+  @@index([createdAt])
+}

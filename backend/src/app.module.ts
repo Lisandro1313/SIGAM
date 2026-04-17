@@ -27,6 +27,7 @@ import { NutricionistaModule } from './modules/nutricionista/nutricionista.modul
 import { PersonalModule } from './modules/personal/personal.module';
 import { PushModule } from './shared/push/push.module';
 import { SugerenciasModule } from './modules/sugerencias/sugerencias.module';
+import { DocumentosModule } from './modules/documentos/documentos.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { SugerenciasModule } from './modules/sugerencias/sugerencias.module';
     PersonalModule,
     PushModule,
     SugerenciasModule,
+    DocumentosModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente

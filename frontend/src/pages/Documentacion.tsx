@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box, Typography, Paper, Tabs, Tab, Card, CardContent, CardActions,
   Button, Stack, Chip, TextField, InputAdornment, Table, TableBody,
   TableCell, TableHead, TableRow, TableContainer, IconButton, Tooltip,
-  useTheme, Alert,
+  useTheme, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
+  MenuItem, LinearProgress, Snackbar,
 } from '@mui/material';
 import {
   Description as DescIcon,
@@ -17,8 +18,52 @@ import {
   CheckCircle as CheckIcon,
   Schedule as ScheduleIcon,
   CloudOff as CloudOffIcon,
+  CloudUpload as UploadIcon,
+  Delete as DeleteIcon,
+  OpenInNew as OpenIcon,
+  PictureAsPdf as PdfIcon,
+  Image as ImageIcon,
+  InsertDriveFile as FileIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
+import { useAuthStore } from '../stores/authStore';
+
+const ROLES_SUBIDA = ['ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'ASISTENCIA_CRITICA'];
+const CATEGORIAS = [
+  { value: 'REMITOS',       label: 'Remitos',       color: '#43a047' },
+  { value: 'BENEFICIARIOS', label: 'Beneficiarios', color: '#1e88e5' },
+  { value: 'RENDICIONES',   label: 'Rendiciones',   color: '#00897b' },
+  { value: 'NORMATIVA',     label: 'Normativa',     color: '#8e24aa' },
+  { value: 'MODELOS',       label: 'Modelos',       color: '#fb8c00' },
+  { value: 'OTRO',          label: 'Otro',          color: '#757575' },
+];
+
+interface DocumentoSubido {
+  id: number;
+  nombre: string;
+  archivo: string;
+  url: string;
+  categoria: string;
+  descripcion?: string;
+  tipo?: string;
+  tamanioBytes?: number;
+  subidoPorNombre?: string;
+  createdAt: string;
+}
+
+function formatBytes(b?: number): string {
+  if (!b) return '—';
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function iconForType(tipo?: string) {
+  if (!tipo) return <FileIcon />;
+  if (tipo.startsWith('image/')) return <ImageIcon color="info" />;
+  if (tipo === 'application/pdf') return <PdfIcon sx={{ color: '#d32f2f' }} />;
+  return <FileIcon color="action" />;
+}
 
 interface Modelo {
   id: string;
@@ -288,11 +333,87 @@ interface EspacioTracking {
 
 export default function DocumentacionPage() {
   const theme = useTheme();
+  const { user } = useAuthStore();
+  const puedeSubir = !!user && ROLES_SUBIDA.includes(user.rol);
+  const esAdmin = user?.rol === 'ADMIN';
+
   const [tab, setTab] = useState(0);
   const [busqueda, setBusqueda] = useState('');
   const [beneficiarios, setBeneficiarios] = useState<any[]>([]);
   const [tracking, setTracking] = useState<EspacioTracking[]>([]);
   const [loadingTrack, setLoadingTrack] = useState(false);
+
+  // Repositorio de archivos subidos
+  const [docs, setDocs] = useState<DocumentoSubido[]>([]);
+  const [conteoCat, setConteoCat] = useState<Record<string, number>>({});
+  const [filtroCat, setFiltroCat] = useState<string>('TODAS');
+  const [searchDocs, setSearchDocs] = useState('');
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadNombre, setUploadNombre] = useState('');
+  const [uploadCat, setUploadCat] = useState('OTRO');
+  const [uploadDesc, setUploadDesc] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [snack, setSnack] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const cargarDocs = async () => {
+    setLoadingDocs(true);
+    try {
+      const res = await api.get('/documentos', { params: { categoria: filtroCat, q: searchDocs } });
+      setDocs(res.data.items ?? []);
+      setConteoCat(res.data.porCategoria ?? {});
+    } catch (e: any) {
+      setSnack({ msg: e?.response?.data?.message ?? 'No se pudo cargar el repositorio', type: 'error' });
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab !== 2) return;
+    const t = setTimeout(cargarDocs, 250);
+    return () => clearTimeout(t);
+  }, [tab, filtroCat, searchDocs]);
+
+  const handleFile = (f: File | null) => {
+    setUploadFile(f);
+    if (f && !uploadNombre) setUploadNombre(f.name.replace(/\.[^.]+$/, ''));
+  };
+
+  const handleUpload = async () => {
+    if (!uploadFile) { setSnack({ msg: 'Seleccioná un archivo', type: 'error' }); return; }
+    if (uploadFile.size > 15 * 1024 * 1024) { setSnack({ msg: 'El archivo supera el límite de 15 MB', type: 'error' }); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('archivo', uploadFile);
+      fd.append('nombre', uploadNombre || uploadFile.name);
+      fd.append('categoria', uploadCat);
+      if (uploadDesc) fd.append('descripcion', uploadDesc);
+      await api.post('/documentos/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setSnack({ msg: 'Documento subido correctamente', type: 'success' });
+      setUploadOpen(false);
+      setUploadFile(null); setUploadNombre(''); setUploadDesc(''); setUploadCat('OTRO');
+      cargarDocs();
+    } catch (e: any) {
+      setSnack({ msg: e?.response?.data?.message ?? 'Error al subir el documento', type: 'error' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('¿Eliminar este documento? No se puede deshacer.')) return;
+    try {
+      await api.delete(`/documentos/${id}`);
+      setSnack({ msg: 'Documento eliminado', type: 'success' });
+      cargarDocs();
+    } catch (e: any) {
+      setSnack({ msg: e?.response?.data?.message ?? 'No se pudo eliminar', type: 'error' });
+    }
+  };
 
   useEffect(() => {
     api.get('/beneficiarios').then((r) => setBeneficiarios(r.data ?? [])).catch(() => {});
@@ -408,9 +529,10 @@ export default function DocumentacionPage() {
       </Paper>
 
       <Paper sx={{ borderRadius: 2 }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }} variant="scrollable" scrollButtons="auto">
           <Tab label="Modelos imprimibles" icon={<PrintIcon />} iconPosition="start" />
           <Tab label="Tracking de espacios" icon={<CheckIcon />} iconPosition="start" />
+          <Tab label="Repositorio" icon={<UploadIcon />} iconPosition="start" />
         </Tabs>
 
         {tab === 0 && (
@@ -514,7 +636,189 @@ export default function DocumentacionPage() {
             )}
           </Box>
         )}
+
+        {tab === 2 && (
+          <Box sx={{ p: 3 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} justifyContent="space-between" spacing={1.5} sx={{ mb: 2 }}>
+              <Box>
+                <Typography variant="subtitle1" fontWeight="bold">Repositorio central de documentos</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Subí PDFs, escaneos, planillas firmadas, normativa interna, etc. Quedan accesibles para todo el equipo.
+                </Typography>
+              </Box>
+              {puedeSubir && (
+                <Button variant="contained" startIcon={<UploadIcon />} onClick={() => setUploadOpen(true)}>
+                  Subir documento
+                </Button>
+              )}
+            </Stack>
+
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mb: 2 }}>
+              <Chip
+                label={`Todas (${Object.values(conteoCat).reduce((s, n) => s + n, 0)})`}
+                onClick={() => setFiltroCat('TODAS')}
+                color={filtroCat === 'TODAS' ? 'primary' : 'default'}
+                variant={filtroCat === 'TODAS' ? 'filled' : 'outlined'}
+              />
+              {CATEGORIAS.map((c) => (
+                <Chip
+                  key={c.value}
+                  label={`${c.label}${conteoCat[c.value] ? ` (${conteoCat[c.value]})` : ''}`}
+                  onClick={() => setFiltroCat(c.value)}
+                  variant={filtroCat === c.value ? 'filled' : 'outlined'}
+                  sx={filtroCat === c.value ? { bgcolor: c.color, color: 'white' } : { borderColor: c.color, color: c.color }}
+                />
+              ))}
+            </Stack>
+
+            <TextField
+              fullWidth size="small" placeholder="Buscar por nombre o descripción..."
+              value={searchDocs} onChange={(e) => setSearchDocs(e.target.value)}
+              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
+              sx={{ mb: 2, maxWidth: 500 }}
+            />
+
+            {loadingDocs && <LinearProgress sx={{ mb: 2 }} />}
+
+            {!loadingDocs && docs.length === 0 ? (
+              <Alert severity="info" icon={<CloudOffIcon />}>
+                No hay documentos {filtroCat !== 'TODAS' ? `en la categoría ${filtroCat.toLowerCase()}` : 'cargados todavía'}.
+                {puedeSubir ? ' Hacé clic en "Subir documento" para empezar.' : ''}
+              </Alert>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell></TableCell>
+                      <TableCell>Nombre</TableCell>
+                      <TableCell>Categoría</TableCell>
+                      <TableCell>Tamaño</TableCell>
+                      <TableCell>Subido por</TableCell>
+                      <TableCell>Fecha</TableCell>
+                      <TableCell align="right">Acciones</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {docs.map((d) => {
+                      const cat = CATEGORIAS.find((c) => c.value === d.categoria);
+                      return (
+                        <TableRow key={d.id} hover>
+                          <TableCell sx={{ width: 40 }}>{iconForType(d.tipo)}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={500}>{d.nombre}</Typography>
+                            {d.descripcion && <Typography variant="caption" color="text.secondary">{d.descripcion}</Typography>}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={cat?.label ?? d.categoria}
+                              sx={{ bgcolor: cat?.color ?? '#757575', color: 'white' }}
+                            />
+                          </TableCell>
+                          <TableCell>{formatBytes(d.tamanioBytes)}</TableCell>
+                          <TableCell>{d.subidoPorNombre ?? '—'}</TableCell>
+                          <TableCell>{new Date(d.createdAt).toLocaleDateString('es-AR')}</TableCell>
+                          <TableCell align="right">
+                            <Tooltip title="Abrir">
+                              <IconButton size="small" component="a" href={d.url} target="_blank" rel="noopener noreferrer">
+                                <OpenIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            {esAdmin && (
+                              <Tooltip title="Eliminar">
+                                <IconButton size="small" onClick={() => handleDelete(d.id)} color="error">
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        )}
       </Paper>
+
+      {/* Diálogo de subida */}
+      <Dialog open={uploadOpen} onClose={() => !uploading && setUploadOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Subir documento al repositorio</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Box
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); }}
+              onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files?.[0] ?? null); }}
+              sx={{
+                border: '2px dashed', borderColor: uploadFile ? 'success.main' : 'divider',
+                borderRadius: 2, p: 3, textAlign: 'center', cursor: 'pointer',
+                bgcolor: uploadFile ? 'success.50' : 'action.hover',
+                transition: 'all 0.2s',
+                '&:hover': { borderColor: 'primary.main' },
+              }}
+            >
+              <input
+                ref={fileInputRef} type="file" hidden
+                accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx"
+                onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+              />
+              {uploadFile ? (
+                <>
+                  {iconForType(uploadFile.type)}
+                  <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>{uploadFile.name}</Typography>
+                  <Typography variant="caption" color="text.secondary">{formatBytes(uploadFile.size)}</Typography>
+                </>
+              ) : (
+                <>
+                  <UploadIcon sx={{ fontSize: 40, color: 'text.disabled' }} />
+                  <Typography variant="body2" sx={{ mt: 1 }}>Hacé clic o arrastrá un archivo aquí</Typography>
+                  <Typography variant="caption" color="text.secondary">PDF, JPG, PNG, XLSX, DOCX — máx. 15 MB</Typography>
+                </>
+              )}
+            </Box>
+
+            <TextField
+              label="Nombre descriptivo" fullWidth value={uploadNombre}
+              onChange={(e) => setUploadNombre(e.target.value)} required
+            />
+            <TextField
+              label="Categoría" select fullWidth value={uploadCat}
+              onChange={(e) => setUploadCat(e.target.value)}
+            >
+              {CATEGORIAS.map((c) => (
+                <MenuItem key={c.value} value={c.value}>
+                  <Box sx={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', bgcolor: c.color, mr: 1, verticalAlign: 'middle' }} />
+                  {c.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Descripción (opcional)" fullWidth multiline rows={2}
+              value={uploadDesc} onChange={(e) => setUploadDesc(e.target.value)}
+            />
+            {uploading && <LinearProgress />}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUploadOpen(false)} disabled={uploading}>Cancelar</Button>
+          <Button onClick={handleUpload} variant="contained" disabled={uploading || !uploadFile || !uploadNombre.trim()}>
+            Subir
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={!!snack} autoHideDuration={4000} onClose={() => setSnack(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity={snack?.type ?? 'info'} onClose={() => setSnack(null)}>
+          {snack?.msg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
