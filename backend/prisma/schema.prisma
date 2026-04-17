@@ -990,3 +990,24 @@ model DocumentoGenerado {
   @@index([secretaria])
   @@index([plantillaId])
 }
+
+// ============================================================================
+// MÓDULO SOCIAL — cumpleaños y eventos del equipo
+// ============================================================================
+
+model EventoSocial {
+  id          Int      @id @default(autoincrement())
+  titulo      String
+  fecha       String   // "MM-DD" si recurrente, "YYYY-MM-DD" si no
+  tipo        String   @default("EVENTO") // "CUMPLEANOS" | "EVENTO"
+  descripcion String?
+  color       String   @default("#1976d2")
+  recurrente  Boolean  @default(false)   // true = cumpleaños (repite cada año)
+  creadoPorId     Int?
+  creadoPorNombre String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tipo])
+  @@index([fecha])
+}

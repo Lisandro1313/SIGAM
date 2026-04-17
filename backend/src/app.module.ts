@@ -30,6 +30,7 @@ import { SugerenciasModule } from './modules/sugerencias/sugerencias.module';
 import { DocumentosModule } from './modules/documentos/documentos.module';
 import { PlantillasDocModule } from './modules/plantillas-doc/plantillas-doc.module';
 import { ListasSeguimientoModule } from './modules/listas-seguimiento/listas-seguimiento.module';
+import { SocialModule } from './modules/social/social.module';
 
 @Module({
   imports: [
@@ -42,11 +43,14 @@ import { ListasSeguimientoModule } from './modules/listas-seguimiento/listas-seg
     // Tareas programadas (backup semanal, etc.)
     ScheduleModule.forRoot(),
 
-    // Rate limiting: 2000 req/min general (red de oficina, IP compartida); login más estricto.
+    // Rate limiting:
+    //   - default: 2000 req/min por IP (red de oficina, IP compartida)
+    //   - login-min / login-hour: definidos con límite altísimo globalmente (nunca disparan),
+    //     pero el endpoint de login los sobreescribe a 5/min y 30/hora via @Throttle()
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 2000 },
-      { name: 'login-min', ttl: 60_000, limit: 5 },
-      { name: 'login-hour', ttl: 60 * 60_000, limit: 30 },
+      { name: 'default',     ttl: 60_000,        limit: 2000   },
+      { name: 'login-min',   ttl: 60_000,        limit: 99_999 },
+      { name: 'login-hour',  ttl: 60 * 60_000,   limit: 99_999 },
     ]),
 
     // Base de datos
@@ -78,6 +82,7 @@ import { ListasSeguimientoModule } from './modules/listas-seguimiento/listas-seg
     DocumentosModule,
     PlantillasDocModule,
     ListasSeguimientoModule,
+    SocialModule,
   ],
   providers: [
     // Aplicar rate limiting globalmente

@@ -26,6 +26,13 @@ import {
   Divider,
   Tabs,
   Tab,
+  Stack,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -39,6 +46,11 @@ import {
   Badge as BadgeIcon,
   NotificationsActive as NotifIcon,
   NotificationsOff as NotifOffIcon,
+  Cake as CumpleanosIcon,
+  Event as EventoIcon,
+  EmojiEvents as SocialTabIcon,
+  Delete as DeleteIcon,
+  Save as SaveIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -743,6 +755,250 @@ function UsuariosTab() {
 }
 
 // ============================================================================
+// Tab Social — cumpleaños y eventos del equipo
+// ============================================================================
+const COLORES_SOCIAL = ['#e91e63','#1976d2','#43a047','#fb8c00','#8e24aa','#00897b','#f44336','#3f51b5'];
+
+function SocialTab() {
+  const { showNotification } = useNotificationStore();
+  const [eventos, setEventos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editando, setEditando] = useState<any>(null);
+  const [form, setForm] = useState({ titulo: '', fecha: '', tipo: 'CUMPLEANOS', descripcion: '', color: '#e91e63', recurrente: true });
+  const [saving, setSaving] = useState(false);
+  const [filtro, setFiltro] = useState<'TODOS'|'CUMPLEANOS'|'EVENTO'>('TODOS');
+
+  const cargar = async () => {
+    setLoading(true);
+    try { const r = await api.get('/social'); setEventos(r.data ?? []); }
+    catch { showNotification('Error cargando eventos', 'error'); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { cargar(); }, []);
+
+  const abrirNuevo = (tipo: 'CUMPLEANOS' | 'EVENTO') => {
+    setEditando(null);
+    setForm({ titulo: '', fecha: '', tipo, descripcion: '', color: tipo === 'CUMPLEANOS' ? '#e91e63' : '#1976d2', recurrente: tipo === 'CUMPLEANOS' });
+    setDialogOpen(true);
+  };
+
+  const abrirEditar = (ev: any) => {
+    setEditando(ev);
+    setForm({ titulo: ev.titulo, fecha: ev.fecha, tipo: ev.tipo, descripcion: ev.descripcion ?? '', color: ev.color, recurrente: ev.recurrente });
+    setDialogOpen(true);
+  };
+
+  const guardar = async () => {
+    if (!form.titulo.trim() || !form.fecha) { showNotification('Completá título y fecha', 'warning'); return; }
+    setSaving(true);
+    try {
+      if (editando) await api.patch(`/social/${editando.id}`, form);
+      else await api.post('/social', form);
+      setDialogOpen(false);
+      cargar();
+      showNotification(editando ? 'Evento actualizado' : 'Evento agregado', 'success');
+    } catch { showNotification('Error guardando', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const eliminar = async (id: number, titulo: string) => {
+    if (!confirm(`¿Eliminar "${titulo}"?`)) return;
+    try { await api.delete(`/social/${id}`); cargar(); showNotification('Eliminado', 'success'); }
+    catch { showNotification('Error eliminando', 'error'); }
+  };
+
+  const eventosFiltrados = filtro === 'TODOS' ? eventos : eventos.filter(e => e.tipo === filtro);
+
+  // Ordenar: primero por mes-día (los más próximos al día de hoy)
+  const hoy = new Date();
+  const sorted = [...eventosFiltrados].sort((a, b) => {
+    const diaEnAnio = (fecha: string, recurrente: boolean) => {
+      if (recurrente) {
+        const [mm, dd] = fecha.split('-').map(Number);
+        let d = new Date(hoy.getFullYear(), mm - 1, dd);
+        if (d < hoy) d = new Date(hoy.getFullYear() + 1, mm - 1, dd);
+        return d.getTime();
+      }
+      return new Date(fecha).getTime();
+    };
+    return diaEnAnio(a.fecha, a.recurrente) - diaEnAnio(b.fecha, b.recurrente);
+  });
+
+  return (
+    <Box>
+      <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} justifyContent="space-between" spacing={1.5} mb={2}>
+        <Box>
+          <Typography variant="subtitle1" fontWeight="bold">Eventos Sociales del Equipo</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Cumpleaños del personal, eventos institucionales, fechas especiales. Aparecen en la campana de notificaciones.
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" startIcon={<CumpleanosIcon />} onClick={() => abrirNuevo('CUMPLEANOS')} size="small" sx={{ borderColor: '#e91e63', color: '#e91e63' }}>
+            Cumpleaños
+          </Button>
+          <Button variant="contained" startIcon={<EventoIcon />} onClick={() => abrirNuevo('EVENTO')} size="small">
+            Evento
+          </Button>
+        </Stack>
+      </Stack>
+
+      <ToggleButtonGroup value={filtro} exclusive onChange={(_, v) => v && setFiltro(v)} size="small" sx={{ mb: 2 }}>
+        <ToggleButton value="TODOS">Todos ({eventos.length})</ToggleButton>
+        <ToggleButton value="CUMPLEANOS">Cumpleaños ({eventos.filter(e => e.tipo === 'CUMPLEANOS').length})</ToggleButton>
+        <ToggleButton value="EVENTO">Eventos ({eventos.filter(e => e.tipo === 'EVENTO').length})</ToggleButton>
+      </ToggleButtonGroup>
+
+      {loading ? <CircularProgress size={28} /> : sorted.length === 0 ? (
+        <Paper sx={{ p: 4, textAlign: 'center', bgcolor: 'action.hover' }}>
+          <SocialTabIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 1 }} />
+          <Typography variant="h6" gutterBottom>Sin eventos cargados</Typography>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Agregá cumpleaños del equipo o eventos institucionales para verlos en las notificaciones.
+          </Typography>
+          <Stack direction="row" spacing={1} justifyContent="center">
+            <Button variant="outlined" startIcon={<CumpleanosIcon />} onClick={() => abrirNuevo('CUMPLEANOS')} sx={{ borderColor: '#e91e63', color: '#e91e63' }}>
+              Primer cumpleaños
+            </Button>
+            <Button variant="contained" startIcon={<EventoIcon />} onClick={() => abrirNuevo('EVENTO')}>
+              Primer evento
+            </Button>
+          </Stack>
+        </Paper>
+      ) : (
+        <List disablePadding>
+          {sorted.map((ev) => {
+            // Calcular días que faltan
+            let diasFaltan = 0;
+            let fechaLabel = '';
+            if (ev.recurrente) {
+              const [mm, dd] = ev.fecha.split('-').map(Number);
+              let d = new Date(hoy.getFullYear(), mm - 1, dd);
+              if (d < hoy) d = new Date(hoy.getFullYear() + 1, mm - 1, dd);
+              diasFaltan = Math.floor((d.getTime() - hoy.getTime()) / 86400000);
+              fechaLabel = `${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')} (cada año)`;
+            } else {
+              const [y, mm, dd] = ev.fecha.split('-').map(Number);
+              const d = new Date(y, mm - 1, dd);
+              diasFaltan = Math.floor((d.getTime() - hoy.getTime()) / 86400000);
+              fechaLabel = `${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')}/${y}`;
+            }
+            const esHoy = diasFaltan === 0;
+            const esSemana = diasFaltan >= 0 && diasFaltan <= 7;
+
+            return (
+              <Paper
+                key={ev.id}
+                elevation={esHoy ? 3 : 1}
+                sx={{ mb: 1, borderLeft: `4px solid ${ev.color}`, bgcolor: esHoy ? 'action.selected' : 'background.paper' }}
+              >
+                <ListItem>
+                  <ListItemText
+                    primary={
+                      <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
+                        {ev.tipo === 'CUMPLEANOS'
+                          ? <CumpleanosIcon sx={{ color: ev.color, fontSize: 18 }} />
+                          : <EventoIcon sx={{ color: ev.color, fontSize: 18 }} />
+                        }
+                        <Typography variant="body1" fontWeight="bold">{ev.titulo}</Typography>
+                        {esHoy && <Chip label="¡Hoy!" size="small" color="secondary" />}
+                        {!esHoy && esSemana && <Chip label={`en ${diasFaltan}d`} size="small" color="primary" />}
+                        {!esHoy && !esSemana && diasFaltan >= 0 && (
+                          <Typography variant="caption" color="text.disabled">en {diasFaltan} días</Typography>
+                        )}
+                        {diasFaltan < 0 && <Chip label="Pasado" size="small" variant="outlined" />}
+                      </Stack>
+                    }
+                    secondary={
+                      <Stack direction="row" spacing={1} alignItems="center" mt={0.3}>
+                        <Typography variant="caption" color="text.secondary">{fechaLabel}</Typography>
+                        {ev.descripcion && <Typography variant="caption" color="text.disabled">· {ev.descripcion}</Typography>}
+                      </Stack>
+                    }
+                  />
+                  <ListItemSecondaryAction>
+                    <Tooltip title="Editar">
+                      <IconButton size="small" onClick={() => abrirEditar(ev)}><EditIcon fontSize="small" /></IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton size="small" color="error" onClick={() => eliminar(ev.id, ev.titulo)}><DeleteIcon fontSize="small" /></IconButton>
+                    </Tooltip>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              </Paper>
+            );
+          })}
+        </List>
+      )}
+
+      {/* Dialog crear/editar */}
+      <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{editando ? 'Editar evento' : form.tipo === 'CUMPLEANOS' ? 'Agregar cumpleaños' : 'Agregar evento'}</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label={form.tipo === 'CUMPLEANOS' ? 'Nombre (ej: Cumpleaños Alan)' : 'Título del evento'}
+              fullWidth required autoFocus
+              value={form.titulo}
+              onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))}
+            />
+            <TextField
+              label={form.recurrente ? 'Fecha (MM-DD, ej: 04-26 para 26 de abril)' : 'Fecha (YYYY-MM-DD)'}
+              fullWidth required
+              placeholder={form.recurrente ? 'MM-DD' : 'YYYY-MM-DD'}
+              value={form.fecha}
+              onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+              helperText={form.recurrente ? 'Solo mes y día — se repite cada año automáticamente' : 'Fecha específica (una sola vez)'}
+            />
+            <TextField
+              select label="Tipo"
+              value={form.tipo}
+              onChange={e => {
+                const t = e.target.value;
+                setForm(f => ({ ...f, tipo: t, recurrente: t === 'CUMPLEANOS', color: t === 'CUMPLEANOS' ? '#e91e63' : '#1976d2' }));
+              }}
+            >
+              <MenuItem value="CUMPLEANOS">🎂 Cumpleaños</MenuItem>
+              <MenuItem value="EVENTO">📅 Evento</MenuItem>
+            </TextField>
+            <FormControlLabel
+              control={<Switch checked={form.recurrente} onChange={e => setForm(f => ({ ...f, recurrente: e.target.checked }))} />}
+              label={form.recurrente ? 'Se repite cada año (usar formato MM-DD)' : 'Fecha puntual (usar formato YYYY-MM-DD)'}
+            />
+            <TextField
+              label="Descripción (opcional)"
+              fullWidth multiline rows={2}
+              value={form.descripcion}
+              onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
+              placeholder="Ej: Manzaneras y Piqueteras, Salón Municipal..."
+            />
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>Color</Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {COLORES_SOCIAL.map(c => (
+                  <Box
+                    key={c} onClick={() => setForm(f => ({ ...f, color: c }))}
+                    sx={{ width: 30, height: 30, borderRadius: '50%', bgcolor: c, cursor: 'pointer', border: form.color === c ? '3px solid #000' : '2px solid #fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
+          <Button variant="contained" onClick={guardar} disabled={saving} startIcon={<SaveIcon />}>
+            {saving ? 'Guardando...' : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
+
+// ============================================================================
 // Página principal con Tabs
 // ============================================================================
 export default function UsuariosPage() {
@@ -759,10 +1015,12 @@ export default function UsuariosPage() {
       >
         <Tab icon={<PeopleIcon />} iconPosition="start" label="Usuarios del Sistema" />
         <Tab icon={<BadgeIcon />} iconPosition="start" label="Personal / Equipo" />
+        <Tab icon={<SocialTabIcon />} iconPosition="start" label="Social" />
       </Tabs>
 
       {tab === 0 && <UsuariosTab />}
       {tab === 1 && <PersonalTab />}
+      {tab === 2 && <SocialTab />}
     </Box>
   );
 }

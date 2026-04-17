@@ -65,6 +65,9 @@ import {
   Restaurant as NutricionIcon,
   AutoAwesome as SugerenciasIcon,
   Description as DocumentacionIcon,
+  Cake as CumpleanosIcon,
+  Event as EventoIcon,
+  EmojiEvents as SocialIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/authStore';
 import { useColorMode } from '../theme/ColorModeContext';
@@ -131,6 +134,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [notifs, setNotifs] = useState<any[]>([]);
   const [entregas, setEntregas] = useState<any[]>([]);
   const [tareasPendientes, setTareasPendientes] = useState<any[]>([]);
+  const [eventosProximos, setEventosProximos] = useState<any[]>([]);
   const [leidasIds, setLeidasIds] = useState<Set<number>>(new Set());
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -293,6 +297,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       api.get('/tareas', { params: { estado: 'PENDIENTE,EN_PROGRESO' } })
         .then(r => setTareasPendientes(r.data ?? []))
         .catch(() => {});
+      api.get('/social/proximos', { params: { dias: 30 } })
+        .then(r => setEventosProximos(r.data ?? []))
+        .catch(() => {});
     };
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 2 * 60 * 1000);
@@ -427,7 +434,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </Tooltip>
                 {!esNutricionista && (
                   <IconButton color="inherit" size="small" onClick={(e) => setBellAnchor(e.currentTarget)}>
-                    <Badge badgeContent={(notifs.length + entregasNoLeidas.length + tareasPendientes.length) || null} color="error" max={9}>
+                    <Badge badgeContent={(notifs.length + entregasNoLeidas.length + tareasPendientes.length + eventosProximos.filter(e => e.diasFaltan <= 7).length) || null} color="error" max={9}>
                       <BellIcon />
                     </Badge>
                   </IconButton>
@@ -506,6 +513,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     Tareas
                     {tareasPendientes.length > 0 && (
                       <Chip label={tareasPendientes.length} size="small" color="warning" sx={{ height: 16, fontSize: '0.6rem' }} />
+                    )}
+                  </Box>
+                }
+                sx={{ minHeight: 36, py: 0, fontSize: '0.8rem' }}
+              />
+              <Tab
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    Social
+                    {eventosProximos.filter(e => e.diasFaltan <= 7).length > 0 && (
+                      <Chip label={eventosProximos.filter(e => e.diasFaltan <= 7).length} size="small" color="secondary" sx={{ height: 16, fontSize: '0.6rem' }} />
                     )}
                   </Box>
                 }
@@ -664,6 +682,58 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </List>
               )
             )}
+
+            {/* ── Tab Social (cumpleaños y eventos) ── */}
+            {bellTab === 3 && (
+              eventosProximos.length === 0 ? (
+                <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                  <SocialIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1 }} />
+                  <Typography variant="body2" color="text.secondary">No hay eventos próximos en 30 días</Typography>
+                  <Typography variant="caption" color="text.disabled">Cargá cumpleaños y eventos en Usuarios → Social</Typography>
+                </Box>
+              ) : (
+                <List disablePadding>
+                  {eventosProximos.map((ev: any) => (
+                    <ListItem
+                      key={ev.id}
+                      divider
+                      sx={{
+                        alignItems: 'flex-start', py: 1.5,
+                        borderLeft: `3px solid ${ev.color ?? '#1976d2'}`,
+                        bgcolor: ev.esHoy ? 'action.selected' : 'transparent',
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                        {ev.tipo === 'CUMPLEANOS'
+                          ? <CumpleanosIcon sx={{ color: ev.color ?? '#e91e63' }} fontSize="small" />
+                          : <EventoIcon sx={{ color: ev.color ?? '#1976d2' }} fontSize="small" />
+                        }
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                            <Typography variant="body2" fontWeight="bold">{ev.titulo}</Typography>
+                            {ev.esHoy && <Chip label="¡Hoy!" size="small" color="secondary" sx={{ height: 16, fontSize: '0.6rem' }} />}
+                            {ev.esManiana && <Chip label="Mañana" size="small" color="primary" sx={{ height: 16, fontSize: '0.6rem' }} />}
+                          </Box>
+                        }
+                        secondary={
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">{ev.fechaFormateada}</Typography>
+                            {!ev.esHoy && !ev.esManiana && (
+                              <Typography variant="caption" color="text.disabled" sx={{ ml: 0.5 }}>· en {ev.diasFaltan} días</Typography>
+                            )}
+                            {ev.descripcion && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{ev.descripcion}</Typography>
+                            )}
+                          </Box>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              )
+            )}
           </Box>
 
           {/* Footer — historial / tareas */}
@@ -684,6 +754,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 onClick={() => { setBellAnchor(null); navigate('/tareas'); }}
               >
                 Ver todas las tareas
+              </Button>
+            </Box>
+          )}
+          {bellTab === 3 && (
+            <Box sx={{ borderTop: '1px solid', borderColor: 'divider', p: 1 }}>
+              <Button
+                fullWidth size="small" startIcon={<SocialIcon />}
+                onClick={() => { setBellAnchor(null); navigate('/usuarios'); }}
+              >
+                Gestionar eventos sociales
               </Button>
             </Box>
           )}
