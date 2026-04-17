@@ -61,7 +61,7 @@ import { useAuthStore } from '../stores/authStore';
 import { puedeHacer } from '../utils/permisos';
 import { useNotificationStore } from '../stores/notificationStore';
 
-const TIPOS_DOC = ['DNI', 'INFORME', 'FOTO', 'CONTRATO', 'OTRO'];
+const TIPOS_DOC = ['DNI', 'INFORME', 'FOTO', 'RELEVAMIENTO', 'RENDICION', 'CONTRATO', 'OTRO'];
 
 const ESTADO_COLOR: Record<string, 'warning' | 'success' | 'error'> = {
   PENDIENTE: 'warning',
@@ -128,6 +128,7 @@ export default function BeneficiariosPage() {
 
   // Próxima entrega
   const [proximaEntrega, setProximaEntrega] = useState<any>(null);
+  const [docsPreview, setDocsPreview] = useState<any[]>([]);
 
   // Historial de cambios (auditoria)
   const [historial, setHistorial] = useState<any[] | null>(null);
@@ -331,14 +332,17 @@ export default function BeneficiariosPage() {
     setHistorial(null);
     setNutricionData(null);
     setProximaEntrega(null);
+    setDocsPreview([]);
     setIntegranteForm({ nombre: '', dni: '', direccion: '', grupoFamiliar: '', menores: '' });
     try {
-      const [res, proxRes] = await Promise.all([
+      const [res, proxRes, docsRes] = await Promise.all([
         api.get(`/beneficiarios/${beneficiario.id}`),
         api.get(`/beneficiarios/${beneficiario.id}/proxima-entrega`).catch(() => null),
+        api.get(`/beneficiarios/${beneficiario.id}/documentos`).catch(() => null),
       ]);
       setDetalleData(res.data);
       if (proxRes) setProximaEntrega(proxRes.data);
+      if (docsRes) setDocsPreview(docsRes.data ?? []);
     } catch {
       showNotification('Error cargando datos del beneficiario', 'error');
       setDetalleOpen(false);
@@ -847,6 +851,82 @@ export default function BeneficiariosPage() {
                       <Divider sx={{ mb: 1.5 }} />
                       <Typography variant="caption" color="text.secondary">Observaciones</Typography>
                       <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.5 }}>{detalleData.observaciones}</Typography>
+                    </Box>
+                  )}
+
+                  {/* Resumen de documentos adjuntos */}
+                  {docsPreview.length > 0 && (
+                    <Box>
+                      <Divider sx={{ mb: 1.5 }} />
+                      <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                        <Typography variant="caption" color="text.secondary">
+                          Documentos adjuntos ({docsPreview.length})
+                        </Typography>
+                        <Button
+                          size="small"
+                          startIcon={<DocsIcon fontSize="small" />}
+                          sx={{ textTransform: 'none' }}
+                          onClick={() => {
+                            setDetalleOpen(false);
+                            if (detalleData) handleAbrirDocs(detalleData);
+                          }}
+                        >
+                          Ver todos
+                        </Button>
+                      </Box>
+                      {/* Chips por tipo */}
+                      <Box display="flex" flexWrap="wrap" gap={0.5} mb={1}>
+                        {Object.entries(
+                          docsPreview.reduce((acc: Record<string, number>, d: any) => {
+                            const k = d.tipo || 'OTRO';
+                            acc[k] = (acc[k] || 0) + 1;
+                            return acc;
+                          }, {})
+                        ).map(([tipo, count]) => (
+                          <Chip
+                            key={tipo}
+                            label={`${tipo} · ${count}`}
+                            size="small"
+                            variant="outlined"
+                            color={tipo === 'FOTO' ? 'info' : tipo === 'RELEVAMIENTO' ? 'success' : tipo === 'RENDICION' ? 'warning' : 'default'}
+                          />
+                        ))}
+                      </Box>
+                      {/* Mini galería de fotos (máx 4) */}
+                      {(() => {
+                        const fotos = docsPreview.filter((d: any) => d.tipo === 'FOTO').slice(0, 4);
+                        if (fotos.length === 0) return null;
+                        return (
+                          <Box display="flex" gap={0.75} mt={0.5}>
+                            {fotos.map((f: any) => (
+                              <Box
+                                key={f.id}
+                                component="a"
+                                href={resolveUrl(f.url)}
+                                target="_blank"
+                                rel="noopener"
+                                sx={{
+                                  display: 'block',
+                                  width: 64, height: 64,
+                                  borderRadius: 1,
+                                  overflow: 'hidden',
+                                  border: '1px solid',
+                                  borderColor: 'divider',
+                                  cursor: 'zoom-in',
+                                  '&:hover': { borderColor: 'primary.main' },
+                                }}
+                                title={f.nombre}
+                              >
+                                <img
+                                  src={resolveUrl(f.url)}
+                                  alt={f.nombre}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                              </Box>
+                            ))}
+                          </Box>
+                        );
+                      })()}
                     </Box>
                   )}
                 </Box>
