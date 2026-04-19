@@ -9,6 +9,7 @@ import { NutricionistaService } from './nutricionista.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { assertMime, MIME_IMAGES } from '../../shared/upload/upload.util';
 
 const ROLES_NUTRI = ['ADMIN', 'NUTRICIONISTA', 'OPERADOR_PROGRAMA'] as const;
 
@@ -30,9 +31,10 @@ export class NutricionistaController {
   // ── Subir foto ────────────────────────────────────────────────────────────
   @Post('upload')
   @Roles(...ROLES_NUTRI)
-  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
   @ApiOperation({ summary: 'Subir foto para relevamiento/actividad' })
   async upload(@UploadedFile() file: Express.Multer.File) {
+    assertMime(file, MIME_IMAGES);
     const url = await this.svc.subirFoto(file);
     return { url };
   }

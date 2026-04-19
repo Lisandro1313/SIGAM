@@ -3,18 +3,12 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ListasSeguimientoService } from './listas-seguimiento.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, ROLES_KEY } from '../auth/guards/roles.guard';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
 
 const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 
 const ROLES_LECTURA = ['ADMIN', 'VISOR', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'NUTRICIONISTA'];
 const ROLES_EDICION = ['ADMIN', 'OPERADOR_PROGRAMA', 'LOGISTICA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'NUTRICIONISTA'];
-
-function getSecretaria(req: any): string | null {
-  const rol = req.user?.rol;
-  if (rol === 'ASISTENCIA_CRITICA') return 'AC';
-  if (rol === 'LOGISTICA' || rol === 'VISOR' || rol === 'ADMIN') return null;
-  return 'PA';
-}
 
 @ApiTags('listas-seguimiento')
 @Controller('listas-seguimiento')
@@ -26,13 +20,13 @@ export class ListasSeguimientoController {
   @Get()
   @Roles(...ROLES_LECTURA)
   @ApiOperation({ summary: 'Listar listas de seguimiento con conteo de items' })
-  listar(@Request() req) { return this.service.listar(getSecretaria(req)); }
+  listar(@Request() req) { return this.service.listar(getSecretariaFromReq(req)); }
 
   @Get(':id')
   @Roles(...ROLES_LECTURA)
   @ApiOperation({ summary: 'Detalle de lista con sus items y beneficiarios' })
   obtener(@Param('id') id: string, @Request() req) {
-    return this.service.obtener(+id, getSecretaria(req));
+    return this.service.obtener(+id, getSecretariaFromReq(req));
   }
 
   @Post()

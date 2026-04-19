@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ReportesService } from './reportes.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, ROLES_KEY } from '../auth/guards/roles.guard';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
 
 const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 
@@ -21,13 +22,6 @@ function parseFiltroFecha(mes?: string, anio?: string): { mes?: number; anio?: n
   return result;
 }
 
-function getSecretaria(req: any): string | null {
-  const rol = req.user?.rol;
-  if (rol === 'ASISTENCIA_CRITICA') return 'AC';
-  if (rol === 'LOGISTICA' || rol === 'VISOR') return null;
-  return 'PA';
-}
-
 @ApiTags('reportes')
 @Controller('reportes')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -40,7 +34,7 @@ export class ReportesController {
   @ApiOperation({ summary: 'Notificaciones operativas para el top bar' })
   @Roles('ADMIN', 'VISOR', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA')
   notificaciones(@Request() req) {
-    return this.reportesService.notificaciones(getSecretaria(req));
+    return this.reportesService.notificaciones(getSecretariaFromReq(req));
   }
 
   @Get('entregas-recientes')
@@ -48,20 +42,20 @@ export class ReportesController {
   @Roles('ADMIN', 'VISOR', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL')
   entregasRecientes(@Query('horas') horas: string, @Request() req) {
     const h = horas ? parseInt(horas, 10) : 72;
-    return this.reportesService.entregasRecientes(h, getSecretaria(req));
+    return this.reportesService.entregasRecientes(h, getSecretariaFromReq(req));
   }
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Dashboard con resumen general' })
   dashboard(@Request() req) {
-    return this.reportesService.dashboard(getSecretaria(req));
+    return this.reportesService.dashboard(getSecretariaFromReq(req));
   }
 
   @Get('kilos-por-mes')
   @ApiOperation({ summary: 'Total de kilos entregados por mes' })
   kilosPorMes(@Query('mes') mes: string, @Query('anio') anio: string, @Query('programaId') programaId: string, @Request() req) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.kilosPorMes(m, a, getSecretaria(req), programaId ? parseInt(programaId) : undefined);
+    return this.reportesService.kilosPorMes(m, a, getSecretariaFromReq(req), programaId ? parseInt(programaId) : undefined);
   }
 
   @Get('entregas-por-localidad')
@@ -73,7 +67,7 @@ export class ReportesController {
     @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.entregasPorLocalidad(m, a, getSecretaria(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
+    return this.reportesService.entregasPorLocalidad(m, a, getSecretariaFromReq(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
   }
 
   @Get('articulos-mas-distribuidos')
@@ -85,7 +79,7 @@ export class ReportesController {
     @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.articulosMasDistribuidos(m, a, getSecretaria(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
+    return this.reportesService.articulosMasDistribuidos(m, a, getSecretariaFromReq(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
   }
 
   @Get('distribucion-articulos')
@@ -103,7 +97,7 @@ export class ReportesController {
     return this.reportesService.distribucionPorArticulo(
       ids,
       fechaDesde, fechaHasta,
-      getSecretaria(req),
+      getSecretariaFromReq(req),
       programaId ? parseInt(programaId) : undefined,
       m, a,
     );
@@ -118,7 +112,7 @@ export class ReportesController {
     @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.entregasPorPrograma(m, a, getSecretaria(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
+    return this.reportesService.entregasPorPrograma(m, a, getSecretariaFromReq(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
   }
 
   @Get('stock-bajo')
@@ -143,7 +137,7 @@ export class ReportesController {
     @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.remitosDetalle(m, a, programaId ? parseInt(programaId) : undefined, estado, getSecretaria(req), fechaDesde, fechaHasta);
+    return this.reportesService.remitosDetalle(m, a, programaId ? parseInt(programaId) : undefined, estado, getSecretariaFromReq(req), fechaDesde, fechaHasta);
   }
 
   @Get('cruces-masivos')
@@ -155,14 +149,14 @@ export class ReportesController {
   @Get('sin-entrega')
   @ApiOperation({ summary: 'Beneficiarios activos con entrega vencida según su frecuencia' })
   beneficiariosSinEntrega(@Request() req) {
-    return this.reportesService.beneficiariosSinEntregaDetalle(getSecretaria(req));
+    return this.reportesService.beneficiariosSinEntregaDetalle(getSecretariaFromReq(req));
   }
 
   @Get('busqueda')
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'VISOR')
   @ApiOperation({ summary: 'Búsqueda global (beneficiarios, casos, remitos)' })
   busquedaGlobal(@Query('q') q: string, @Request() req) {
-    return this.reportesService.busquedaGlobal(q, getSecretaria(req));
+    return this.reportesService.busquedaGlobal(q, getSecretariaFromReq(req));
   }
 
   @Get('rendicion')
@@ -177,7 +171,7 @@ export class ReportesController {
     return this.reportesService.rendicionAnexoVI(
       desde, hasta,
       programaId ? parseInt(programaId, 10) : undefined,
-      getSecretaria(req),
+      getSecretariaFromReq(req),
     );
   }
 
@@ -190,7 +184,7 @@ export class ReportesController {
     @Request() req,
   ) {
     const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
-    return this.reportesService.entregasDomicilio(m, a, fechaDesde, fechaHasta, getSecretaria(req));
+    return this.reportesService.entregasDomicilio(m, a, fechaDesde, fechaHasta, getSecretariaFromReq(req));
   }
 
   @Get('totales')
@@ -205,7 +199,7 @@ export class ReportesController {
     return this.reportesService.totalesPeriodo(
       m, a, fechaDesde, fechaHasta,
       programaId ? parseInt(programaId) : undefined,
-      getSecretaria(req),
+      getSecretariaFromReq(req),
     );
   }
 
@@ -222,6 +216,6 @@ export class ReportesController {
     if ((!m || !a) && (!fechaDesde || !fechaHasta)) throw new BadRequestException('Proveer mes+anio o fechaDesde+fechaHasta');
     const mesFinal = m ?? new Date().getMonth() + 1;
     const anioFinal = a ?? new Date().getFullYear();
-    return this.reportesService.resumenEntregasMes(mesFinal, anioFinal, getSecretaria(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
+    return this.reportesService.resumenEntregasMes(mesFinal, anioFinal, getSecretariaFromReq(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
   }
 }

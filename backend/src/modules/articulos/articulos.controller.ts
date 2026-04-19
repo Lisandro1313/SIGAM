@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, UseInterceptors, UploadedFile, BadRequestException, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, UseInterceptors, UploadedFile, Query, Request } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -7,6 +7,8 @@ import { CreateArticuloDto } from './dto/create-articulo.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
+import { assertMime, MIME_IMAGES } from '../../shared/upload/upload.util';
 
 @ApiTags('articulos')
 @Controller('articulos')
@@ -25,10 +27,7 @@ export class ArticulosController {
   @Get()
   @ApiOperation({ summary: 'Listar artículos' })
   findAll(@Request() req) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
-      : 'PA';
-    return this.articulosService.findAll(secretaria);
+    return this.articulosService.findAll(getSecretariaFromReq(req));
   }
 
   @Get('vencimientos')
@@ -67,7 +66,7 @@ export class ArticulosController {
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    if (!file) throw new BadRequestException('No se recibió imagen');
+    assertMime(file, MIME_IMAGES);
     const url = await this.articulosService.uploadFoto(+id, file);
     return { fotoUrl: url };
   }

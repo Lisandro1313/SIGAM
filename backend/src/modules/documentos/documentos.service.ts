@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../shared/storage/storage.service';
+import { getSecretariaForWrite } from '../../shared/auth/secretaria.util';
+import { safeFilename } from '../../shared/upload/upload.util';
 
 const CATEGORIAS = ['REMITOS', 'BENEFICIARIOS', 'RENDICIONES', 'NORMATIVA', 'MODELOS', 'OTRO'] as const;
 
@@ -46,8 +48,7 @@ export class DocumentosService {
     if (!CATEGORIAS.includes(categoria as any)) {
       throw new BadRequestException(`Categoría inválida. Permitidas: ${CATEGORIAS.join(', ')}`);
     }
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = `documentos/${categoria.toLowerCase()}/${Date.now()}_${safeName}`;
+    const path = `documentos/${categoria.toLowerCase()}/${safeFilename(file.originalname)}`;
     const url = await this.storage.upload(file.buffer, path, file.mimetype);
 
     return this.prisma.documento.create({
@@ -88,7 +89,6 @@ export class DocumentosService {
 
   private resolverSecretaria(rol: string, body?: string): string {
     if (body && (body === 'PA' || body === 'AC')) return body;
-    if (rol === 'ASISTENCIA_CRITICA') return 'AC';
-    return 'PA';
+    return getSecretariaForWrite(rol);
   }
 }

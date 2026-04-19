@@ -5,12 +5,7 @@ import { Observable } from 'rxjs';
 import { randomBytes } from 'crypto';
 import { EventsService } from './events.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-
-function getSecretaria(rol: string): string | null {
-  if (rol === 'ASISTENCIA_CRITICA') return 'AC';
-  if (rol === 'LOGISTICA' || rol === 'VISOR') return null;
-  return 'PA';
-}
+import { getSecretariaFromRol } from '../../shared/auth/secretaria.util';
 
 @ApiTags('events')
 @Controller('events')
@@ -27,7 +22,7 @@ export class EventsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener ticket efímero para abrir SSE' })
   crearTicket(@Request() req): { ticket: string } {
-    const secretaria = getSecretaria(req.user.rol);
+    const secretaria = getSecretariaFromRol(req.user.rol);
     const ticket = this.eventsService.crearTicket(req.user.id, secretaria);
     return { ticket };
   }

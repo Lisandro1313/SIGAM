@@ -19,4 +19,12 @@ export class AuthController {
   async login(@Request() req) {
     return this.authService.login(req.user);
   }
+
+  // Sin ThrottlerGuard: el refresh_token es un JWT HS256 no adivinable,
+  // y múltiples pestañas legítimas del mismo usuario pueden refrescar en paralelo.
+  @Post('refresh')
+  @ApiOperation({ summary: 'Renovar access token usando refresh token' })
+  async refresh(@Body() body: { refresh_token: string }) {
+    return this.authService.refresh(body?.refresh_token);
+  }
 }

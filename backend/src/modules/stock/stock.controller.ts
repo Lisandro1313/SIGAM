@@ -6,6 +6,8 @@ import { StockService } from './stock.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
+import { assertMime, MIME_DOCUMENTS } from '../../shared/upload/upload.util';
 
 @ApiTags('stock')
 @Controller('stock')
@@ -14,13 +16,19 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class StockController {
   constructor(private readonly stockService: StockService) {}
 
+  @Post('verify-pin')
+  @ApiOperation({ summary: 'Verifica el PIN de desbloqueo de stock (lo evalua el backend, no el cliente)' })
+  verifyPin(@Body() body: { pin?: string }) {
+    const expected = process.env.STOCK_PIN || '6409';
+    const ok = typeof body?.pin === 'string' && body.pin === expected;
+    // No devolvemos el PIN ni hints; solo ok/no-ok.
+    return { ok };
+  }
+
   @Get()
   @ApiOperation({ summary: 'Obtener todo el stock' })
   obtenerTodo(@Request() req) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
-      : 'PA';
-    return this.stockService.obtenerTodoElStock(secretaria);
+    return this.stockService.obtenerTodoElStock(getSecretariaFromReq(req));
   }
 
   @Get('alertas')
@@ -32,10 +40,7 @@ export class StockController {
   @Get('deposito/:id')
   @ApiOperation({ summary: 'Obtener stock por depósito' })
   obtenerPorDeposito(@Param('id') id: string, @Request() req) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
-      : 'PA';
-    return this.stockService.obtenerStockPorDeposito(+id, secretaria);
+    return this.stockService.obtenerStockPorDeposito(+id, getSecretariaFromReq(req));
   }
 
   @Post('ingreso')
@@ -53,6 +58,7 @@ export class StockController {
     if (isNaN(articuloId) || isNaN(depositoId) || isNaN(cantidad) || cantidad <= 0) {
       throw new BadRequestException('articuloId, depositoId y cantidad son requeridos y deben ser números válidos');
     }
+    if (documento) assertMime(documento, MIME_DOCUMENTS);
     return this.stockService.registrarIngreso(
       articuloId,
       depositoId,

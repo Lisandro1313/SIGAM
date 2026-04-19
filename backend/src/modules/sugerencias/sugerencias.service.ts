@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { RemitoEstado } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { startOfMonth, endOfMonth, subMonths, subDays } from 'date-fns';
+import { getSecretariaForWrite } from '../../shared/auth/secretaria.util';
 
 export type Nivel = 'alta' | 'media' | 'baja';
 export type Categoria = 'Logística' | 'Cobertura' | 'Stock' | 'Anomalía' | 'Operativo' | 'Estacional' | 'Calidad de datos';
@@ -76,7 +77,7 @@ export class SugerenciasService {
     dias: number,
     user: { id: number; nombre: string; rol: string },
   ) {
-    const secretaria = user.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    const secretaria = getSecretariaForWrite(user.rol);
     const expiraEn = new Date(Date.now() + dias * 24 * 3600 * 1000);
     // Solo mantenemos el último estado por clave+secretaria
     await this.prisma.sugerenciaEstado.deleteMany({ where: { clave, secretaria } });
@@ -94,7 +95,7 @@ export class SugerenciasService {
   }
 
   async reactivar(clave: string, user: { rol: string }) {
-    const secretaria = user.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    const secretaria = getSecretariaForWrite(user.rol);
     await this.prisma.sugerenciaEstado.deleteMany({ where: { clave, secretaria } });
     return { ok: true };
   }

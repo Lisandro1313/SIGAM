@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { MovimientoTipo } from '@prisma/client';
 import { StorageService } from '../../shared/storage/storage.service';
+import { safeFilename } from '../../shared/upload/upload.util';
 
 @Injectable()
 export class StockService {
@@ -49,7 +50,7 @@ export class StockService {
   ) {
     let documentoUrl: string | undefined;
     if (documento) {
-      const path = `stock/ingresos/${Date.now()}_${documento.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const path = `stock/ingresos/${safeFilename(documento.originalname)}`;
       documentoUrl = await this.storageService.upload(documento.buffer, path, documento.mimetype);
     }
 

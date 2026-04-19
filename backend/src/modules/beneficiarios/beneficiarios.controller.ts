@@ -7,6 +7,8 @@ import { CreateBeneficiarioDto } from './dto/create-beneficiario.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
+import { assertMime, MIME_DOCUMENTS } from '../../shared/upload/upload.util';
 
 @ApiTags('beneficiarios')
 @Controller('beneficiarios')
@@ -47,11 +49,8 @@ export class BeneficiariosController {
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'VISOR', 'NUTRICIONISTA')
   @ApiOperation({ summary: 'Listar beneficiarios' })
   findAll(@Query() filtros: any, @Request() req) {
-    const rol = req.user?.rol;
-    const secretaria = rol === 'ADMIN' ? null
-      : rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : (rol === 'LOGISTICA' || rol === 'VISOR' || rol === 'NUTRICIONISTA') ? null
-      : 'PA';
+    // NUTRICIONISTA accede cross-secretaria para evaluaciones nutricionales.
+    const secretaria = req.user?.rol === 'NUTRICIONISTA' ? null : getSecretariaFromReq(req);
     return this.beneficiariosService.findAll(filtros, secretaria);
   }
 
@@ -151,7 +150,7 @@ export class BeneficiariosController {
     @UploadedFile() file: Express.Multer.File,
     @Body() body: { nombre?: string; tipo?: string },
   ) {
-    if (!file) throw new BadRequestException('No se recibió archivo');
+    assertMime(file, MIME_DOCUMENTS);
     return this.beneficiariosService.uploadDocumento(+id, file, body.nombre || file.originalname, body.tipo);
   }
 

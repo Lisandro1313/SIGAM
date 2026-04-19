@@ -9,6 +9,7 @@ import { CasosService } from './casos.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { assertMime, MIME_DOCUMENTS } from '../../shared/upload/upload.util';
 
 const ROLES_CREAR  = ['ADMIN', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA'] as const;
 const ROLES_LEER   = ['ADMIN', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA'] as const;
@@ -79,6 +80,7 @@ export class CasosController {
     @Body() body: any,
     @UploadedFile() archivo: Express.Multer.File,
   ) {
+    assertMime(archivo, MIME_DOCUMENTS);
     return this.casosService.uploadDocumento(+id, archivo, body.nombre, body.tipo);
   }
 

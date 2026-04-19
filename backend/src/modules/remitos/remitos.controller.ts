@@ -16,7 +16,6 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { extname } from 'path';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { RemitosService } from './remitos.service';
@@ -26,6 +25,8 @@ import { ConfirmarRemitoDto } from './dto/confirmar-remito.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
+import { assertMime, MIME_DOCUMENTS, safeFilename } from '../../shared/upload/upload.util';
 
 @ApiTags('remitos')
 @Controller('remitos')
@@ -113,14 +114,11 @@ export class RemitosController {
   async historialPdf(@Query() query: any, @Request() req, @Res() res: Response) {
     const esLogistica = req.user.rol === 'LOGISTICA' && req.user.depositoId;
     const esCita = req.user.rol === 'ASISTENCIA_CRITICA';
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
-      : 'PA';
     const pdf = await this.remitosService.historialPdf(
       query,
       esLogistica ? req.user.depositoId : undefined,
       esCita ? 'AC' : undefined,
-      secretaria,
+      getSecretariaFromReq(req),
     );
     const desde = query.entregadoDesde ?? 'historial';
     const hasta = query.entregadoHasta ?? '';
@@ -153,15 +151,11 @@ export class RemitosController {
     const esLogistica = req.user.rol === 'LOGISTICA' && req.user.depositoId;
     // ASISTENCIA_CRITICA: auto-filtra al depósito CITA
     const esCita = req.user.rol === 'ASISTENCIA_CRITICA';
-    // Determinar secretaría por rol
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
-      : 'PA';
     return this.remitosService.findAll(
       query,
       esLogistica ? req.user.depositoId : undefined,
       esCita ? 'AC' : undefined,
-      secretaria,
+      getSecretariaFromReq(req),
     );
   }
 
@@ -171,14 +165,6 @@ export class RemitosController {
   @UseInterceptors(
     FileInterceptor('foto', {
       storage: memoryStorage(),
-      fileFilter: (_req, file, cb) => {
-        const allowed = /jpeg|jpg|png|webp|pdf/;
-        if (allowed.test(extname(file.originalname).toLowerCase())) {
-          cb(null, true);
-        } else {
-          cb(new Error('Solo se permiten imágenes o PDF'), false);
-        }
-      },
       limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
     }),
   )
@@ -189,8 +175,8 @@ export class RemitosController {
   ) {
     let fotoUrl: string | undefined;
     if (foto) {
-      const filename = `remito-${Date.now()}-${Math.round(Math.random() * 1e6)}${extname(foto.originalname)}`;
-      fotoUrl = await this.storageService.uploadFoto(foto.buffer, filename, foto.mimetype);
+      assertMime(foto, MIME_DOCUMENTS);
+      fotoUrl = await this.storageService.uploadFoto(foto.buffer, safeFilename(foto.originalname), foto.mimetype);
     }
     return this.remitosService.marcarEntregado(+id, body.nota, fotoUrl);
   }
@@ -201,10 +187,6 @@ export class RemitosController {
   @UseInterceptors(
     FileInterceptor('foto', {
       storage: memoryStorage(),
-      fileFilter: (_req, file, cb) => {
-        const allowed = /jpeg|jpg|png|webp|pdf/;
-        cb(null, allowed.test(extname(file.originalname).toLowerCase()));
-      },
       limits: { fileSize: 10 * 1024 * 1024 },
     }),
   )
@@ -215,8 +197,8 @@ export class RemitosController {
   ) {
     let fotoUrl: string | undefined;
     if (foto) {
-      const filename = `remito-${Date.now()}-${Math.round(Math.random() * 1e6)}${extname(foto.originalname)}`;
-      fotoUrl = await this.storageService.uploadFoto(foto.buffer, filename, foto.mimetype);
+      assertMime(foto, MIME_DOCUMENTS);
+      fotoUrl = await this.storageService.uploadFoto(foto.buffer, safeFilename(foto.originalname), foto.mimetype);
     }
     return this.remitosService.actualizarEntrega(+id, body.nota, fotoUrl, body.fecha);
   }

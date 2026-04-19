@@ -14,8 +14,10 @@ interface User {
 
 interface AuthState {
   token: string | null;
+  refreshToken: string | null;
   user: User | null;
-  setAuth: (token: string, user: User) => void;
+  setAuth: (token: string, refreshToken: string | null, user: User) => void;
+  setTokens: (token: string, refreshToken: string | null) => void;
   logout: () => void;
   login: (email: string, password: string) => Promise<void>;
 }
@@ -24,24 +26,33 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       token: null,
+      refreshToken: null,
       user: null,
-      setAuth: (token, user) => {
+      setAuth: (token, refreshToken, user) => {
         localStorage.setItem('token', token);
-        set({ token, user });
+        if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+        set({ token, refreshToken, user });
+      },
+      setTokens: (token, refreshToken) => {
+        localStorage.setItem('token', token);
+        if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+        set({ token, refreshToken });
       },
       logout: () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
         // Señal para otras pestañas
         localStorage.setItem('sigam:logout', Date.now().toString());
         localStorage.removeItem('sigam:logout');
-        set({ token: null, user: null });
+        set({ token: null, refreshToken: null, user: null });
       },
       login: async (email, password) => {
         const response = await api.post('/auth/login', { email, password });
-        const { access_token, user } = response.data;
+        const { access_token, refresh_token, user } = response.data;
         localStorage.setItem('token', access_token);
-        set({ token: access_token, user });
+        if (refresh_token) localStorage.setItem('refresh_token', refresh_token);
+        set({ token: access_token, refreshToken: refresh_token ?? null, user });
       },
     }),
     {
@@ -54,11 +65,11 @@ export const useAuthStore = create<AuthState>()(
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
     if (e.key === 'sigam:logout') {
-      useAuthStore.setState({ token: null, user: null });
+      useAuthStore.setState({ token: null, refreshToken: null, user: null });
     }
     // Si la clave principal fue eliminada (otra pestaña limpió auth-storage)
     if (e.key === 'auth-storage' && !e.newValue) {
-      useAuthStore.setState({ token: null, user: null });
+      useAuthStore.setState({ token: null, refreshToken: null, user: null });
     }
   });
 }

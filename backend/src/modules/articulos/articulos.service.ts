@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateArticuloDto } from './dto/create-articulo.dto';
 import { StorageService } from '../../shared/storage/storage.service';
+import { safeFilename } from '../../shared/upload/upload.util';
 
 @Injectable()
 export class ArticulosService {
@@ -102,8 +103,7 @@ export class ArticulosService {
   // ── Foto ─────────────────────────────────────────────────────────────────
 
   async uploadFoto(id: number, file: Express.Multer.File): Promise<string> {
-    const ext = file.originalname.split('.').pop();
-    const path = `articulos/${id}_${Date.now()}.${ext}`;
+    const path = `articulos/${id}_${safeFilename(file.originalname)}`;
     const url = await this.storageService.upload(file.buffer, path, file.mimetype);
     await this.prisma.articulo.update({ where: { id }, data: { fotoUrl: url } });
     return url;

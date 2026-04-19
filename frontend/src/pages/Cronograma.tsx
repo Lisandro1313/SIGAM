@@ -104,6 +104,15 @@ export default function CronogramaPage() {
   const [genLoadingResumen, setGenLoadingResumen] = useState(false);
   const [genGenerating, setGenGenerating] = useState(false);
 
+  // Generar mes REMUCOM dialog (L-V, por frecuencia + ultima entrega)
+  const [remOpen, setRemOpen] = useState(false);
+  const [remMes, setRemMes] = useState(hoy.getMonth() + 1);
+  const [remAnio, setRemAnio] = useState(hoy.getFullYear());
+  const [remKgPorDia, setRemKgPorDia] = useState('');
+  const [remResumen, setRemResumen] = useState<{pendientes:number;yaExisten:number;noCorresponde:number;totalKg:number;programaNombre:string}|null>(null);
+  const [remLoadingResumen, setRemLoadingResumen] = useState(false);
+  const [remGenerating, setRemGenerating] = useState(false);
+
   // Generar remitos semana dialog
   const [semanaGenOpen, setSemanaGenOpen] = useState(false);
   const [semanaPreview, setSemanaPreview] = useState<{pendientes:number;yaGenerados:number}|null>(null);
@@ -436,6 +445,38 @@ export default function CronogramaPage() {
     } finally { setGenGenerating(false); }
   }
 
+  async function loadResumenRem(mes: number, anio: number) {
+    setRemResumen(null);
+    setRemLoadingResumen(true);
+    try {
+      const r = await api.get(`/cronograma/resumen-generacion-programa?mes=${mes}&anio=${anio}&programaNombre=REMUCOM`);
+      setRemResumen(r.data);
+    } catch(e:any) {
+      showNotification(e.response?.data?.message ?? 'Error cargando resumen', 'error');
+    }
+    finally { setRemLoadingResumen(false); }
+  }
+
+  function handleOpenRem() {
+    setRemOpen(true);
+    loadResumenRem(remMes, remAnio);
+  }
+
+  async function handleConfirmarGenerarRem() {
+    setRemGenerating(true);
+    try {
+      const body: any = { mes: remMes, anio: remAnio, programaNombre: 'REMUCOM' };
+      if (remKgPorDia) body.kgPorDia = parseFloat(remKgPorDia);
+      const r = await api.post('/cronograma/generar-programa', body);
+      showNotification(`REMUCOM generado: ${r.data.entregasCreadas} entregas creadas`, 'success');
+      setRemOpen(false);
+      loadPlanilla();
+      api.get('/cronograma/ultimas-entregas').then(u => setUltimasEntregas(u.data ?? {})).catch(()=>{});
+    } catch(e:any) {
+      showNotification(e.response?.data?.message ?? 'Error generando REMUCOM', 'error');
+    } finally { setRemGenerating(false); }
+  }
+
   const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
   async function handleOpenSemanaGen() {
@@ -537,6 +578,9 @@ export default function CronogramaPage() {
               {b.label}
             </Button>
           ))}
+          <Button variant="outlined" startIcon={<GenerarIcon/>} onClick={handleOpenRem} size="small" color="primary">
+            {isMobile ? 'REMUCOM' : 'Generar mes REMUCOM'}
+          </Button>
           <Button variant="contained" startIcon={<GenerarIcon/>} onClick={handleOpenGen} size="small" sx={{bgcolor:'#1a237e'}}>
             {isMobile ? 'Generar' : 'Generar mes'}
           </Button>
@@ -907,6 +951,64 @@ export default function CronogramaPage() {
             sx={{bgcolor:'#1a237e'}}
           >
             {genGenerating ? 'Generando...' : `Generar ${genResumen?.pendientes ?? ''} entregas`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog: Generar mes REMUCOM (L-V, por frecuencia + ultima entrega) */}
+      <Dialog open={remOpen} onClose={()=>setRemOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{fontWeight:'bold'}}>Generar mes REMUCOM</DialogTitle>
+        <DialogContent>
+          <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+            Distribuye entregas de lunes a viernes según la frecuencia (mensual / bimestral) y la última entrega efectiva de cada espacio REMUCOM.
+          </Typography>
+          <Box display="flex" gap={2} mt={1} mb={2}>
+            <FormControl fullWidth size="small">
+              <Select value={remMes} onChange={e=>{const m=Number(e.target.value);setRemMes(m);loadResumenRem(m,remAnio);}}>
+                {MESES_NOMBRE.map((mn,i)=><MenuItem key={i+1} value={i+1}>{mn}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <TextField
+              size="small" label="Año" type="number" value={remAnio}
+              onChange={e=>{const a=Number(e.target.value);setRemAnio(a);if(a>2000&&a<2100)loadResumenRem(remMes,a);}}
+              sx={{width:100}}
+            />
+          </Box>
+
+          <TextField
+            size="small" fullWidth label="Límite kg por día (opcional)"
+            value={remKgPorDia}
+            onChange={e=>setRemKgPorDia(e.target.value)}
+            type="number"
+            InputProps={{endAdornment:<InputAdornment position="end">kg</InputAdornment>}}
+            helperText="Si no se indica, se distribuye sin límite de capacidad"
+            sx={{mb:2}}
+          />
+
+          {remLoadingResumen && <Box display="flex" justifyContent="center" my={2}><CircularProgress size={24}/></Box>}
+
+          {remResumen && !remLoadingResumen && (
+            <Alert severity={remResumen.pendientes === 0 ? 'info' : 'success'} sx={{mb:1}}>
+              <Typography variant="body2">
+                <strong>{remResumen.pendientes}</strong> entregas a crear · <strong>{remResumen.yaExisten}</strong> ya existentes
+              </Typography>
+              {remResumen.noCorresponde > 0 && (
+                <Typography variant="body2"><strong>{remResumen.noCorresponde}</strong> no corresponde aún (entrega reciente)</Typography>
+              )}
+              <Typography variant="body2">Peso total estimado: <strong>{remResumen.totalKg} kg</strong></Typography>
+              <Typography variant="caption" color="text.secondary">Programa: {remResumen.programaNombre}</Typography>
+              {remResumen.pendientes === 0 && <Typography variant="body2" mt={0.5}>Ya están todas las entregas generadas para este mes.</Typography>}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setRemOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained" onClick={handleConfirmarGenerarRem}
+            disabled={remGenerating || !remResumen || remResumen.pendientes === 0}
+            startIcon={remGenerating?<CircularProgress size={16}/>:<GenerarIcon/>}
+          >
+            {remGenerating ? 'Generando...' : `Generar ${remResumen?.pendientes ?? ''} entregas`}
           </Button>
         </DialogActions>
       </Dialog>

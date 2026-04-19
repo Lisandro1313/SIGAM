@@ -5,6 +5,7 @@ import { CreateProgramaDto } from './dto/create-programa.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
 
 @ApiTags('programas')
 @Controller('programas')
@@ -29,10 +30,7 @@ export class ProgramasController {
   @Get()
   @ApiOperation({ summary: 'Listar programas' })
   findAll(@Request() req) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
-      : 'PA';
-    return this.programasService.findAll(secretaria);
+    return this.programasService.findAll(getSecretariaFromReq(req));
   }
 
   @Get(':id')

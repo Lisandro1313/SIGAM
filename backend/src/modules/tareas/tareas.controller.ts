@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query,
-  UseGuards, Request, UseInterceptors, UploadedFile, BadRequestException,
+  UseGuards, Request, UseInterceptors, UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -9,6 +9,8 @@ import { TareasService } from './tareas.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
+import { assertMime, MIME_DOCUMENTS } from '../../shared/upload/upload.util';
 
 @ApiTags('tareas')
 @Controller('tareas')
@@ -25,14 +27,11 @@ export class TareasController {
     @Query('prioridad') prioridad: string,
     @Request() req,
   ) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
-      : 'PA';
     return this.tareasService.findAll({
       estado,
       programaId: programaId ? parseInt(programaId) : undefined,
       prioridad,
-      secretaria,
+      secretaria: getSecretariaFromReq(req),
     });
   }
 
@@ -84,7 +83,7 @@ export class TareasController {
     @UploadedFile() file: Express.Multer.File,
     @Body() body: { nombre?: string; tipo?: string },
   ) {
-    if (!file) throw new BadRequestException('No se recibió archivo');
+    assertMime(file, MIME_DOCUMENTS);
     return this.tareasService.uploadDocumento(+id, file, body.nombre || file.originalname, body.tipo);
   }
 

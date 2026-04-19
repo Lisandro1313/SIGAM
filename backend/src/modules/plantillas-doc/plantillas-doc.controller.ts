@@ -3,18 +3,12 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PlantillasDocService } from './plantillas-doc.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, ROLES_KEY } from '../auth/guards/roles.guard';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
 
 const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 
 const ROLES_LECTURA = ['ADMIN', 'VISOR', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA'];
 const ROLES_EDICION = ['ADMIN', 'OPERADOR_PROGRAMA', 'LOGISTICA', 'ASISTENCIA_CRITICA'];
-
-function getSecretaria(req: any): string | null {
-  const rol = req.user?.rol;
-  if (rol === 'ASISTENCIA_CRITICA') return 'AC';
-  if (rol === 'LOGISTICA' || rol === 'VISOR' || rol === 'ADMIN') return null;
-  return 'PA';
-}
 
 @ApiTags('plantillas-doc')
 @Controller('plantillas-doc')
@@ -26,7 +20,7 @@ export class PlantillasDocController {
   @Get()
   @Roles(...ROLES_LECTURA)
   @ApiOperation({ summary: 'Listar plantillas de documento' })
-  listar(@Request() req) { return this.service.listar(getSecretaria(req)); }
+  listar(@Request() req) { return this.service.listar(getSecretariaFromReq(req)); }
 
   @Get(':id')
   @Roles(...ROLES_LECTURA)
@@ -78,6 +72,6 @@ export class PlantillasDocController {
   @Roles(...ROLES_LECTURA)
   @ApiOperation({ summary: 'Historial de documentos generados' })
   listarHistorial(@Request() req) {
-    return this.service.historialGeneraciones(getSecretaria(req));
+    return this.service.historialGeneraciones(getSecretariaFromReq(req));
   }
 }

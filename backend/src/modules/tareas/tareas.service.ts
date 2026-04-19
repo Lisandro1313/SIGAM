@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../shared/storage/storage.service';
+import { safeFilename } from '../../shared/upload/upload.util';
 import { PushService } from '../../shared/push/push.service';
 import { EmailService } from '../remitos/services/email.service';
 
@@ -188,8 +189,7 @@ export class TareasService {
     const tarea = await this.prisma.tarea.findUnique({ where: { id: tareaId } });
     if (!tarea) throw new NotFoundException('Tarea no encontrada');
 
-    const ext = file.originalname.split('.').pop() || 'bin';
-    const archivo = `tareas/${tareaId}/${Date.now()}.${ext}`;
+    const archivo = `tareas/${tareaId}/${safeFilename(file.originalname)}`;
     const url = await this.storage.upload(file.buffer, archivo, file.mimetype);
 
     return this.prisma.documentoTarea.create({

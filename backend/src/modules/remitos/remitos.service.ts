@@ -11,6 +11,7 @@ import { PdfService } from './services/pdf.service';
 import { EmailService, OpcionesEnvio } from './services/email.service';
 import { EventsService } from '../events/events.service';
 import { StorageService } from '../../shared/storage/storage.service';
+import { getSecretariaForWrite } from '../../shared/auth/secretaria.util';
 
 @Injectable()
 export class RemitosService {
@@ -48,7 +49,7 @@ export class RemitosService {
 
   // Crear remito borrador
   async create(createRemitoDto: CreateRemitoDto, usuario: { id: number; rol?: string }) {
-    const secretaria = usuario.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    const secretaria = getSecretariaForWrite(usuario.rol);
     const numero = await this.generarNumeroRemito(secretaria);
 
     // Calcular peso total (batch en vez de N+1)
@@ -132,7 +133,7 @@ export class RemitosService {
     },
     usuario: { id: number; rol?: string },
   ) {
-    const secretaria = usuario.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    const secretaria = getSecretariaForWrite(usuario.rol);
     const numero = await this.generarNumeroRemito(secretaria);
 
     let fechaRemito: Date | undefined;

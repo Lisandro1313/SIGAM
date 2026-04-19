@@ -4,15 +4,9 @@ import { SugerenciasService } from './sugerencias.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, ROLES_KEY } from '../auth/guards/roles.guard';
 import { SetMetadata } from '@nestjs/common';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
 
 const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
-
-function getSecretaria(req: any): string | null {
-  const rol = req.user?.rol;
-  if (rol === 'ASISTENCIA_CRITICA') return 'AC';
-  if (rol === 'LOGISTICA' || rol === 'VISOR' || rol === 'ADMIN') return null;
-  return 'PA';
-}
 
 @ApiTags('sugerencias')
 @Controller('sugerencias')
@@ -25,13 +19,13 @@ export class SugerenciasController {
   @Get()
   @ApiOperation({ summary: 'Sugerencias inteligentes generadas a partir del estado actual del sistema' })
   listar(@Request() req) {
-    return this.service.generar(getSecretaria(req));
+    return this.service.generar(getSecretariaFromReq(req));
   }
 
   @Get('historial-acciones')
   @ApiOperation({ summary: 'Sugerencias marcadas como hechas o descartadas recientemente' })
   historial(@Request() req) {
-    return this.service.historialAcciones(getSecretaria(req));
+    return this.service.historialAcciones(getSecretariaFromReq(req));
   }
 
   @Post(':clave/accion')

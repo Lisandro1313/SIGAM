@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PLANTILLAS_DEFAULT } from './defaults';
+import { getSecretariaForWrite } from '../../shared/auth/secretaria.util';
 
 @Injectable()
 export class PlantillasDocService {
@@ -41,7 +42,7 @@ export class PlantillasDocService {
         icono: data.icono || 'description',
         color: data.color || '#1976d2',
         esBuiltIn: false,
-        secretaria: user.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA',
+        secretaria: getSecretariaForWrite(user.rol),
         creadoPorId: user.id,
         creadoPorNombre: user.nombre,
       },
@@ -74,7 +75,7 @@ export class PlantillasDocService {
         icono: orig.icono,
         color: orig.color,
         esBuiltIn: false,
-        secretaria: user.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA',
+        secretaria: getSecretariaForWrite(user.rol),
         creadoPorId: user.id,
         creadoPorNombre: user.nombre,
       },
@@ -95,7 +96,7 @@ export class PlantillasDocService {
     data: { plantillaId?: number | null; plantillaTitulo: string; cantidadEspacios?: number; contexto?: any },
     user: { id: number; nombre: string; rol: string },
   ) {
-    const secretaria = user.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    const secretaria = getSecretariaForWrite(user.rol);
     return this.prisma.documentoGenerado.create({
       data: {
         plantillaId: data.plantillaId ?? null,

@@ -5,6 +5,7 @@ import { CronogramaService } from './cronograma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { getSecretariaFromReq } from '../../shared/auth/secretaria.util';
 
 @ApiTags('cronograma')
 @Controller('cronograma')
@@ -26,6 +27,27 @@ export class CronogramaController {
     return this.cronogramaService.resumenGeneracion(parseInt(mes), parseInt(anio));
   }
 
+  @Post('generar-programa')
+  @Roles('ADMIN', 'LOGISTICA')
+  @ApiOperation({ summary: 'Generar cronograma del mes para un programa especifico (ej: REMUCOM, L-V, por frecuencia)' })
+  generarCronogramaPrograma(@Body() body: { mes: number; anio: number; programaNombre?: string; kgPorDia?: number }) {
+    return this.cronogramaService.generarCronogramaPrograma(
+      body.mes, body.anio, body.programaNombre || 'REMUCOM', body.kgPorDia,
+    );
+  }
+
+  @Get('resumen-generacion-programa')
+  @ApiOperation({ summary: 'Preview del cronograma de un programa especifico' })
+  resumenGeneracionPrograma(
+    @Query('mes') mes: string,
+    @Query('anio') anio: string,
+    @Query('programaNombre') programaNombre?: string,
+  ) {
+    return this.cronogramaService.resumenGeneracionPrograma(
+      parseInt(mes), parseInt(anio), programaNombre || 'REMUCOM',
+    );
+  }
+
   @Get('ultimas-entregas')
   @ApiOperation({ summary: 'Últimas entregas por beneficiario' })
   ultimasEntregas() {
@@ -35,19 +57,14 @@ export class CronogramaController {
   @Get()
   @ApiOperation({ summary: 'Obtener entregas programadas' })
   obtenerEntregas(@Query() query: any, @Request() req) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
-      : 'PA';
-    return this.cronogramaService.obtenerEntregas(query, secretaria);
+    return this.cronogramaService.obtenerEntregas(query, getSecretariaFromReq(req));
   }
 
   @Get('preview-remitos-rango')
   @Roles('ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA')
   @ApiOperation({ summary: 'Preview de remitos a generar para un rango de fechas' })
   previewRemitosRango(@Query('desde') desde: string, @Query('hasta') hasta: string, @Request() req) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : (req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR') ? null : 'PA';
-    return this.cronogramaService.previewRemitosRango(desde, hasta, secretaria);
+    return this.cronogramaService.previewRemitosRango(desde, hasta, getSecretariaFromReq(req));
   }
 
   @Post('generar-remitos-rango')
@@ -72,13 +89,11 @@ export class CronogramaController {
     @Request() req,
     @Res() res: Response,
   ) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null : 'PA';
     const { buffer } = await this.cronogramaService.exportarPlanillaPdf(
       desde, hasta,
       depositoId ? parseInt(depositoId) : undefined,
       programaId ? parseInt(programaId) : undefined,
-      secretaria,
+      getSecretariaFromReq(req),
     );
     res.set({
       'Content-Type': 'application/pdf',
@@ -95,10 +110,8 @@ export class CronogramaController {
     @Body() body: { desde: string; hasta: string; depositoId?: number; programaId?: number; destinatarios?: string[] },
     @Request() req,
   ) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null : 'PA';
     await this.cronogramaService.enviarEmailCronograma(
-      body.desde, body.hasta, body.depositoId, body.programaId, body.destinatarios, secretaria,
+      body.desde, body.hasta, body.depositoId, body.programaId, body.destinatarios, getSecretariaFromReq(req),
     );
     return { ok: true };
   }
@@ -113,13 +126,10 @@ export class CronogramaController {
     @Query('programaId') programaId: string,
     @Request() req,
   ) {
-    const secretaria = req.user.rol === 'ASISTENCIA_CRITICA' ? 'AC'
-      : req.user.rol === 'LOGISTICA' || req.user.rol === 'VISOR' ? null
-      : 'PA';
     return this.cronogramaService.obtenerPlanilla(
       desde, hasta,
       programaId ? parseInt(programaId) : undefined,
-      secretaria,
+      getSecretariaFromReq(req),
     );
   }
 

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { getSecretariaForWrite } from '../../shared/auth/secretaria.util';
 
 export interface ColumnaDef {
   clave: string;
@@ -100,7 +101,7 @@ export class ListasSeguimientoService {
         icono: data.icono || 'folder',
         columnas: JSON.stringify(columnasSanitizadas),
         orden: (max._max.orden ?? 0) + 1,
-        secretaria: user.rol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA',
+        secretaria: getSecretariaForWrite(user.rol),
         creadoPorId: user.id,
         creadoPorNombre: user.nombre,
       },

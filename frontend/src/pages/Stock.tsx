@@ -47,13 +47,13 @@ export default function StockPage() {
   const soloLectura = user?.rol !== 'ADMIN';
   const { showNotification } = useNotificationStore();
 
-  // PIN lock para modificaciones de stock
-  const PIN_STOCK = '6409';
+  // PIN lock para modificaciones de stock (validacion real en backend /stock/verify-pin)
   const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
   const [desbloqueado, setDesbloqueado] = useState(false);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
+  const [pinChecking, setPinChecking] = useState(false);
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingActionRef = useRef<(() => void) | null>(null);
 
@@ -76,18 +76,28 @@ export default function StockPage() {
     }
   };
 
-  const handleConfirmarPin = () => {
-    if (pinInput === PIN_STOCK) {
-      setDesbloqueado(true);
-      setPinDialogOpen(false);
-      iniciarTimerLockeo();
-      if (pendingActionRef.current) {
-        pendingActionRef.current();
-        pendingActionRef.current = null;
+  const handleConfirmarPin = async () => {
+    if (pinChecking) return;
+    setPinChecking(true);
+    setPinError('');
+    try {
+      const r = await api.post('/stock/verify-pin', { pin: pinInput });
+      if (r.data?.ok) {
+        setDesbloqueado(true);
+        setPinDialogOpen(false);
+        iniciarTimerLockeo();
+        if (pendingActionRef.current) {
+          pendingActionRef.current();
+          pendingActionRef.current = null;
+        }
+      } else {
+        setPinError('Código incorrecto');
+        setPinInput('');
       }
-    } else {
-      setPinError('Código incorrecto');
-      setPinInput('');
+    } catch {
+      setPinError('No se pudo validar. Revisá tu conexión.');
+    } finally {
+      setPinChecking(false);
     }
   };
 
@@ -792,8 +802,8 @@ export default function StockPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPinDialogOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleConfirmarPin} disabled={!pinInput}>
-            Desbloquear
+          <Button variant="contained" onClick={handleConfirmarPin} disabled={!pinInput || pinChecking}>
+            {pinChecking ? 'Validando...' : 'Desbloquear'}
           </Button>
         </DialogActions>
       </Dialog>

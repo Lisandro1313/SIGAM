@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../shared/storage/storage.service';
+import { safeFilename } from '../../shared/upload/upload.util';
 
 @Injectable()
 export class NutricionistaService {
@@ -366,7 +367,7 @@ export class NutricionistaService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async subirFoto(file: Express.Multer.File): Promise<string> {
-    const filename = `nutricion/${Date.now()}_${file.originalname}`;
+    const filename = `nutricion/${safeFilename(file.originalname)}`;
     return this.storage.upload(file.buffer, filename, file.mimetype);
   }
 

@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../shared/storage/storage.service';
 import { EventsService } from '../events/events.service';
+import { getSecretariaForWrite } from '../../shared/auth/secretaria.util';
+import { safeFilename } from '../../shared/upload/upload.util';
 
 const INCLUDE_CASO = {
   documentos: { orderBy: { createdAt: 'asc' as const } },
@@ -82,7 +84,7 @@ export class CasosService {
       },
       include: INCLUDE_CASO,
     });
-    const secretaria = usuarioRol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    const secretaria = getSecretariaForWrite(usuarioRol);
     this.eventsService.broadcast('caso:nuevo', {
       id: nuevo.id,
       nombre: nuevo.nombreSolicitante,
@@ -273,7 +275,7 @@ export class CasosService {
   // ── Subir documento ───────────────────────────────────────────────────────
   async uploadDocumento(casoId: number, file: Express.Multer.File, nombre: string, tipo?: string) {
     await this.findOne(casoId); // verifica que existe
-    const filename = `casos/${casoId}/${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const filename = `casos/${casoId}/${safeFilename(file.originalname)}`;
     const url = await this.storage.upload(file.buffer, filename, file.mimetype);
 
     return this.prisma.documentoCaso.create({

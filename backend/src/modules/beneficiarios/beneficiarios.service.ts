@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBeneficiarioDto } from './dto/create-beneficiario.dto';
 import { StorageService } from '../../shared/storage/storage.service';
+import { safeFilename } from '../../shared/upload/upload.util';
 
 @Injectable()
 export class BeneficiariosService {
@@ -316,8 +317,7 @@ export class BeneficiariosService {
     nombre: string,
     tipo?: string,
   ) {
-    const ext = file.originalname.split('.').pop();
-    const filename = `docs/${beneficiarioId}/${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const filename = `docs/${beneficiarioId}/${safeFilename(file.originalname)}`;
     const url = await this.storageService.upload(file.buffer, filename, file.mimetype);
 
     return this.prisma.documentoBeneficiario.create({

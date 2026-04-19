@@ -5,6 +5,7 @@ import { RemitosService } from '../remitos/remitos.service';
 import { PdfService } from '../remitos/services/pdf.service';
 import { EmailService } from '../remitos/services/email.service';
 import { EntregaEstado } from '@prisma/client';
+import { getSecretariaForWrite } from '../../shared/auth/secretaria.util';
 
 @Injectable()
 export class CronogramaService {
@@ -113,7 +114,7 @@ export class CronogramaService {
   async generarRemitosRango(desde: string, hasta: string, depositoId: number, usuarioId: number, usuarioRol?: string) {
     const desdeDate = new Date(desde); desdeDate.setHours(0, 0, 0, 0);
     const hastaDate = new Date(hasta); hastaDate.setHours(23, 59, 59, 999);
-    const secretaria = usuarioRol === 'ASISTENCIA_CRITICA' ? 'AC' : 'PA';
+    const secretaria = getSecretariaForWrite(usuarioRol);
     const filtroSec = { programa: { secretaria } };
 
     const entregas = await this.prisma.entregaProgramada.findMany({
@@ -329,6 +330,134 @@ export class CronogramaService {
 
     const totalKg = pendientes.reduce((s: number, b: any) => s + (b.kilosHabitual ?? 0), 0);
     return { pendientes: pendientes.length, yaExisten: yaExisten.length, totalKg };
+  }
+
+  // ── Generacion por programa especifico (REMUCOM u otro) ──────────────────
+  // Logica distinta al mensual general:
+  //  - distribuye solo L-V (sin sabados)
+  //  - decide por ultima entrega + frecuencia (MENSUAL ~30d, BIMESTRAL ~60d)
+  //  - se matchea el programa por nombre (case-insensitive), default "REMUCOM"
+  private async preparaGeneracionPrograma(mes: number, anio: number, programaNombre: string) {
+    const programa = await this.prisma.programa.findFirst({
+      where: { nombre: { contains: programaNombre, mode: 'insensitive' }, activo: true },
+    });
+    if (!programa) {
+      throw new BadRequestException(`No se encontro programa que coincida con "${programaNombre}"`);
+    }
+
+    const fecha = new Date(anio, mes - 1, 1);
+    const inicioMes = startOfMonth(fecha);
+    const finMes = endOfMonth(fecha);
+
+    const beneficiarios = await this.prisma.beneficiario.findMany({
+      where: {
+        activo: true,
+        programaId: programa.id,
+        frecuenciaEntrega: { in: ['MENSUAL', 'BIMESTRAL'] },
+      },
+    });
+
+    const pendientes: typeof beneficiarios = [];
+    const yaExisten: typeof beneficiarios = [];
+    const noCorresponde: typeof beneficiarios = [];
+
+    for (const b of beneficiarios) {
+      const existente = await this.prisma.entregaProgramada.findFirst({
+        where: { beneficiarioId: b.id, fechaProgramada: { gte: inicioMes, lte: finMes } },
+      });
+      if (existente) { yaExisten.push(b); continue; }
+
+      const ultima = await this.prisma.entregaProgramada.findFirst({
+        where: { beneficiarioId: b.id, estado: { in: ['ENTREGADA', 'GENERADA'] } },
+        orderBy: { fechaProgramada: 'desc' },
+      });
+
+      if (!ultima) { pendientes.push(b); continue; }
+
+      const diasDesdeUltima = Math.floor((inicioMes.getTime() - ultima.fechaProgramada.getTime()) / 86400000);
+      // Umbral con margen anti-drift (ej: si la anterior fue el dia 28, la proxima sigue siendo mensual)
+      const umbral = b.frecuenciaEntrega === 'BIMESTRAL' ? 45 : 20;
+      if (diasDesdeUltima >= umbral) pendientes.push(b);
+      else noCorresponde.push(b);
+    }
+
+    return { programa, pendientes, yaExisten, noCorresponde, inicioMes, finMes };
+  }
+
+  async resumenGeneracionPrograma(mes: number, anio: number, programaNombre = 'REMUCOM') {
+    const { programa, pendientes, yaExisten, noCorresponde } =
+      await this.preparaGeneracionPrograma(mes, anio, programaNombre);
+    const totalKg = pendientes.reduce((s, b) => s + (b.kilosHabitual ?? 0), 0);
+    return {
+      pendientes: pendientes.length,
+      yaExisten: yaExisten.length,
+      noCorresponde: noCorresponde.length,
+      totalKg,
+      programaId: programa.id,
+      programaNombre: programa.nombre,
+    };
+  }
+
+  async generarCronogramaPrograma(mes: number, anio: number, programaNombre = 'REMUCOM', kgPorDia?: number) {
+    const { programa, pendientes, inicioMes, finMes } =
+      await this.preparaGeneracionPrograma(mes, anio, programaNombre);
+
+    if (pendientes.length === 0) return { success: true, entregasCreadas: 0, entregas: [], programaNombre: programa.nombre };
+
+    // Dias habiles L-V (sin sabado ni domingo)
+    const diasHabiles: Date[] = [];
+    const cursor = new Date(inicioMes);
+    while (cursor <= finMes) {
+      const dow = cursor.getDay();
+      if (dow !== 0 && dow !== 6) diasHabiles.push(new Date(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    const kgLimite = kgPorDia ?? 999999;
+    const kgPorFecha: Record<string, number> = {};
+    const entregasCreadas: any[] = [];
+
+    for (const b of pendientes) {
+      let fechaAsignada: Date = diasHabiles[0];
+      let asignada = false;
+      for (const dia of diasHabiles) {
+        const key = dia.toISOString().slice(0, 10);
+        if ((kgPorFecha[key] ?? 0) + (b.kilosHabitual ?? 0) <= kgLimite) {
+          fechaAsignada = dia;
+          kgPorFecha[key] = (kgPorFecha[key] ?? 0) + (b.kilosHabitual ?? 0);
+          asignada = true;
+          break;
+        }
+      }
+      if (!asignada) {
+        // Fallback: dia con menos kg acumulados
+        fechaAsignada = diasHabiles.reduce(
+          (min, d) => (kgPorFecha[d.toISOString().slice(0, 10)] ?? 0) < (kgPorFecha[min.toISOString().slice(0, 10)] ?? 0) ? d : min,
+          diasHabiles[0],
+        );
+        const key = fechaAsignada.toISOString().slice(0, 10);
+        kgPorFecha[key] = (kgPorFecha[key] ?? 0) + (b.kilosHabitual ?? 0);
+      }
+
+      const entrega = await this.prisma.entregaProgramada.create({
+        data: {
+          beneficiarioId: b.id,
+          programaId: b.programaId,
+          fechaProgramada: fechaAsignada,
+          kilos: b.kilosHabitual ?? undefined,
+          estado: EntregaEstado.PENDIENTE,
+        },
+        include: { beneficiario: true, programa: true },
+      });
+      entregasCreadas.push(entrega);
+    }
+
+    return {
+      success: true,
+      entregasCreadas: entregasCreadas.length,
+      entregas: entregasCreadas,
+      programaNombre: programa.nombre,
+    };
   }
 
   // Últimas entregas por beneficiario (referencia en planilla)

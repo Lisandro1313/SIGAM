@@ -3,6 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 
+const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || '2h';
+const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || '30d';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -34,17 +37,29 @@ export class AuthService {
     return result;
   }
 
-  async login(user: any) {
-    const payload = {
+  private buildTokens(user: any) {
+    const base = {
       email: user.email,
       sub: user.id,
       rol: user.rol,
       programaId: user.programaId,
       depositoId: user.depositoId,
     };
+    const access_token = this.jwtService.sign(
+      { ...base, type: 'access' },
+      { expiresIn: ACCESS_EXPIRES },
+    );
+    const refresh_token = this.jwtService.sign(
+      { sub: user.id, type: 'refresh' },
+      { expiresIn: REFRESH_EXPIRES },
+    );
+    return { access_token, refresh_token };
+  }
 
+  async login(user: any) {
+    const tokens = this.buildTokens(user);
     return {
-      access_token: this.jwtService.sign(payload),
+      ...tokens,
       user: {
         id: user.id,
         nombre: user.nombre,
@@ -55,6 +70,27 @@ export class AuthService {
         deposito: user.deposito,
       },
     };
+  }
+
+  async refresh(refreshToken: string) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(refreshToken);
+    } catch {
+      throw new UnauthorizedException('Refresh token inválido o expirado');
+    }
+    if (payload?.type !== 'refresh' || !payload?.sub) {
+      throw new UnauthorizedException('Refresh token inválido');
+    }
+    const user = await this.prisma.usuario.findUnique({
+      where: { id: payload.sub },
+      include: { programa: true, deposito: true },
+    });
+    if (!user || !user.activo) {
+      throw new UnauthorizedException('Usuario inactivo');
+    }
+    const { password: _, ...safe } = user;
+    return this.buildTokens(safe);
   }
 
   async validateUserById(userId: number) {
