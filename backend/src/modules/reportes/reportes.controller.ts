@@ -88,6 +88,27 @@ export class ReportesController {
     return this.reportesService.articulosMasDistribuidos(m, a, getSecretaria(req), fechaDesde, fechaHasta, programaId ? parseInt(programaId) : undefined);
   }
 
+  @Get('distribucion-articulos')
+  @ApiOperation({ summary: 'Detalle de distribución para uno o varios artículos (espacios + casos particulares)' })
+  distribucionArticulos(
+    @Query('articuloIds') articuloIds: string,
+    @Query('fechaDesde') fechaDesde: string, @Query('fechaHasta') fechaHasta: string,
+    @Query('mes') mes: string, @Query('anio') anio: string,
+    @Query('programaId') programaId: string,
+    @Request() req,
+  ) {
+    if (!articuloIds) throw new BadRequestException('Proveer articuloIds (coma-separado)');
+    const ids = articuloIds.split(',').map((s) => parseInt(s, 10)).filter((n) => !isNaN(n));
+    const { mes: m, anio: a } = parseFiltroFecha(mes, anio);
+    return this.reportesService.distribucionPorArticulo(
+      ids,
+      fechaDesde, fechaHasta,
+      getSecretaria(req),
+      programaId ? parseInt(programaId) : undefined,
+      m, a,
+    );
+  }
+
   @Get('entregas-por-programa')
   @ApiOperation({ summary: 'Entregas por programa' })
   entregasPorPrograma(

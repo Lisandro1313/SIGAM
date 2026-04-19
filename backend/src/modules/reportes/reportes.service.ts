@@ -154,6 +154,7 @@ export class ReportesService {
             id: true,
             nombre: true,
             categoria: true,
+            pesoUnitarioKg: true,
           },
         },
       },
@@ -163,6 +164,7 @@ export class ReportesService {
       const articuloId = item.articulo.id;
       if (!acc[articuloId]) {
         acc[articuloId] = {
+          articuloId,
           articulo: item.articulo.nombre,
           categoria: item.articulo.categoria,
           cantidadTotal: 0,
@@ -170,7 +172,9 @@ export class ReportesService {
         };
       }
       acc[articuloId].cantidadTotal += item.cantidad;
-      acc[articuloId].pesoTotal += item.pesoKg || 0;
+      // pesoKg puede venir null si se cargo sin calcular; usar pesoUnitario del articulo como fallback
+      const peso = item.pesoKg ?? ((item.articulo.pesoUnitarioKg ?? 0) * item.cantidad);
+      acc[articuloId].pesoTotal += peso;
       return acc;
     }, {});
 
@@ -1064,6 +1068,127 @@ export class ReportesService {
         kilos: e.kilos,
         estado: e.estado,
       })),
+    };
+  }
+
+  /**
+   * Distribución de artículos: dado uno o varios artículos y un rango, devuelve todas
+   * las entregas (espacios + casos particulares) con cantidades/fechas, y agregados.
+   */
+  async distribucionPorArticulo(
+    articuloIds: number[],
+    fechaDesde?: string,
+    fechaHasta?: string,
+    secretaria?: string | null,
+    programaId?: number,
+    mes?: number,
+    anio?: number,
+  ) {
+    if (!articuloIds?.length) return { articulos: [], porDestinatario: [], entregas: [], totales: { cantidadTotal: 0, pesoTotal: 0, entregas: 0 } };
+
+    const remitoWhere: any = { estado: { in: ['CONFIRMADO', 'ENVIADO', 'ENTREGADO', 'PREPARADO'] } };
+    const rango = this.resolverRango(mes, anio, fechaDesde, fechaHasta);
+    if (rango) remitoWhere.fecha = { gte: rango.inicio, lte: rango.fin };
+    if (secretaria) remitoWhere.secretaria = secretaria;
+    if (programaId) remitoWhere.programaId = programaId;
+
+    const items = await this.prisma.remitoItem.findMany({
+      where: {
+        articuloId: { in: articuloIds },
+        remito: remitoWhere,
+      },
+      include: {
+        articulo: {
+          select: { id: true, nombre: true, categoria: true, pesoUnitarioKg: true },
+        },
+        remito: {
+          select: {
+            id: true, numero: true, fecha: true, estado: true,
+            beneficiario: { select: { id: true, nombre: true, localidad: true, tipo: true } },
+            caso: { select: { id: true, nombreSolicitante: true, dni: true, tipo: true } },
+            deposito: { select: { codigo: true, nombre: true } },
+            programa: { select: { id: true, nombre: true } },
+          },
+        },
+      },
+      orderBy: { remito: { fecha: 'desc' } },
+    });
+
+    const pesoDe = (it: any) => it.pesoKg ?? ((it.articulo.pesoUnitarioKg ?? 0) * it.cantidad);
+
+    // Detalle plano de entregas
+    const entregas = items.map((it: any) => {
+      const r = it.remito;
+      const ben = r.beneficiario;
+      const caso = r.caso;
+      const destino =
+        ben ? { tipo: 'ESPACIO' as const, id: ben.id, nombre: ben.nombre, extra: ben.localidad || '' }
+        : caso ? { tipo: 'CASO' as const, id: caso.id, nombre: caso.nombreSolicitante, extra: caso.dni || '' }
+        : { tipo: 'SIN_DESTINATARIO' as const, id: null, nombre: 'Sin destinatario', extra: '' };
+      return {
+        remitoId: r.id,
+        remitoNumero: r.numero,
+        fecha: r.fecha,
+        estado: r.estado,
+        destinatarioTipo: destino.tipo,
+        destinatarioId: destino.id,
+        destinatarioNombre: destino.nombre,
+        destinatarioExtra: destino.extra,
+        articuloId: it.articulo.id,
+        articuloNombre: it.articulo.nombre,
+        cantidad: it.cantidad,
+        pesoKg: pesoDe(it),
+        depositoCodigo: r.deposito?.codigo || '',
+        programaId: r.programa?.id || null,
+        programaNombre: r.programa?.nombre || null,
+      };
+    });
+
+    // Agregado por artículo
+    const porArticuloMap: Record<number, any> = {};
+    for (const it of items) {
+      const a = it.articulo;
+      if (!porArticuloMap[a.id]) {
+        porArticuloMap[a.id] = { id: a.id, nombre: a.nombre, categoria: a.categoria, cantidadTotal: 0, pesoTotal: 0, entregas: 0 };
+      }
+      porArticuloMap[a.id].cantidadTotal += it.cantidad;
+      porArticuloMap[a.id].pesoTotal += pesoDe(it);
+      porArticuloMap[a.id].entregas += 1;
+    }
+
+    // Agregado por destinatario (espacio o caso)
+    const porDestinatarioMap: Record<string, any> = {};
+    for (const e of entregas) {
+      const key = `${e.destinatarioTipo}:${e.destinatarioId ?? 0}`;
+      if (!porDestinatarioMap[key]) {
+        porDestinatarioMap[key] = {
+          tipo: e.destinatarioTipo,
+          id: e.destinatarioId,
+          nombre: e.destinatarioNombre,
+          extra: e.destinatarioExtra,
+          cantidadTotal: 0,
+          pesoTotal: 0,
+          entregas: 0,
+          ultimaFecha: e.fecha,
+        };
+      }
+      const d = porDestinatarioMap[key];
+      d.cantidadTotal += e.cantidad;
+      d.pesoTotal += e.pesoKg;
+      d.entregas += 1;
+      if (e.fecha > d.ultimaFecha) d.ultimaFecha = e.fecha;
+    }
+
+    const totales = entregas.reduce(
+      (acc, e) => ({ cantidadTotal: acc.cantidadTotal + e.cantidad, pesoTotal: acc.pesoTotal + e.pesoKg, entregas: acc.entregas + 1 }),
+      { cantidadTotal: 0, pesoTotal: 0, entregas: 0 },
+    );
+
+    return {
+      articulos: Object.values(porArticuloMap).sort((a: any, b: any) => b.cantidadTotal - a.cantidadTotal),
+      porDestinatario: Object.values(porDestinatarioMap).sort((a: any, b: any) => b.cantidadTotal - a.cantidadTotal),
+      entregas,
+      totales,
     };
   }
 }

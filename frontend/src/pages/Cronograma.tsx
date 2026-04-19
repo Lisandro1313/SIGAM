@@ -73,6 +73,16 @@ interface UltimaEntrega { fecha: string; estado: string; }
 export default function CronogramaPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDark = theme.palette.mode === 'dark';
+  // Colores de fila adaptados al modo (para que se vea el texto en oscuro)
+  const filaBg = (tieneRemito: boolean, pendiente: boolean) =>
+    isDark
+      ? (tieneRemito ? 'rgba(21,101,192,0.18)' : pendiente ? 'rgba(255,193,7,0.12)' : 'background.paper')
+      : (tieneRemito ? '#f0f7ff' : pendiente ? '#fffde7' : '#fff');
+  const filaHoverBg = (tieneRemito: boolean) =>
+    isDark
+      ? (tieneRemito ? 'rgba(21,101,192,0.28)' : 'action.hover')
+      : (tieneRemito ? '#e3f0fb' : '#f5f5f5');
   const { showNotification } = useNotificationStore();
   const [semanaInicio, setSemanaInicio] = useState<Date>(()=>startOfWeek(new Date()));
   const [dias, setDias] = useState<DiaEntry[]>([]);
@@ -580,7 +590,7 @@ export default function CronogramaPage() {
                 const tieneRemito=!!fila.remito;
                 const dep=depositoMap[fila.depositoId];
                 return (
-                  <Paper key={fila.tempId} elevation={1} sx={{mb:0.75,mx:0.5,p:1.25,bgcolor:tieneRemito?'#f0f7ff':!fila.id&&ben?'#fffde7':'#fff',borderLeft:`3px solid ${COLORES_DIA[idx%COLORES_DIA.length]}`}}>
+                  <Paper key={fila.tempId} elevation={1} sx={{mb:0.75,mx:0.5,p:1.25,bgcolor:filaBg(tieneRemito,!fila.id&&!!ben),borderLeft:`3px solid ${COLORES_DIA[idx%COLORES_DIA.length]}`}}>
                     {/* Nombre + estado */}
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1} mb={0.5}>
                       <Box flex={1} minWidth={0}>
@@ -701,7 +711,7 @@ export default function CronogramaPage() {
                 const ben=fila.beneficiario;
                 const tieneRemito=!!fila.remito;
                 return (
-                  <Paper key={fila.tempId} elevation={0} sx={{display:'grid',gridTemplateColumns:GRID,alignItems:'center',borderBottom:'1px solid #e8e8e8',bgcolor:tieneRemito?'#f0f7ff':!fila.id&&ben?'#fffde7':'#fff','&:hover':{bgcolor:tieneRemito?'#e3f0fb':'#f5f5f5'},px:0.5,py:0.25,minHeight:44}}>
+                  <Paper key={fila.tempId} elevation={0} sx={{display:'grid',gridTemplateColumns:GRID,alignItems:'center',borderBottom:`1px solid ${isDark?theme.palette.divider:'#e8e8e8'}`,bgcolor:filaBg(tieneRemito,!fila.id&&!!ben),'&:hover':{bgcolor:filaHoverBg(tieneRemito)},px:0.5,py:0.25,minHeight:44}}>
                     {/* Espacio */}
                     <Tooltip title={ben?.nombre??''} disableHoverListener={!ben} placement="top" arrow>
                     <Box px={0.5} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0 }}>
@@ -829,7 +839,7 @@ export default function CronogramaPage() {
                 );
               })}
 
-              <Box sx={{borderBottom:'1px solid #e0e0e0',bgcolor:'#fafafa'}}>
+              <Box sx={{borderBottom:`1px solid ${isDark?theme.palette.divider:'#e0e0e0'}`,bgcolor:isDark?'action.hover':'#fafafa'}}>
                 <Button startIcon={<AddIcon/>} size="small" onClick={()=>handleAgregarFila(dia.fecha)} sx={{justifyContent:'flex-start',pl:2,py:0.5,color:COLORES_DIA[idx%COLORES_DIA.length]}}>
                   Agregar espacio
                 </Button>
@@ -1015,7 +1025,7 @@ export default function CronogramaPage() {
 
       {/* ── Bloc de notas ───────────────────────────────────────────────── */}
       <Paper elevation={2} sx={{ mt: 4, mb: 2, borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
-        <Box sx={{ bgcolor: 'warning.light', px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid', borderColor: 'warning.main', opacity: theme.palette.mode === 'dark' ? 0.85 : 1 }}>
+        <Box sx={{ bgcolor: 'warning.light', px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid', borderColor: 'warning.main', opacity: isDark ? 0.85 : 1 }}>
           <NotaIcon sx={{ color: 'warning.dark', fontSize: 20 }} />
           <Typography variant="subtitle2" fontWeight="bold" color="warning.dark" sx={{ flex: 1 }}>
             Borrador / Notas del cronograma
@@ -1042,7 +1052,7 @@ export default function CronogramaPage() {
             border: 'none',
             outline: 'none',
             resize: 'vertical',
-            backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.paper : '#fffde7',
+            backgroundColor: isDark ? theme.palette.background.paper : '#fffde7',
             fontSize: 14,
             fontFamily: 'monospace',
             padding: '12px 16px',

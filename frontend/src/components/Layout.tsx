@@ -59,6 +59,8 @@ import {
   Search as SearchIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
+  WbTwilight as AmanecerIcon,
+  NightsStay as AnochecerIcon,
   CheckCircle as EntregaOkIcon,
   History as HistoryIcon,
   DoneAll as MarcarTodasIcon,
@@ -427,9 +429,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <SearchIcon />
                   </IconButton>
                 </Tooltip>
-                <Tooltip title={mode === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
+                <Tooltip title={
+                  mode === 'amanecer' ? 'Amanecer — click para Sol'
+                  : mode === 'sol' ? 'Sol — click para Anochecer'
+                  : mode === 'anochecer' ? 'Anochecer — click para Luna'
+                  : 'Luna — click para Amanecer'
+                }>
                   <IconButton color="inherit" size="small" onClick={toggleColorMode}>
-                    {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+                    {mode === 'amanecer' ? <AmanecerIcon />
+                      : mode === 'sol' ? <LightModeIcon />
+                      : mode === 'anochecer' ? <AnochecerIcon />
+                      : <DarkModeIcon />}
                   </IconButton>
                 </Tooltip>
                 {!esNutricionista && (
@@ -484,7 +494,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </Tooltip>
               )}
             </Box>
-            <Tabs value={bellTab} onChange={(_, v) => setBellTab(v)} sx={{ minHeight: 36 }}>
+            <Tabs
+              value={bellTab}
+              onChange={(_, v) => setBellTab(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{
+                minHeight: 36,
+                '& .MuiTabs-scrollButtons.Mui-disabled': { opacity: 0.3 },
+                '& .MuiTab-root': { minWidth: 'auto', px: 1.25 },
+              }}
+            >
               <Tab
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

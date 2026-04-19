@@ -4,7 +4,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tab, Tabs, Select, MenuItem, FormControl, InputLabel, Button,
   Chip, LinearProgress, Tooltip, TextField, ToggleButton, ToggleButtonGroup,
-  CircularProgress,
+  CircularProgress, Autocomplete,
 } from '@mui/material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -77,6 +77,37 @@ export default function ReportesPage() {
   const [programaRendicion, setProgramaRendicion] = useState<number | ''>('');
   const [rendicion, setRendicion]             = useState<any | null>(null);
   const [loadingRendicion, setLoadingRendicion] = useState(false);
+
+  // ── Distribucion por articulo (multi-select) ────────────────────────────────
+  const [articulosAll, setArticulosAll]           = useState<any[]>([]);
+  const [articulosElegidos, setArticulosElegidos] = useState<any[]>([]);
+  const [distribucion, setDistribucion]           = useState<any | null>(null);
+  const [loadingDistribucion, setLoadingDistribucion] = useState(false);
+  const [distribVista, setDistribVista]           = useState<'destinatarios' | 'detalle'>('destinatarios');
+
+  useEffect(() => {
+    if (tabIdx !== 4 || articulosAll.length) return;
+    api.get('/articulos?limit=1000')
+      .then(r => setArticulosAll(Array.isArray(r.data) ? r.data : (r.data?.data ?? [])))
+      .catch(() => {});
+  }, [tabIdx, articulosAll.length]);
+
+  const cargarDistribucion = useCallback(async () => {
+    if (!articulosElegidos.length) { setDistribucion(null); return; }
+    setLoadingDistribucion(true);
+    try {
+      const ids = articulosElegidos.map(a => a.id).join(',');
+      const rango = modoFiltro === 'rango'
+        ? `fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`
+        : `mes=${mes}&anio=${anio}`;
+      const pId = programaId ? `&programaId=${programaId}` : '';
+      const r = await api.get(`/reportes/distribucion-articulos?articuloIds=${ids}&${rango}${pId}`);
+      setDistribucion(r.data);
+    } catch { setDistribucion(null); }
+    finally { setLoadingDistribucion(false); }
+  }, [articulosElegidos, modoFiltro, fechaDesde, fechaHasta, mes, anio, programaId]);
+
+  useEffect(() => { cargarDistribucion(); }, [cargarDistribucion]);
 
   // ── Entregas a domicilio ────────────────────────────────────────────────────
   const [domicilioData, setDomicilioData]     = useState<any | null>(null);
@@ -594,7 +625,7 @@ export default function ReportesPage() {
       )}
 
       {/* ── Tab 4: Artículos ── */}
-      {tabIdx === 4 && (
+      {tabIdx === 4 && (<>
         <Grid container spacing={3}>
           <Grid item xs={12} md={7}>
             <Paper elevation={2} sx={{ p: 3 }}>
@@ -641,7 +672,180 @@ export default function ReportesPage() {
             </Paper>
           </Grid>
         </Grid>
-      )}
+
+        {/* ── Sección: ¿Quiénes recibieron este artículo? ── */}
+        <Paper elevation={2} sx={{ p: 3, mt: 3 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2} mb={2}>
+            <Box>
+              <Typography variant="h6">Seguimiento por artículo</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Elegí uno o varios artículos y mirá qué espacios y casos particulares los recibieron, cuánto y cuándo — en el rango de arriba ({labelPeriodo}).
+              </Typography>
+            </Box>
+            {distribucion && (
+              <ExportExcelButton
+                data={distribucion.entregas}
+                fileName={`distribucion-articulos-${labelPeriodo.replace(/ /g,'_')}`}
+                sheetName="Entregas"
+                label={`Exportar detalle (${distribucion.entregas.length})`}
+              />
+            )}
+          </Box>
+
+          <Autocomplete
+            multiple
+            options={articulosAll}
+            value={articulosElegidos}
+            onChange={(_, v) => setArticulosElegidos(v)}
+            getOptionLabel={(o) => o.nombre}
+            isOptionEqualToValue={(a, b) => a.id === b.id}
+            renderInput={(params) => (
+              <TextField {...params} label="Artículos" placeholder="Ej: Guardapolvo, Kit escolar..." size="small" />
+            )}
+            renderTags={(value, getTagProps) =>
+              value.map((o, i) => <Chip size="small" label={o.nombre} {...getTagProps({ index: i })} key={o.id} />)
+            }
+            sx={{ mb: 2 }}
+          />
+
+          {loadingDistribucion && <LinearProgress sx={{ mb: 2 }} />}
+
+          {!articulosElegidos.length && (
+            <Box sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>
+              <Typography variant="body2">Elegí uno o más artículos para ver el detalle</Typography>
+            </Box>
+          )}
+
+          {articulosElegidos.length > 0 && distribucion && (
+            <>
+              {/* Totales */}
+              <Grid container spacing={2} mb={2}>
+                <Grid item xs={6} sm={3}>
+                  <Paper variant="outlined" sx={{ p: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary">Entregas</Typography>
+                    <Typography variant="h5" fontWeight="bold">{distribucion.totales.entregas}</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Paper variant="outlined" sx={{ p: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary">Cantidad total</Typography>
+                    <Typography variant="h5" fontWeight="bold">{distribucion.totales.cantidadTotal.toLocaleString('es-AR')}</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Paper variant="outlined" sx={{ p: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary">Peso total</Typography>
+                    <Typography variant="h5" fontWeight="bold">{(distribucion.totales.pesoTotal || 0).toFixed(1)} kg</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Paper variant="outlined" sx={{ p: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary">Destinatarios distintos</Typography>
+                    <Typography variant="h5" fontWeight="bold">{distribucion.porDestinatario.length}</Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              <ToggleButtonGroup
+                size="small" exclusive
+                value={distribVista}
+                onChange={(_, v) => v && setDistribVista(v)}
+                sx={{ mb: 1 }}
+              >
+                <ToggleButton value="destinatarios">Por destinatario</ToggleButton>
+                <ToggleButton value="detalle">Detalle (una fila por entrega)</ToggleButton>
+              </ToggleButtonGroup>
+
+              {distribVista === 'destinatarios' ? (
+                <TableContainer sx={{ maxHeight: 420 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Tipo</TableCell>
+                        <TableCell>Destinatario</TableCell>
+                        <TableCell align="right">Entregas</TableCell>
+                        <TableCell align="right">Cantidad</TableCell>
+                        <TableCell align="right">Kg</TableCell>
+                        <TableCell>Última fecha</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {distribucion.porDestinatario.map((d: any, i: number) => (
+                        <TableRow key={`${d.tipo}-${d.id}-${i}`} hover>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={d.tipo === 'ESPACIO' ? 'Espacio' : d.tipo === 'CASO' ? 'Caso' : '—'}
+                              color={d.tipo === 'ESPACIO' ? 'primary' : d.tipo === 'CASO' ? 'warning' : 'default'}
+                              variant="outlined"
+                              sx={{ fontSize: 10, height: 20 }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="bold">{d.nombre}</Typography>
+                            {d.extra && <Typography variant="caption" color="text.secondary">{d.extra}</Typography>}
+                          </TableCell>
+                          <TableCell align="right">{d.entregas}</TableCell>
+                          <TableCell align="right"><strong>{d.cantidadTotal.toLocaleString('es-AR')}</strong></TableCell>
+                          <TableCell align="right">{(d.pesoTotal || 0).toFixed(1)}</TableCell>
+                          <TableCell>{new Date(d.ultimaFecha).toLocaleDateString('es-AR')}</TableCell>
+                        </TableRow>
+                      ))}
+                      {distribucion.porDestinatario.length === 0 && (
+                        <TableRow><TableCell colSpan={6} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                          Sin entregas en el período seleccionado
+                        </TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <TableContainer sx={{ maxHeight: 420 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Fecha</TableCell>
+                        <TableCell>Remito</TableCell>
+                        <TableCell>Destinatario</TableCell>
+                        <TableCell>Artículo</TableCell>
+                        <TableCell align="right">Cant.</TableCell>
+                        <TableCell align="right">Kg</TableCell>
+                        <TableCell>Estado</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {distribucion.entregas.map((e: any, i: number) => (
+                        <TableRow key={`${e.remitoId}-${e.articuloId}-${i}`} hover>
+                          <TableCell>{new Date(e.fecha).toLocaleDateString('es-AR')}</TableCell>
+                          <TableCell><Typography variant="caption">{e.remitoNumero}</Typography></TableCell>
+                          <TableCell>
+                            <Typography variant="body2">{e.destinatarioNombre}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {e.destinatarioTipo === 'ESPACIO' ? 'Espacio' : e.destinatarioTipo === 'CASO' ? 'Caso particular' : '—'}
+                              {e.destinatarioExtra ? ` · ${e.destinatarioExtra}` : ''}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{e.articuloNombre}</TableCell>
+                          <TableCell align="right"><strong>{e.cantidad}</strong></TableCell>
+                          <TableCell align="right">{(e.pesoKg || 0).toFixed(1)}</TableCell>
+                          <TableCell>
+                            <Chip size="small" label={e.estado} sx={{ bgcolor: ESTADO_COLORS[e.estado] || '#9e9e9e', color: 'white', fontSize: 10, height: 20 }} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {distribucion.entregas.length === 0 && (
+                        <TableRow><TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                          Sin entregas en el período seleccionado
+                        </TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </>
+          )}
+        </Paper>
+      </>)}
 
       {/* ── Tab 5: Remitos ── */}
       {tabIdx === 5 && (

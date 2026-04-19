@@ -801,8 +801,10 @@ function AgregarBeneficiariosDialog({
     setTipo('todos');
     setLocalidad('todas');
     setLoading(true);
-    api.get('/beneficiarios').then((r) => {
-      setTodos((r.data ?? []).filter((b: any) => b.activo));
+    api.get('/beneficiarios', { params: { limit: 5000 } }).then((r) => {
+      // El endpoint puede devolver { data: [...], total, page } (paginado) o un array plano.
+      const lista = Array.isArray(r.data) ? r.data : (r.data?.data ?? []);
+      setTodos(lista.filter((b: any) => b.activo));
     }).catch(() => {}).finally(() => setLoading(false));
   }, [open]);
 
