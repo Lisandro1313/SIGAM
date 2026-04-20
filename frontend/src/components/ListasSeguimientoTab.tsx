@@ -10,6 +10,7 @@ import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  ContentCopy as DuplicarIcon,
   Search as SearchIcon,
   Print as PrintIcon,
   GroupAdd as GroupAddIcon,
@@ -90,6 +91,10 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
   const [addBeneOpen, setAddBeneOpen] = useState(false);
   const [rendirOpen, setRendirOpen] = useState(false);
   const [notasItem, setNotasItem] = useState<ItemDetalle | null>(null);
+  const [duplicarOpen, setDuplicarOpen] = useState(false);
+  const [duplicarNombre, setDuplicarNombre] = useState('');
+  const [duplicarConItems, setDuplicarConItems] = useState(true);
+  const [duplicando, setDuplicando] = useState(false);
 
   const cargarListas = async () => {
     setLoadingListas(true);
@@ -243,6 +248,33 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
     } catch (e: any) { setSnack(e?.response?.data?.message ?? 'Error'); }
   };
 
+  const abrirDuplicar = () => {
+    if (!detalle) return;
+    setDuplicarNombre(`${detalle.nombre} (copia)`);
+    setDuplicarConItems(true);
+    setDuplicarOpen(true);
+  };
+
+  const confirmarDuplicar = async () => {
+    if (!detalle) return;
+    if (!duplicarNombre.trim()) { setSnack('Ingresá un nombre'); return; }
+    setDuplicando(true);
+    try {
+      const resp = await api.post(`/listas-seguimiento/${detalle.id}/duplicar`, {
+        nombre: duplicarNombre.trim(),
+        copiarItems: duplicarConItems,
+      });
+      setDuplicarOpen(false);
+      await cargarListas();
+      if (resp.data?.id) setActiva(resp.data.id);
+      setSnack(`Lista duplicada${duplicarConItems ? ' con sus items' : ' (sin items)'}`);
+    } catch (e: any) {
+      setSnack(e?.response?.data?.message ?? 'Error duplicando lista');
+    } finally {
+      setDuplicando(false);
+    }
+  };
+
   const espaciosSeleccionados: BeneficiarioMin[] = useMemo(
     () => items.filter((it) => seleccionados.has(it.id) && it.beneficiario).map((it) => it.beneficiario!),
     [items, seleccionados],
@@ -364,6 +396,9 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
                         </Button>
                         <Tooltip title="Editar lista y columnas">
                           <IconButton size="small" onClick={abrirEditarLista}><EditIcon fontSize="small" /></IconButton>
+                        </Tooltip>
+                        <Tooltip title="Duplicar lista">
+                          <IconButton size="small" onClick={abrirDuplicar}><DuplicarIcon fontSize="small" /></IconButton>
                         </Tooltip>
                         <Tooltip title="Eliminar lista">
                           <IconButton size="small" color="error" onClick={eliminarLista}><DeleteIcon fontSize="small" /></IconButton>
@@ -581,6 +616,45 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
         onClose={() => setNotasItem(null)}
         onSave={guardarNotas}
       />
+
+      {/* ── Dialog: duplicar lista ──────────────────────────────── */}
+      <Dialog open={duplicarOpen} onClose={() => !duplicando && setDuplicarOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Duplicar lista</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              autoFocus
+              fullWidth
+              label="Nombre de la nueva lista"
+              value={duplicarNombre}
+              onChange={(e) => setDuplicarNombre(e.target.value)}
+              disabled={duplicando}
+            />
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Checkbox
+                checked={duplicarConItems}
+                onChange={(e) => setDuplicarConItems(e.target.checked)}
+                disabled={duplicando}
+              />
+              <Box>
+                <Typography variant="body2">Copiar también los espacios (items)</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Se copiarán los beneficiarios con sus valores de checklist y notas actuales.
+                </Typography>
+              </Box>
+            </Stack>
+            <Alert severity="info" variant="outlined">
+              Se copiarán las columnas, color e ícono de la lista original.
+            </Alert>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDuplicarOpen(false)} disabled={duplicando}>Cancelar</Button>
+          <Button variant="contained" onClick={confirmarDuplicar} disabled={duplicando || !duplicarNombre.trim()}>
+            {duplicando ? 'Duplicando...' : 'Duplicar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ── Dialog: generar rendición ───────────────────────────── */}
       <Dialog open={rendirOpen} onClose={() => setRendirOpen(false)} maxWidth="sm" fullWidth fullScreen={esMobile}>

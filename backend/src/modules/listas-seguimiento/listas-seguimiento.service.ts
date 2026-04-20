@@ -138,6 +138,51 @@ export class ListasSeguimientoService {
     return { ok: true };
   }
 
+  async duplicar(id: number, data: { nombre?: string; copiarItems?: boolean }, user: { id: number; nombre: string; rol: string }) {
+    const origen = await this.prisma.listaSeguimiento.findUnique({ where: { id } });
+    if (!origen) throw new NotFoundException('Lista no encontrada');
+
+    const nombre = (data?.nombre?.trim() || `${origen.nombre} (copia)`).slice(0, 80);
+    const max = await this.prisma.listaSeguimiento.aggregate({ _max: { orden: true } });
+    const copiarItems = data?.copiarItems !== false;
+
+    return this.prisma.$transaction(async (tx) => {
+      const nueva = await tx.listaSeguimiento.create({
+        data: {
+          nombre,
+          descripcion: origen.descripcion,
+          color: origen.color,
+          icono: origen.icono,
+          columnas: origen.columnas,
+          orden: (max._max.orden ?? 0) + 1,
+          secretaria: getSecretariaForWrite(user.rol),
+          creadoPorId: user.id,
+          creadoPorNombre: user.nombre,
+        },
+      });
+
+      if (copiarItems) {
+        const items = await tx.listaSeguimientoItem.findMany({
+          where: { listaId: id },
+          select: { beneficiarioId: true, valores: true, notas: true },
+        });
+        if (items.length) {
+          await tx.listaSeguimientoItem.createMany({
+            data: items.map((it) => ({
+              listaId: nueva.id,
+              beneficiarioId: it.beneficiarioId,
+              valores: it.valores,
+              notas: it.notas,
+              actualizadoPor: user.nombre,
+            })),
+          });
+        }
+      }
+
+      return nueva;
+    });
+  }
+
   async reordenar(orden: Array<{ id: number; orden: number }>) {
     await this.prisma.$transaction(
       orden.map((o) =>

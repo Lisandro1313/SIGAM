@@ -55,6 +55,17 @@ export class ListasSeguimientoController {
     return this.service.reordenar(body.orden ?? []);
   }
 
+  @Post(':id/duplicar')
+  @Roles(...ROLES_EDICION)
+  @ApiOperation({ summary: 'Duplicar lista (con o sin items)' })
+  duplicar(
+    @Param('id') id: string,
+    @Body() body: { nombre?: string; copiarItems?: boolean },
+    @Request() req,
+  ) {
+    return this.service.duplicar(+id, body ?? {}, { id: req.user.id, nombre: req.user.nombre, rol: req.user.rol });
+  }
+
   // ─── Items ────────────────────────────────────────────────
   @Post(':id/items')
   @Roles(...ROLES_EDICION)
