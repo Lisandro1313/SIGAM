@@ -71,35 +71,42 @@ export class RemitosService {
       fechaRemito = new Date(`${createRemitoDto.fecha}T${hora}:00`);
     }
 
-    const remito = await this.prisma.remito.create({
-      data: {
-        numero,
-        programaId: createRemitoDto.programaId,
-        beneficiarioId: createRemitoDto.beneficiarioId,
-        depositoId: createRemitoDto.depositoId,
-        estado: RemitoEstado.BORRADOR,
-        totalKg,
-        observaciones: createRemitoDto.observaciones,
-        secretaria,
-        ...(fechaRemito ? { fecha: fechaRemito } : {}),
-        items: {
-          create: createRemitoDto.items.map((item) => ({
-            articuloId: item.articuloId,
-            cantidad: item.cantidad,
-            pesoKg: item.pesoKg,
-          })),
-        },
-      },
-      include: {
-        items: {
-          include: {
-            articulo: true,
+    const remito = await this.prisma.$transaction(async (tx) => {
+      const r = await tx.remito.create({
+        data: {
+          numero,
+          programaId: createRemitoDto.programaId,
+          beneficiarioId: createRemitoDto.beneficiarioId,
+          depositoId: createRemitoDto.depositoId,
+          estado: RemitoEstado.BORRADOR,
+          totalKg,
+          observaciones: createRemitoDto.observaciones,
+          secretaria,
+          ...(fechaRemito ? { fecha: fechaRemito } : {}),
+          items: {
+            create: createRemitoDto.items.map((item) => ({
+              articuloId: item.articuloId,
+              cantidad: item.cantidad,
+              pesoKg: item.pesoKg,
+            })),
           },
         },
-        beneficiario: true,
-        programa: true,
-        deposito: true,
-      },
+        include: {
+          items: { include: { articulo: true } },
+          beneficiario: true,
+          programa: true,
+          deposito: true,
+        },
+      });
+
+      if (createRemitoDto.cronogramaEntregaId) {
+        await tx.entregaProgramada.update({
+          where: { id: createRemitoDto.cronogramaEntregaId },
+          data: { estado: 'GENERADA' as any, remitoId: r.id },
+        });
+      }
+
+      return r;
     });
 
     this.eventsService.broadcast('remito:nuevo', {
@@ -108,14 +115,6 @@ export class RemitosService {
       beneficiario: remito.beneficiario?.nombre,
       programa: remito.programa?.nombre,
     }, secretaria);
-
-    // Si viene de cronograma, vincular la entrega programada
-    if (createRemitoDto.cronogramaEntregaId) {
-      await this.prisma.entregaProgramada.update({
-        where: { id: createRemitoDto.cronogramaEntregaId },
-        data: { estado: 'GENERADA' as any, remitoId: remito.id },
-      });
-    }
 
     return remito;
   }
@@ -145,33 +144,30 @@ export class RemitosService {
       }
     }
 
-    const remito = await this.prisma.remito.create({
-      data: {
-        numero,
-        programaId: data.programaId,
-        beneficiarioId: data.beneficiarioId,
-        depositoId: data.depositoId,
-        estado: RemitoEstado.PREPARADO,
-        totalKg: data.kilos ?? 0,
-        secretaria,
-        ...(fechaRemito ? { fecha: fechaRemito } : {}),
-      },
-      include: {
-        beneficiario: true,
-        programa: true,
-        deposito: true,
-      },
-    });
-
-    // Si viene de cronograma, vincular la entrega programada
-    if (data.cronogramaEntregaId) {
-      await this.prisma.entregaProgramada.update({
-        where: { id: data.cronogramaEntregaId },
-        data: { estado: 'GENERADA' as any, remitoId: remito.id },
+    return this.prisma.$transaction(async (tx) => {
+      const remito = await tx.remito.create({
+        data: {
+          numero,
+          programaId: data.programaId,
+          beneficiarioId: data.beneficiarioId,
+          depositoId: data.depositoId,
+          estado: RemitoEstado.PREPARADO,
+          totalKg: data.kilos ?? 0,
+          secretaria,
+          ...(fechaRemito ? { fecha: fechaRemito } : {}),
+        },
+        include: { beneficiario: true, programa: true, deposito: true },
       });
-    }
 
-    return remito;
+      if (data.cronogramaEntregaId) {
+        await tx.entregaProgramada.update({
+          where: { id: data.cronogramaEntregaId },
+          data: { estado: 'GENERADA' as any, remitoId: remito.id },
+        });
+      }
+
+      return remito;
+    });
   }
 
   // Completar remito preparado: agregar artículos y pasar a BORRADOR
