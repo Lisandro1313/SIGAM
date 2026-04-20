@@ -17,6 +17,10 @@ import {
   CloudUpload as UploadIcon,
   PersonAdd as PersonAddIcon,
   Delete as DeleteIcon,
+  FiberManualRecord as DotIcon,
+  PlayCircleOutline as CreadoIcon,
+  HistoryEdu as RevisadoIcon,
+  Description as DocIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -52,6 +56,99 @@ function resolveUrl(url: string) {
   if (url.startsWith('http')) return url;
   const base = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   return `${base}/${url}`;
+}
+
+type TimelineEvent = {
+  fecha: Date;
+  tipo: 'CREADO' | 'DOCUMENTO' | 'REVISADO' | 'REMITO';
+  titulo: string;
+  detalle?: string;
+  actor?: string;
+  color: 'primary' | 'success' | 'error' | 'info' | 'warning' | 'default';
+};
+
+function construirTimeline(caso: any): TimelineEvent[] {
+  const eventos: TimelineEvent[] = [];
+  eventos.push({
+    fecha: new Date(caso.createdAt),
+    tipo: 'CREADO',
+    titulo: 'Caso creado',
+    actor: caso.creadoPorNombre,
+    color: 'primary',
+  });
+  for (const doc of caso.documentos ?? []) {
+    eventos.push({
+      fecha: new Date(doc.createdAt),
+      tipo: 'DOCUMENTO',
+      titulo: 'Documento adjuntado',
+      detalle: doc.nombre,
+      color: 'info',
+    });
+  }
+  if (caso.revisadoAt && caso.revisadoPorNombre) {
+    const estadoRev = caso.estado === 'RESUELTO' ? 'APROBADO' : caso.estado;
+    eventos.push({
+      fecha: new Date(caso.revisadoAt),
+      tipo: 'REVISADO',
+      titulo: `Revisado: ${estadoRev.replace('_', ' ')}`,
+      detalle: caso.notaRevision ?? undefined,
+      actor: caso.revisadoPorNombre,
+      color: caso.estado === 'RECHAZADO' ? 'error' : 'success',
+    });
+  }
+  if (caso.remito?.fecha) {
+    eventos.push({
+      fecha: new Date(caso.remito.fecha),
+      tipo: 'REMITO',
+      titulo: `Remito generado: ${caso.remito.numero}`,
+      color: 'success',
+    });
+  }
+  return eventos.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+}
+
+function TimelineCaso({ caso }: { caso: any }) {
+  const eventos = construirTimeline(caso);
+  const iconoPara = (tipo: TimelineEvent['tipo']) => {
+    if (tipo === 'CREADO') return <CreadoIcon fontSize="small" />;
+    if (tipo === 'DOCUMENTO') return <DocIcon fontSize="small" />;
+    if (tipo === 'REVISADO') return <RevisadoIcon fontSize="small" />;
+    if (tipo === 'REMITO') return <RemitoIcon fontSize="small" />;
+    return <DotIcon fontSize="small" />;
+  };
+  return (
+    <Box>
+      <Typography variant="caption" fontWeight="bold" color="text.secondary">HISTORIAL</Typography>
+      <Box sx={{ mt: 1, position: 'relative', pl: 3 }}>
+        <Box sx={{ position: 'absolute', left: 11, top: 4, bottom: 4, width: '2px', bgcolor: 'divider' }} />
+        {eventos.map((ev, i) => (
+          <Box key={i} sx={{ position: 'relative', mb: i < eventos.length - 1 ? 1.5 : 0 }}>
+            <Box sx={{
+              position: 'absolute', left: -21, top: 0,
+              width: 24, height: 24, borderRadius: '50%',
+              bgcolor: `${ev.color}.main`, color: 'white',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: 1,
+            }}>
+              {iconoPara(ev.tipo)}
+            </Box>
+            <Box sx={{ ml: 1 }}>
+              <Typography variant="body2" fontWeight="500">{ev.titulo}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                {format(ev.fecha, "d MMM yyyy 'a las' HH:mm", { locale: es })}
+                {ev.actor ? ` · ${ev.actor}` : ''}
+              </Typography>
+              {ev.detalle && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontStyle: 'italic' }}>
+                  {ev.detalle}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
 }
 
 interface ItemRemito { articuloId: string; cantidad: string; }
@@ -482,6 +579,13 @@ export default function CasosParticulares() {
                 Remito generado: <strong>{casoSel.remito.numero}</strong>
               </Alert>
             )}
+
+            {/* Timeline / historial */}
+            <Box sx={{ mb: 2 }}>
+              <TimelineCaso caso={casoSel} />
+            </Box>
+
+            <Divider sx={{ mb: 2 }} />
 
             {/* Documentos */}
             <Box sx={{ mb: 2 }}>

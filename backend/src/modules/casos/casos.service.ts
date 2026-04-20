@@ -8,7 +8,7 @@ import { safeFilename } from '../../shared/upload/upload.util';
 const INCLUDE_CASO = {
   documentos: { orderBy: { createdAt: 'asc' as const } },
   beneficiario: { select: { id: true, nombre: true, programa: { select: { nombre: true } } } },
-  remito: { select: { id: true, numero: true, estado: true } },
+  remito: { select: { id: true, numero: true, estado: true, fecha: true } },
 };
 
 @Injectable()
