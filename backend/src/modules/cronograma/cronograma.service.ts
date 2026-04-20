@@ -27,20 +27,25 @@ export class CronogramaService {
       include: { programa: true },
     });
 
+    const beneIds = beneficiarios.map((b) => b.id);
+    const mesAnt = addMonths(fecha, -1);
+    const [entregasMesActual, entregasMesAnterior] = await Promise.all([
+      this.prisma.entregaProgramada.findMany({
+        where: { beneficiarioId: { in: beneIds }, fechaProgramada: { gte: inicioMes, lte: finMes } },
+        select: { beneficiarioId: true },
+      }),
+      this.prisma.entregaProgramada.findMany({
+        where: { beneficiarioId: { in: beneIds }, fechaProgramada: { gte: startOfMonth(mesAnt), lte: endOfMonth(mesAnt) } },
+        select: { beneficiarioId: true },
+      }),
+    ]);
+    const conEntregaActual = new Set(entregasMesActual.map((e) => e.beneficiarioId));
+    const conEntregaAnterior = new Set(entregasMesAnterior.map((e) => e.beneficiarioId));
+
     const aCrear: any[] = [];
     for (const b of beneficiarios) {
-      const existente = await this.prisma.entregaProgramada.findFirst({
-        where: { beneficiarioId: b.id, fechaProgramada: { gte: inicioMes, lte: finMes } },
-      });
-      if (existente) continue;
-
-      if (b.frecuenciaEntrega === 'BIMESTRAL') {
-        const mesAnt = addMonths(fecha, -1);
-        const entregaAnt = await this.prisma.entregaProgramada.findFirst({
-          where: { beneficiarioId: b.id, fechaProgramada: { gte: startOfMonth(mesAnt), lte: endOfMonth(mesAnt) } },
-        });
-        if (entregaAnt) continue;
-      }
+      if (conEntregaActual.has(b.id)) continue;
+      if (b.frecuenciaEntrega === 'BIMESTRAL' && conEntregaAnterior.has(b.id)) continue;
       aCrear.push(b);
     }
 
@@ -309,22 +314,27 @@ export class CronogramaService {
       include: { programa: true },
     });
 
+    const beneIds = beneficiarios.map((b) => b.id);
+    const mesAnt = addMonths(fecha, -1);
+    const [entregasMesActual, entregasMesAnterior] = await Promise.all([
+      this.prisma.entregaProgramada.findMany({
+        where: { beneficiarioId: { in: beneIds }, fechaProgramada: { gte: inicioMes, lte: finMes } },
+        select: { beneficiarioId: true },
+      }),
+      this.prisma.entregaProgramada.findMany({
+        where: { beneficiarioId: { in: beneIds }, fechaProgramada: { gte: startOfMonth(mesAnt), lte: endOfMonth(mesAnt) } },
+        select: { beneficiarioId: true },
+      }),
+    ]);
+    const conEntregaActual = new Set(entregasMesActual.map((e) => e.beneficiarioId));
+    const conEntregaAnterior = new Set(entregasMesAnterior.map((e) => e.beneficiarioId));
+
     const pendientes: any[] = [];
     const yaExisten: any[] = [];
 
     for (const b of beneficiarios) {
-      const existente = await this.prisma.entregaProgramada.findFirst({
-        where: { beneficiarioId: b.id, fechaProgramada: { gte: inicioMes, lte: finMes } },
-      });
-      if (existente) { yaExisten.push(b); continue; }
-
-      if (b.frecuenciaEntrega === 'BIMESTRAL') {
-        const mesAnt = addMonths(fecha, -1);
-        const entregaAnt = await this.prisma.entregaProgramada.findFirst({
-          where: { beneficiarioId: b.id, fechaProgramada: { gte: startOfMonth(mesAnt), lte: endOfMonth(mesAnt) } },
-        });
-        if (entregaAnt) continue;
-      }
+      if (conEntregaActual.has(b.id)) { yaExisten.push(b); continue; }
+      if (b.frecuenciaEntrega === 'BIMESTRAL' && conEntregaAnterior.has(b.id)) continue;
       pendientes.push(b);
     }
 
@@ -361,20 +371,33 @@ export class CronogramaService {
     const yaExisten: typeof beneficiarios = [];
     const noCorresponde: typeof beneficiarios = [];
 
-    for (const b of beneficiarios) {
-      const existente = await this.prisma.entregaProgramada.findFirst({
-        where: { beneficiarioId: b.id, fechaProgramada: { gte: inicioMes, lte: finMes } },
-      });
-      if (existente) { yaExisten.push(b); continue; }
-
-      const ultima = await this.prisma.entregaProgramada.findFirst({
-        where: { beneficiarioId: b.id, estado: { in: ['ENTREGADA', 'GENERADA'] } },
+    const beneIds = beneficiarios.map((b) => b.id);
+    const [entregasMes, entregasPrevias] = await Promise.all([
+      this.prisma.entregaProgramada.findMany({
+        where: { beneficiarioId: { in: beneIds }, fechaProgramada: { gte: inicioMes, lte: finMes } },
+        select: { beneficiarioId: true },
+      }),
+      this.prisma.entregaProgramada.findMany({
+        where: { beneficiarioId: { in: beneIds }, estado: { in: ['ENTREGADA', 'GENERADA'] } },
+        select: { beneficiarioId: true, fechaProgramada: true },
         orderBy: { fechaProgramada: 'desc' },
-      });
+      }),
+    ]);
+    const conEntregaMes = new Set(entregasMes.map((e) => e.beneficiarioId));
+    const ultimaPorBene = new Map<number, Date>();
+    for (const e of entregasPrevias) {
+      if (!ultimaPorBene.has(e.beneficiarioId)) {
+        ultimaPorBene.set(e.beneficiarioId, e.fechaProgramada);
+      }
+    }
 
+    for (const b of beneficiarios) {
+      if (conEntregaMes.has(b.id)) { yaExisten.push(b); continue; }
+
+      const ultima = ultimaPorBene.get(b.id);
       if (!ultima) { pendientes.push(b); continue; }
 
-      const diasDesdeUltima = Math.floor((inicioMes.getTime() - ultima.fechaProgramada.getTime()) / 86400000);
+      const diasDesdeUltima = Math.floor((inicioMes.getTime() - ultima.getTime()) / 86400000);
       // Umbral con margen anti-drift (ej: si la anterior fue el dia 28, la proxima sigue siendo mensual)
       const umbral = b.frecuenciaEntrega === 'BIMESTRAL' ? 45 : 20;
       if (diasDesdeUltima >= umbral) pendientes.push(b);
