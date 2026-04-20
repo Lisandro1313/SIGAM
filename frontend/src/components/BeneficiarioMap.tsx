@@ -1,6 +1,7 @@
 import 'leaflet/dist/leaflet.css';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Tooltip, Polygon, useMapEvents } from 'react-leaflet';
-import { divIcon, LatLng } from 'leaflet';
+import { useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Tooltip, Polygon, useMapEvents, useMap } from 'react-leaflet';
+import { divIcon, LatLng, LatLngBounds } from 'leaflet';
 import { Box, Paper, Typography, Chip } from '@mui/material';
 
 // Centroides aproximados de localidades del partido de La Plata
@@ -87,6 +88,146 @@ function coloredMarkerIcon(color: string) {
     iconAnchor: [7, 7],
     popupAnchor: [0, -12],
   });
+}
+
+function clusterIcon(count: number, color: string) {
+  const size = count < 10 ? 34 : count < 50 ? 40 : count < 200 ? 48 : 56;
+  return divIcon({
+    html: `<div style="
+      background:${color};
+      width:${size}px;height:${size}px;
+      border-radius:50%;
+      border:3px solid white;
+      box-shadow:0 2px 6px rgba(0,0,0,0.4);
+      display:flex;align-items:center;justify-content:center;
+      color:white;font-weight:bold;font-size:${size >= 48 ? 15 : 13}px;
+      opacity:0.92;
+    ">${count}</div>`,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
+}
+
+const GRID_PX = 60;
+const CLUSTER_MAX_ZOOM = 15;
+
+function ClusterLayer({
+  marcadores,
+  localidadColors,
+}: {
+  marcadores: any[];
+  localidadColors: Record<string, string>;
+}) {
+  const map = useMap();
+  const [tick, setTick] = useState(0);
+  useMapEvents({
+    zoomend: () => setTick((t) => t + 1),
+    moveend: () => setTick((t) => t + 1),
+  });
+  void tick;
+
+  const zoom = map.getZoom();
+  if (zoom >= CLUSTER_MAX_ZOOM) {
+    return (
+      <>
+        {marcadores.map((b) => (
+          <Marker
+            key={b.id}
+            position={[b.latitud, b.longitud]}
+            icon={coloredMarkerIcon(localidadColors[b.localidad] || '#607d8b')}
+          >
+            <Popup><BeneficiarioPopup b={b} /></Popup>
+          </Marker>
+        ))}
+      </>
+    );
+  }
+
+  const cells: Record<string, any[]> = {};
+  for (const b of marcadores) {
+    const pt = map.latLngToContainerPoint([b.latitud, b.longitud]);
+    const cx = Math.floor(pt.x / GRID_PX);
+    const cy = Math.floor(pt.y / GRID_PX);
+    const key = `${cx}:${cy}`;
+    (cells[key] ||= []).push(b);
+  }
+
+  const nodes: JSX.Element[] = [];
+  for (const [key, group] of Object.entries(cells)) {
+    if (group.length === 1) {
+      const b = group[0];
+      nodes.push(
+        <Marker
+          key={`m-${b.id}`}
+          position={[b.latitud, b.longitud]}
+          icon={coloredMarkerIcon(localidadColors[b.localidad] || '#607d8b')}
+        >
+          <Popup><BeneficiarioPopup b={b} /></Popup>
+        </Marker>,
+      );
+    } else {
+      const lat = group.reduce((s, b) => s + b.latitud, 0) / group.length;
+      const lng = group.reduce((s, b) => s + b.longitud, 0) / group.length;
+      const localidadDominante = Object.entries(
+        group.reduce((acc: Record<string, number>, b) => {
+          const l = b.localidad || 'Sin localidad';
+          acc[l] = (acc[l] || 0) + 1;
+          return acc;
+        }, {}),
+      ).sort((a, b) => b[1] - a[1])[0][0];
+      const color = localidadColors[localidadDominante] || '#607d8b';
+      nodes.push(
+        <Marker
+          key={`c-${key}`}
+          position={[lat, lng]}
+          icon={clusterIcon(group.length, color)}
+          eventHandlers={{
+            click: () => {
+              const bounds = new LatLngBounds(group.map((b) => [b.latitud, b.longitud] as [number, number]));
+              map.fitBounds(bounds, { padding: [40, 40], maxZoom: CLUSTER_MAX_ZOOM });
+            },
+          }}
+        />,
+      );
+    }
+  }
+
+  return <>{nodes}</>;
+}
+
+function BeneficiarioPopup({ b }: { b: any }) {
+  return (
+    <Box sx={{ minWidth: 200 }}>
+      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+        {b.nombre}
+      </Typography>
+      {b.direccion && (
+        <Typography variant="body2" color="text.secondary">{b.direccion}</Typography>
+      )}
+      {b.localidad && (
+        <Typography variant="body2" color="text.secondary" gutterBottom>{b.localidad}</Typography>
+      )}
+      <Box mt={1} display="flex" gap={1} flexWrap="wrap">
+        <Chip
+          label={TIPO_LABELS[b.tipo] || b.tipo}
+          size="small"
+          sx={{ bgcolor: TIPO_COLORS[b.tipo] || '#607d8b', color: 'white' }}
+        />
+        {b.programa && <Chip label={b.programa.nombre} size="small" color="secondary" />}
+      </Box>
+      {b.responsableNombre && (
+        <Typography variant="caption" display="block" mt={1}>Resp: {b.responsableNombre}</Typography>
+      )}
+      {b.telefono && <Typography variant="caption" display="block">Tel: {b.telefono}</Typography>}
+      {b.frecuenciaEntrega && (
+        <Typography variant="caption" display="block" color="text.secondary">
+          Frecuencia: {b.frecuenciaEntrega}
+        </Typography>
+      )}
+    </Box>
+  );
 }
 
 // Lookup insensible a mayúsculas/minúsculas y acentos
@@ -240,60 +381,8 @@ export default function BeneficiarioMap({
           />
         ))}
 
-        {/* Marcadores individuales con GPS exacto */}
-        {marcadores.map((b) => {
-          const color = localidadColors[b.localidad] || '#607d8b';
-          return (
-            <Marker
-              key={b.id}
-              position={[b.latitud, b.longitud]}
-              icon={coloredMarkerIcon(color)}
-            >
-              <Popup>
-                <Box sx={{ minWidth: 200 }}>
-                  <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-                    {b.nombre}
-                  </Typography>
-                  {b.direccion && (
-                    <Typography variant="body2" color="text.secondary">
-                      {b.direccion}
-                    </Typography>
-                  )}
-                  {b.localidad && (
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      {b.localidad}
-                    </Typography>
-                  )}
-                  <Box mt={1} display="flex" gap={1} flexWrap="wrap">
-                    <Chip
-                      label={TIPO_LABELS[b.tipo] || b.tipo}
-                      size="small"
-                      sx={{ bgcolor: TIPO_COLORS[b.tipo] || '#607d8b', color: 'white' }}
-                    />
-                    {b.programa && (
-                      <Chip label={b.programa.nombre} size="small" color="secondary" />
-                    )}
-                  </Box>
-                  {b.responsableNombre && (
-                    <Typography variant="caption" display="block" mt={1}>
-                      Resp: {b.responsableNombre}
-                    </Typography>
-                  )}
-                  {b.telefono && (
-                    <Typography variant="caption" display="block">
-                      Tel: {b.telefono}
-                    </Typography>
-                  )}
-                  {b.frecuenciaEntrega && (
-                    <Typography variant="caption" display="block" color="text.secondary">
-                      Frecuencia: {b.frecuenciaEntrega}
-                    </Typography>
-                  )}
-                </Box>
-              </Popup>
-            </Marker>
-          );
-        })}
+        {/* Marcadores individuales con GPS exacto — con clustering por grilla */}
+        <ClusterLayer marcadores={marcadores} localidadColors={localidadColors} />
 
         {/* Círculos de resumen para localidades sin coordenadas individuales */}
         {Object.entries(resumenLocalidad).map(([loc, info]) => {

@@ -3,7 +3,7 @@ import {
   Box, Typography, CircularProgress, Paper, Chip, Divider, ButtonBase, Tooltip,
   Grid, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Tab, Tabs, List, ListItem, ListItemText, ListItemSecondaryAction,
-  InputAdornment,
+  InputAdornment, FormControl, InputLabel, Select, MenuItem,
 } from '@mui/material';
 import {
   LocationOn as LocationIcon,
@@ -44,17 +44,25 @@ export default function MapaPage() {
   // Filtros
   const [tiposFiltro, setTiposFiltro]     = useState<Set<string>>(new Set());
   const [buscarBen, setBuscarBen]         = useState('');
+  const [programaFiltro, setProgramaFiltro] = useState<string>('');
+  const [soloSinGPS, setSoloSinGPS]       = useState(false);
 
   const allTipos = useMemo(() => [...new Set(beneficiarios.map(b => b.tipo))], [beneficiarios]);
+  const allProgramas = useMemo(
+    () => [...new Set(beneficiarios.map(b => b.programa?.nombre).filter(Boolean))].sort() as string[],
+    [beneficiarios],
+  );
   const benFiltrados = useMemo(() => {
     let list = beneficiarios;
     if (tiposFiltro.size > 0) list = list.filter(b => tiposFiltro.has(b.tipo));
+    if (programaFiltro) list = list.filter(b => b.programa?.nombre === programaFiltro);
+    if (soloSinGPS) list = list.filter(b => !b.latitud || !b.longitud);
     if (buscarBen.trim()) list = list.filter(b =>
       b.nombre?.toLowerCase().includes(buscarBen.toLowerCase()) ||
       b.localidad?.toLowerCase().includes(buscarBen.toLowerCase())
     );
     return list;
-  }, [beneficiarios, tiposFiltro, buscarBen]);
+  }, [beneficiarios, tiposFiltro, buscarBen, programaFiltro, soloSinGPS]);
 
   const localidadColors = useMemo(() => buildLocalidadColors(benFiltrados), [benFiltrados]);
 
@@ -213,6 +221,49 @@ export default function MapaPage() {
           })}
           {tiposFiltro.size > 0 && (
             <Chip label="Mostrar todos" size="small" variant="outlined" onClick={() => setTiposFiltro(new Set())} />
+          )}
+        </Box>
+        <Box display="flex" gap={1} flexWrap="wrap" alignItems="center" mt={0.5}>
+          {allProgramas.length > 0 && (
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Programa</InputLabel>
+              <Select
+                value={programaFiltro}
+                label="Programa"
+                onChange={(e) => setProgramaFiltro(e.target.value)}
+              >
+                <MenuItem value="">Todos los programas</MenuItem>
+                {allProgramas.map(p => (
+                  <MenuItem key={p} value={p}>{p}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          <Chip
+            label={soloSinGPS ? 'Solo sin GPS ✓' : 'Solo sin GPS'}
+            size="small"
+            color={soloSinGPS ? 'warning' : 'default'}
+            variant={soloSinGPS ? 'filled' : 'outlined'}
+            onClick={() => setSoloSinGPS(v => !v)}
+          />
+          {(programaFiltro || soloSinGPS || tiposFiltro.size > 0 || buscarBen) && (
+            <Chip
+              label="Limpiar filtros"
+              size="small"
+              variant="outlined"
+              onDelete={() => {
+                setProgramaFiltro('');
+                setSoloSinGPS(false);
+                setTiposFiltro(new Set());
+                setBuscarBen('');
+              }}
+              onClick={() => {
+                setProgramaFiltro('');
+                setSoloSinGPS(false);
+                setTiposFiltro(new Set());
+                setBuscarBen('');
+              }}
+            />
           )}
         </Box>
       </Box>
