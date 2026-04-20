@@ -26,6 +26,7 @@ const Auditoria          = lazy(() => import('./pages/Auditoria'));
 const Tareas             = lazy(() => import('./pages/Tareas'));
 const MisCasos           = lazy(() => import('./pages/MisCasos'));
 const CasosParticulares  = lazy(() => import('./pages/CasosParticulares'));
+const DashboardSocial    = lazy(() => import('./pages/DashboardSocial'));
 const BusquedaDNI        = lazy(() => import('./pages/BusquedaDNI'));
 const ChoferHome         = lazy(() => import('./pages/ChoferHome'));
 const NutricionistaHome  = lazy(() => import('./pages/NutricionistaHome'));
@@ -72,6 +73,7 @@ function App() {
             <Route path="/auditoria" element={<ProtectedRoute seccion="auditoria"><Auditoria /></ProtectedRoute>} />
             <Route path="/mis-casos" element={<ProtectedRoute seccion="mis-casos"><MisCasos /></ProtectedRoute>} />
             <Route path="/casos-particulares" element={<ProtectedRoute seccion="casos-particulares"><CasosParticulares /></ProtectedRoute>} />
+            <Route path="/dashboard-social" element={<ProtectedRoute seccion="dashboard-social"><DashboardSocial /></ProtectedRoute>} />
             <Route path="/busqueda-dni" element={<ProtectedRoute seccion="busqueda-dni"><BusquedaDNI /></ProtectedRoute>} />
             <Route path="/mis-entregas" element={<ProtectedRoute seccion="mis-entregas"><ChoferHome /></ProtectedRoute>} />
             <Route path="/nutricionista" element={<ProtectedRoute seccion="nutricionista"><NutricionistaHome /></ProtectedRoute>} />

@@ -56,6 +56,7 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'nutricionista',
     'sugerencias',
     'documentacion',
+    'dashboard-social',
   ],
   LOGISTICA: [
     'dashboard',
@@ -88,6 +89,7 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'tareas',
     'mis-casos',
     'busqueda-dni',
+    'dashboard-social',
   ],
   ASISTENCIA_CRITICA: [
     'dashboard',
@@ -104,6 +106,7 @@ export const MENU_POR_ROL: Record<Rol, string[]> = {
     'tareas',
     'casos-particulares',
     'busqueda-dni',
+    'dashboard-social',
   ],
   VISOR: [
     'dashboard',

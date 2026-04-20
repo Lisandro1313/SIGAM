@@ -1072,6 +1072,126 @@ export class ReportesService {
   }
 
   /**
+   * Dashboard específico para Trabajo Social / Asistencia Crítica.
+   * KPIs de casos: por estado, prioridad, tipo, barrio, tiempo de resolución.
+   */
+  async dashboardSocial(secretaria?: string | null, userId?: number, userRol?: string) {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const hace30dias = new Date(hoy);
+    hace30dias.setDate(hace30dias.getDate() - 30);
+    const hace7dias = new Date(hoy);
+    hace7dias.setDate(hace7dias.getDate() - 7);
+
+    // TS / AC solo ven sus propios casos
+    const casoWhere: any = {};
+    if (userRol === 'TRABAJADORA_SOCIAL' || userRol === 'ASISTENCIA_CRITICA') {
+      casoWhere.creadoPorId = userId;
+    }
+
+    const [
+      porEstado, porPrioridad, porTipo,
+      totalCasos, casos30dias, casos7dias, casosHoy,
+      resueltos, casosRecientes, casosUrgentes, barrios,
+    ] = await Promise.all([
+      this.prisma.caso.groupBy({ by: ['estado'], where: casoWhere, _count: true }),
+      this.prisma.caso.groupBy({ by: ['prioridad'], where: casoWhere, _count: true }),
+      this.prisma.caso.groupBy({ by: ['tipo'], where: casoWhere, _count: true }),
+      this.prisma.caso.count({ where: casoWhere }),
+      this.prisma.caso.count({ where: { ...casoWhere, createdAt: { gte: hace30dias } } }),
+      this.prisma.caso.count({ where: { ...casoWhere, createdAt: { gte: hace7dias } } }),
+      this.prisma.caso.count({ where: { ...casoWhere, createdAt: { gte: hoy } } }),
+      this.prisma.caso.findMany({
+        where: { ...casoWhere, estado: { in: ['APROBADO', 'RECHAZADO', 'RESUELTO'] }, revisadoAt: { not: null } },
+        select: { createdAt: true, revisadoAt: true },
+      }),
+      this.prisma.caso.findMany({
+        where: casoWhere,
+        select: {
+          id: true, nombreSolicitante: true, prioridad: true, tipo: true, estado: true,
+          barrio: true, createdAt: true, alertaCruce: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
+      }),
+      this.prisma.caso.findMany({
+        where: { ...casoWhere, prioridad: { in: ['URGENTE', 'ALTA'] }, estado: { in: ['PENDIENTE', 'EN_REVISION'] } },
+        select: {
+          id: true, nombreSolicitante: true, prioridad: true, tipo: true, estado: true,
+          barrio: true, createdAt: true, descripcion: true,
+        },
+        orderBy: [{ prioridad: 'desc' }, { createdAt: 'asc' }],
+        take: 10,
+      }),
+      this.prisma.caso.groupBy({
+        by: ['barrio'],
+        where: { ...casoWhere, barrio: { not: null } },
+        _count: true,
+        orderBy: { _count: { barrio: 'desc' } },
+        take: 10,
+      }),
+    ]);
+
+    // Tiempo promedio de resolución (en días)
+    let tiempoPromedioResolucion = 0;
+    if (resueltos.length > 0) {
+      const totalMs = resueltos.reduce((acc, c) => {
+        if (!c.revisadoAt) return acc;
+        return acc + (c.revisadoAt.getTime() - c.createdAt.getTime());
+      }, 0);
+      tiempoPromedioResolucion = Math.round((totalMs / resueltos.length) / (1000 * 60 * 60 * 24) * 10) / 10;
+    }
+
+    // Casos por mes (últimos 6 meses)
+    const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const evolucionMensual: any[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const fecha = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
+      const inicio = startOfMonth(fecha);
+      const fin = endOfMonth(fecha);
+      const [creados, resueltosMes] = await Promise.all([
+        this.prisma.caso.count({ where: { ...casoWhere, createdAt: { gte: inicio, lte: fin } } }),
+        this.prisma.caso.count({
+          where: {
+            ...casoWhere,
+            revisadoAt: { gte: inicio, lte: fin },
+            estado: { in: ['APROBADO', 'RECHAZADO', 'RESUELTO'] },
+          },
+        }),
+      ]);
+      evolucionMensual.push({
+        mes: fecha.getMonth() + 1,
+        mesNombre: MESES[fecha.getMonth()],
+        anio: fecha.getFullYear(),
+        creados,
+        resueltos: resueltosMes,
+      });
+    }
+
+    return {
+      resumen: {
+        total: totalCasos,
+        ultimos30dias: casos30dias,
+        ultimos7dias: casos7dias,
+        hoy: casosHoy,
+        tiempoPromedioResolucion,
+        pendientes: (porEstado.find(e => e.estado === 'PENDIENTE')?._count as number) || 0,
+        enRevision: (porEstado.find(e => e.estado === 'EN_REVISION')?._count as number) || 0,
+        aprobados: (porEstado.find(e => e.estado === 'APROBADO')?._count as number) || 0,
+        rechazados: (porEstado.find(e => e.estado === 'RECHAZADO')?._count as number) || 0,
+        resueltos: (porEstado.find(e => e.estado === 'RESUELTO')?._count as number) || 0,
+      },
+      porEstado: porEstado.map(e => ({ estado: e.estado, cantidad: (e._count as number) || 0 })),
+      porPrioridad: porPrioridad.map(p => ({ prioridad: p.prioridad, cantidad: (p._count as number) || 0 })),
+      porTipo: porTipo.map(t => ({ tipo: t.tipo, cantidad: (t._count as number) || 0 })),
+      porBarrio: barrios.map(b => ({ barrio: b.barrio || 'Sin barrio', cantidad: (b._count as number) || 0 })),
+      evolucionMensual,
+      casosRecientes,
+      casosUrgentes,
+    };
+  }
+
+  /**
    * Distribución de artículos: dado uno o varios artículos y un rango, devuelve todas
    * las entregas (espacios + casos particulares) con cantidades/fechas, y agregados.
    */

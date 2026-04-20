@@ -51,6 +51,17 @@ export class ReportesController {
     return this.reportesService.dashboard(getSecretariaFromReq(req));
   }
 
+  @Get('dashboard-social')
+  @ApiOperation({ summary: 'Dashboard de Trabajo Social / Asistencia Crítica (KPIs de casos)' })
+  @Roles('ADMIN', 'VISOR', 'TRABAJADORA_SOCIAL', 'ASISTENCIA_CRITICA', 'OPERADOR_PROGRAMA')
+  dashboardSocial(@Request() req) {
+    return this.reportesService.dashboardSocial(
+      getSecretariaFromReq(req),
+      req.user.id,
+      req.user.rol,
+    );
+  }
+
   @Get('kilos-por-mes')
   @ApiOperation({ summary: 'Total de kilos entregados por mes' })
   kilosPorMes(@Query('mes') mes: string, @Query('anio') anio: string, @Query('programaId') programaId: string, @Request() req) {
