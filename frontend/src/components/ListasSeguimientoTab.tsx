@@ -95,6 +95,9 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
   const [duplicarNombre, setDuplicarNombre] = useState('');
   const [duplicarConItems, setDuplicarConItems] = useState(true);
   const [duplicando, setDuplicando] = useState(false);
+  const [notasInlineId, setNotasInlineId] = useState<number | null>(null);
+  const [notasInlineTexto, setNotasInlineTexto] = useState('');
+  const [guardandoInlineNotas, setGuardandoInlineNotas] = useState(false);
 
   const cargarListas = async () => {
     setLoadingListas(true);
@@ -197,6 +200,38 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
       setNotasItem(null);
     } catch (e: any) {
       setSnack(e?.response?.data?.message ?? 'No se pudieron guardar las notas');
+    }
+  };
+
+  const iniciarEdicionInline = (it: ItemDetalle) => {
+    setNotasInlineId(it.id);
+    setNotasInlineTexto(it.notas ?? '');
+  };
+
+  const cancelarEdicionInline = () => {
+    setNotasInlineId(null);
+    setNotasInlineTexto('');
+  };
+
+  const guardarNotasInline = async (itemId: number) => {
+    if (!detalle) return;
+    const item = detalle.items.find((it) => it.id === itemId);
+    if (!item) return;
+    const textoNuevo = notasInlineTexto.trim();
+    const actual = (item.notas ?? '').trim();
+    if (textoNuevo === actual) { cancelarEdicionInline(); return; }
+    setGuardandoInlineNotas(true);
+    try {
+      await api.patch(`/listas-seguimiento/${detalle.id}/items/${itemId}`, { notas: textoNuevo });
+      setDetalle((d) => d ? {
+        ...d,
+        items: d.items.map((it) => it.id === itemId ? { ...it, notas: textoNuevo } : it),
+      } : d);
+      cancelarEdicionInline();
+    } catch (e: any) {
+      setSnack(e?.response?.data?.message ?? 'No se pudo guardar la nota');
+    } finally {
+      setGuardandoInlineNotas(false);
     }
   };
 
@@ -557,12 +592,44 @@ export default function ListasSeguimientoTab({ plantillas, puedeEditar, userNomb
                               </TableCell>
                             );
                           })}
-                          <TableCell align="center">
-                            <Tooltip title={it.notas || 'Agregar nota'}>
-                              <IconButton size="small" onClick={() => setNotasItem(it)}>
-                                <NotesIcon fontSize="small" color={it.notas ? 'primary' : 'disabled'} />
-                              </IconButton>
-                            </Tooltip>
+                          <TableCell sx={{ minWidth: 180, maxWidth: 280 }}>
+                            {notasInlineId === it.id ? (
+                              <TextField
+                                autoFocus
+                                size="small"
+                                fullWidth
+                                multiline
+                                maxRows={4}
+                                value={notasInlineTexto}
+                                onChange={(e) => setNotasInlineTexto(e.target.value)}
+                                onBlur={() => guardarNotasInline(it.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Escape') { e.preventDefault(); cancelarEdicionInline(); }
+                                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); guardarNotasInline(it.id); }
+                                }}
+                                disabled={guardandoInlineNotas}
+                                placeholder="Nota (Enter para guardar, Esc para cancelar)"
+                                sx={{ '& .MuiInputBase-input': { fontSize: '0.8rem' } }}
+                              />
+                            ) : (
+                              <Stack direction="row" alignItems="flex-start" spacing={0.5} sx={{ cursor: puedeEditar ? 'pointer' : 'default' }} onClick={() => puedeEditar && iniciarEdicionInline(it)}>
+                                <NotesIcon fontSize="small" color={it.notas ? 'primary' : 'disabled'} sx={{ mt: 0.2, flexShrink: 0 }} />
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    flex: 1,
+                                    color: it.notas ? 'text.primary' : 'text.disabled',
+                                    fontStyle: it.notas ? 'normal' : 'italic',
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word',
+                                    lineHeight: 1.3,
+                                    fontSize: '0.8rem',
+                                  }}
+                                >
+                                  {it.notas || (puedeEditar ? 'Agregar nota...' : '—')}
+                                </Typography>
+                              </Stack>
+                            )}
                           </TableCell>
                           {puedeEditar && (
                             <TableCell>
