@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import NotificationProvider from './components/NotificationProvider';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingPage from './components/LoadingPage';
+import OfflineIndicator from './components/OfflineIndicator';
 import LoginPage from './pages/LoginPage';
 
 // Lazy-loaded pages — se cargan solo al navegar a cada ruta
@@ -47,12 +48,18 @@ function App() {
   const { token } = useAuthStore();
 
   if (!token) {
-    return <LoginPage />;
+    return (
+      <>
+        <OfflineIndicator />
+        <LoginPage />
+      </>
+    );
   }
 
   return (
     <ErrorBoundary>
       <NotificationProvider />
+      <OfflineIndicator />
       <Layout>
         <Suspense fallback={<LoadingPage />}>
           <Routes>
