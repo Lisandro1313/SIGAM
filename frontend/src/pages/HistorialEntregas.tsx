@@ -25,6 +25,7 @@ import {
 import { format, subDays, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
+import { getProgramas, getDepositos } from '../utils/staticCache';
 import ExportExcelButton from '../components/ExportExcelButton';
 import { useAuthStore } from '../stores/authStore';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -158,14 +159,10 @@ export default function HistorialEntregas() {
   };
 
   useEffect(() => {
-    Promise.all([
-      api.get('/depositos'),
-      api.get('/programas'),
-    ]).then(([depR, proR]) => {
-      const todos = depR.data as any[];
+    Promise.all([getDepositos(), getProgramas()]).then(([deps, progs]) => {
       // ASISTENCIA_CRITICA solo ve el depósito CITA
-      setDepositos(esCita ? todos.filter((d) => d.codigo === 'CITA') : todos);
-      setProgramas(proR.data.filter((p: any) => p.activo));
+      setDepositos(esCita ? deps.filter((d: any) => d.codigo === 'CITA') : deps);
+      setProgramas(progs.filter((p: any) => p.activo));
     }).catch(() => {});
     buscarEntregas();
   }, []);

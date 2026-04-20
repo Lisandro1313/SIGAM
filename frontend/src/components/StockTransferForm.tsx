@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
+import { getDepositos } from '../utils/staticCache';
 
 interface TransferItem {
   articuloId: number;
@@ -34,11 +35,11 @@ export default function StockTransferForm({ open, onClose, onSuccess }: StockTra
 
   useEffect(() => {
     if (!open) return;
-    api.get('/depositos').then(res => {
-      setDepositos(res.data);
-      if (res.data.length > 0) {
-        setDepositoOrigenId(res.data[0].id);
-        setDepositoDestinoId(res.data[1]?.id || 0);
+    getDepositos().then(data => {
+      setDepositos(data);
+      if (data.length > 0) {
+        setDepositoOrigenId(data[0].id);
+        setDepositoDestinoId(data[1]?.id || 0);
       }
     }).catch(() => {});
   }, [open]);

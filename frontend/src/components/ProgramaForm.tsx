@@ -20,6 +20,7 @@ import {
 import { AddCircleOutline as AddTypeIcon } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
+import { invalidate } from '../utils/staticCache';
 
 const TIPO_LABELS: Record<string, string> = {
   ESPACIOS: 'Espacios',
@@ -86,6 +87,7 @@ export default function ProgramaForm({
         await api.post('/programas', formData);
         showNotification('Programa creado correctamente', 'success');
       }
+      invalidate('programas');
       onSuccess();
       onClose();
     } catch (error: any) {

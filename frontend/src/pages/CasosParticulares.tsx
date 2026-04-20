@@ -25,6 +25,7 @@ import {
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
+import { getDepositos, getArticulos } from '../utils/staticCache';
 import { useConfirm } from '../hooks/useConfirm';
 import { useNotificationStore } from '../stores/notificationStore';
 
@@ -265,12 +266,9 @@ export default function CasosParticulares() {
     setRemitoItems([{ articuloId: '', cantidad: '' }]);
     setRemitoDeposito('');
     try {
-      const [dRes, aRes] = await Promise.all([
-        api.get('/depositos'),
-        api.get('/articulos'),
-      ]);
-      setDepositos(dRes.data);
-      setArticulos(aRes.data);
+      const [dData, aData] = await Promise.all([getDepositos(), getArticulos()]);
+      setDepositos(dData);
+      setArticulos(aData);
     } catch {}
     setRemitoOpen(true);
   };

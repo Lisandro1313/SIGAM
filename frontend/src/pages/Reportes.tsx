@@ -18,6 +18,7 @@ import {
   LocalShipping as DomicilioIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
+import { getProgramas } from '../utils/staticCache';
 import ExportExcelButton from '../components/ExportExcelButton';
 import LoadingPage from '../components/LoadingPage';
 
@@ -128,7 +129,7 @@ export default function ReportesPage() {
   }, [tabIdx, mes, anio, fechaDesde, fechaHasta, modoFiltro]);
 
   useEffect(() => {
-    api.get('/programas').then(r => setProgramas(r.data.filter((p: any) => p.activo))).catch(() => {});
+    getProgramas().then(d => setProgramas(d.filter((p: any) => p.activo))).catch(() => {});
     loadBase();
   }, []);
 

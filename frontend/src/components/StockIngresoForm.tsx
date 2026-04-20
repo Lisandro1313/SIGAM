@@ -7,6 +7,7 @@ import {
 import { AttachFile as AttachIcon, Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
+import { getDepositos, getArticulos } from '../utils/staticCache';
 
 interface ItemIngreso { articuloId: number; cantidad: number; }
 
@@ -35,13 +36,10 @@ export default function StockIngresoForm({ open, onClose, onSuccess }: StockIngr
 
   const loadData = async () => {
     try {
-      const [depositosRes, articulosRes] = await Promise.all([
-        api.get('/depositos'),
-        api.get('/articulos'),
-      ]);
-      setDepositos(depositosRes.data);
-      setArticulos(articulosRes.data.filter((a: any) => a.activo));
-      if (depositosRes.data.length > 0) setDepositoId(depositosRes.data[0].id);
+      const [dep, art] = await Promise.all([getDepositos(), getArticulos()]);
+      setDepositos(dep);
+      setArticulos(art.filter((a: any) => a.activo));
+      if (dep.length > 0) setDepositoId(dep[0].id);
     } catch (error) {
       console.error('Error cargando datos:', error);
     }

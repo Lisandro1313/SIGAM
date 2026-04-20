@@ -53,6 +53,7 @@ import {
   Save as SaveIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
+import { getProgramas, getDepositos } from '../utils/staticCache';
 import { useNotificationStore } from '../stores/notificationStore';
 import { ROL_LABELS, Rol } from '../utils/permisos';
 
@@ -444,14 +445,14 @@ function UsuariosTab() {
 
   const loadAll = async () => {
     try {
-      const [uRes, pRes, dRes] = await Promise.all([
+      const [uRes, progs, deps] = await Promise.all([
         api.get('/usuarios'),
-        api.get('/programas'),
-        api.get('/depositos'),
+        getProgramas(),
+        getDepositos(),
       ]);
       setUsuarios(uRes.data);
-      setProgramas(pRes.data.filter((p: any) => p.activo));
-      setDepositos(dRes.data.filter((d: any) => d.activo));
+      setProgramas(progs.filter((p: any) => p.activo));
+      setDepositos(deps.filter((d: any) => d.activo));
     } catch (error) {
       console.error(error);
     } finally {

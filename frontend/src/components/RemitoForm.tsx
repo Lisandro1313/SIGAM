@@ -31,6 +31,7 @@ import {
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon, PlaylistAdd as PlantillaIcon, PersonAdd as PersonAddIcon, Warning as WarningIcon, Info as InfoIcon } from '@mui/icons-material';
 import api from '../services/api';
+import { getProgramas, getDepositos, getArticulos } from '../utils/staticCache';
 import { useNotificationStore } from '../stores/notificationStore';
 import { useAuthStore } from '../stores/authStore';
 import BeneficiarioForm from './BeneficiarioForm';
@@ -126,8 +127,8 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
 
   const loadProgramas = async () => {
     try {
-      const response = await api.get('/programas');
-      setProgramas(response.data.filter((p: any) => p.activo));
+      const data = await getProgramas();
+      setProgramas(data.filter((p: any) => p.activo));
     } catch (error) {
       console.error('Error cargando programas:', error);
     }
@@ -135,10 +136,9 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
 
   const loadDepositos = async () => {
     try {
-      const response = await api.get('/depositos');
-      const todos = response.data as any[];
+      const todos = await getDepositos();
       // ASISTENCIA_CRITICA solo ve y puede usar el depósito CITA
-      const filtrados = esCita ? todos.filter((d) => d.codigo === 'CITA') : todos;
+      const filtrados = esCita ? todos.filter((d: any) => d.codigo === 'CITA') : todos;
       setDepositos(filtrados);
       // Pre-seleccionar automáticamente si solo hay uno disponible
       if (filtrados.length === 1) setDepositoId(String(filtrados[0].id));
@@ -149,8 +149,8 @@ export default function RemitoForm({ open, onClose, onSuccess, initialData, prep
 
   const loadArticulos = async () => {
     try {
-      const response = await api.get('/articulos');
-      setArticulos(response.data.filter((a: any) => a.activo));
+      const data = await getArticulos();
+      setArticulos(data.filter((a: any) => a.activo));
     } catch (error) {
       console.error('Error cargando artículos:', error);
     }

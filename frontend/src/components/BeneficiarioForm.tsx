@@ -19,6 +19,7 @@ import {
 import { AddCircleOutline as AddIcon } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
+import { getProgramas } from '../utils/staticCache';
 
 interface BeneficiarioFormProps {
   open: boolean;
@@ -74,7 +75,7 @@ export default function BeneficiarioForm({
         kilosHabitual: beneficiario?.kilosHabitual || '',
         activo: beneficiario?.activo ?? true,
       });
-      api.get('/programas').then(r => setProgramas(r.data)).catch(() => {});
+      getProgramas().then(setProgramas).catch(() => {});
       api.get('/beneficiarios/localidades').then(r => setLocalidades(r.data)).catch(() => {});
     }
   }, [open, beneficiario]);

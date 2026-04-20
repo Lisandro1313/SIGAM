@@ -33,6 +33,7 @@ import {
   Calculate as CalculateIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
+import { getProgramas, getArticulos } from '../utils/staticCache';
 import { useNotificationStore } from '../stores/notificationStore';
 
 export default function PlantillasPage() {
@@ -62,14 +63,14 @@ export default function PlantillasPage() {
 
   const loadAll = async () => {
     try {
-      const [plantillasRes, programasRes, articulosRes] = await Promise.all([
+      const [plantillasRes, programasData, articulosData] = await Promise.all([
         api.get('/plantillas'),
-        api.get('/programas'),
-        api.get('/articulos'),
+        getProgramas(),
+        getArticulos(),
       ]);
       setPlantillas(plantillasRes.data);
-      setProgramas(programasRes.data.filter((p: any) => p.activo));
-      setArticulos(articulosRes.data.filter((a: any) => a.activo));
+      setProgramas(programasData.filter((p: any) => p.activo));
+      setArticulos(articulosData.filter((a: any) => a.activo));
     } catch (error) {
       console.error('Error cargando datos:', error);
     } finally {

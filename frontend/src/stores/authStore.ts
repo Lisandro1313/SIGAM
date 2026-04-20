@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../services/api';
+import { invalidateAll } from '../utils/staticCache';
 
 interface User {
   id: number;
@@ -45,6 +46,7 @@ export const useAuthStore = create<AuthState>()(
         // Señal para otras pestañas
         localStorage.setItem('sigam:logout', Date.now().toString());
         localStorage.removeItem('sigam:logout');
+        invalidateAll();
         set({ token: null, refreshToken: null, user: null });
       },
       login: async (email, password) => {

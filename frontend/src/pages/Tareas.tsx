@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
+import { getProgramas } from '../utils/staticCache';
 import { useAuthStore } from '../stores/authStore';
 import { useConfirm } from '../hooks/useConfirm';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -70,7 +71,7 @@ export default function Tareas() {
   const puedeAdjuntar = ['ADMIN', 'LOGISTICA', 'OPERADOR_PROGRAMA', 'TRABAJADORA_SOCIAL'].includes(user?.rol ?? '');
 
   useEffect(() => {
-    api.get('/programas').then((r) => setProgramas(r.data.filter((p: any) => p.activo))).catch(() => {});
+    getProgramas().then((d) => setProgramas(d.filter((p: any) => p.activo))).catch(() => {});
     api.get('/personal').then((r) => setPersonalList(r.data)).catch(() => {});
     cargarTareas();
   }, [filtroEstado, filtroPrioridad, filtroPrograma]);

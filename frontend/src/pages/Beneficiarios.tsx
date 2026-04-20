@@ -53,6 +53,7 @@ import {
 import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import api from '../services/api';
+import { getProgramas } from '../utils/staticCache';
 import BeneficiarioForm from '../components/BeneficiarioForm';
 import SearchBar from '../components/SearchBar';
 import ExportExcelButton from '../components/ExportExcelButton';
@@ -180,7 +181,7 @@ export default function BeneficiariosPage() {
 
   // Cargar listas de filtros (programas + localidades) al montar
   useEffect(() => {
-    api.get('/programas').then(r => setProgramasLista(r.data ?? [])).catch(() => {});
+    getProgramas().then(setProgramasLista).catch(() => {});
     api.get('/beneficiarios/localidades').then(r => setLocalidadesLista(r.data ?? [])).catch(() => {});
   }, []);
 

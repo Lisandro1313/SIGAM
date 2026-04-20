@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import { useNotificationStore } from '../stores/notificationStore';
 import api from '../services/api';
+import { getDepositos, invalidate } from '../utils/staticCache';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 function resolveUrl(url: string | null | undefined): string {
@@ -64,7 +65,7 @@ export default function ArticuloForm({
       setLotes([]);
       setLoteData({ depositoId: '', cantidad: '', fechaVencimiento: '', lote: '' });
 
-      api.get('/depositos').then(r => setDepositos(r.data.filter((d: any) => d.activo))).catch(() => {});
+      getDepositos().then(d => setDepositos(d.filter((dep: any) => dep.activo))).catch(() => {});
       if (articulo?.id) {
         api.get(`/articulos/${articulo.id}/lotes`).then(r => setLotes(r.data)).catch(() => {});
       }
@@ -82,6 +83,7 @@ export default function ArticuloForm({
         await api.post('/articulos', formData);
         showNotification('Artículo creado correctamente', 'success');
       }
+      invalidate('articulos');
       onSuccess();
       onClose();
     } catch (error: any) {
