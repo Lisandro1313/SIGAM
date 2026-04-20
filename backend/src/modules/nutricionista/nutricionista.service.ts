@@ -422,4 +422,79 @@ export class NutricionistaService {
       proximasActividades,
     };
   }
+
+  async evolucion() {
+    const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const hoy = new Date();
+    const serie: { mesNombre: string; anio: number; relevamientos: number; actividades: number; asistentes: number; programasIniciados: number }[] = [];
+
+    for (let i = 11; i >= 0; i--) {
+      const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      const inicio = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
+      const fin = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0, 23, 59, 59);
+
+      const [relev, acts, actsAsistentes, programas] = await Promise.all([
+        this.prisma.relevamientoNutricional.count({ where: { fecha: { gte: inicio, lte: fin } } }),
+        this.prisma.actividadTerreno.count({ where: { fecha: { gte: inicio, lte: fin } } }),
+        this.prisma.actividadTerreno.aggregate({
+          where: { fecha: { gte: inicio, lte: fin } },
+          _sum: { asistentes: true },
+        }),
+        this.prisma.programaTerreno.count({ where: { fechaInicio: { gte: inicio, lte: fin } } }),
+      ]);
+
+      serie.push({
+        mesNombre: MESES[fecha.getMonth()],
+        anio: fecha.getFullYear(),
+        relevamientos: relev,
+        actividades: acts,
+        asistentes: actsAsistentes._sum.asistentes || 0,
+        programasIniciados: programas,
+      });
+    }
+
+    // Distribución por tipo de programa
+    const porTipo = await this.prisma.programaTerreno.groupBy({
+      by: ['tipo'],
+      _count: true,
+    });
+
+    // Distribución por estado
+    const porEstado = await this.prisma.programaTerreno.groupBy({
+      by: ['estado'],
+      _count: true,
+    });
+
+    // Relevamientos por modalidad (descarta nulos)
+    const porModalidad = await this.prisma.relevamientoNutricional.groupBy({
+      by: ['modalidad'],
+      where: { modalidad: { not: null } },
+      _count: true,
+    });
+
+    // Top espacios con más actividades en los últimos 6 meses
+    const hace6meses = new Date(hoy.getFullYear(), hoy.getMonth() - 6, 1);
+    const topActividades = await this.prisma.actividadTerreno.findMany({
+      where: { fecha: { gte: hace6meses } },
+      select: { programaTerreno: { select: { beneficiario: { select: { id: true, nombre: true } } } } },
+    });
+    const conteoEspacios: Record<number, { id: number; nombre: string; cantidad: number }> = {};
+    for (const a of topActividades) {
+      const ben = a.programaTerreno?.beneficiario;
+      if (!ben) continue;
+      if (!conteoEspacios[ben.id]) conteoEspacios[ben.id] = { id: ben.id, nombre: ben.nombre, cantidad: 0 };
+      conteoEspacios[ben.id].cantidad++;
+    }
+    const topEspacios = Object.values(conteoEspacios)
+      .sort((a, b) => b.cantidad - a.cantidad)
+      .slice(0, 10);
+
+    return {
+      serie,
+      porTipo: porTipo.map((t) => ({ tipo: t.tipo, cantidad: (t._count as number) || 0 })),
+      porEstado: porEstado.map((e) => ({ estado: e.estado, cantidad: (e._count as number) || 0 })),
+      porModalidad: porModalidad.map((m) => ({ modalidad: m.modalidad, cantidad: (m._count as number) || 0 })),
+      topEspacios,
+    };
+  }
 }

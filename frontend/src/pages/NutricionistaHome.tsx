@@ -32,7 +32,12 @@ import {
   OpenInNew as OpenIcon,
   Vaccines as EnfermedadIcon,
   Groups as RedesIcon,
+  ShowChart as EvolucionIcon,
 } from '@mui/icons-material';
+import {
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, ResponsiveContainer,
+} from 'recharts';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
@@ -408,8 +413,11 @@ export default function NutricionistaHome() {
         >
           <Tab icon={<RelevamientoIcon />} label="Relevamientos" iconPosition="start" />
           <Tab icon={<HuertaIcon />} label="Programas" iconPosition="start" />
+          <Tab icon={<EvolucionIcon />} label="Evolución" iconPosition="start" />
         </Tabs>
       </Paper>
+
+      {tab === 2 && <EvolucionTab />}
 
       {/* ── TAB: RELEVAMIENTOS ──────────────────────────────────────────── */}
       {tab === 0 && (
@@ -1270,5 +1278,186 @@ function ActividadDialog({ open, onClose, onSave, isMobile }: any) {
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EVOLUCION TAB — graficos mensuales
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface EvolucionData {
+  serie: { mesNombre: string; anio: number; relevamientos: number; actividades: number; asistentes: number; programasIniciados: number }[];
+  porTipo: { tipo: string; cantidad: number }[];
+  porEstado: { estado: string; cantidad: number }[];
+  porModalidad: { modalidad: string | null; cantidad: number }[];
+  topEspacios: { id: number; nombre: string; cantidad: number }[];
+}
+
+const COLOR_TIPO_PALETTE = ['#2e7d32', '#1565c0', '#ed6c02', '#7b1fa2', '#d32f2f', '#00838f'];
+const COLOR_ESTADO: Record<string, string> = {
+  PLANIFICADO: '#9e9e9e',
+  EN_CURSO: '#1976d2',
+  FINALIZADO: '#2e7d32',
+  CANCELADO: '#d32f2f',
+};
+
+function EvolucionTab() {
+  const [data, setData] = useState<EvolucionData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const resp = await api.get('/nutricionista/evolucion');
+        if (!cancelado) setData(resp.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelado) setLoading(false);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, []);
+
+  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>;
+  if (!data) return <Alert severity="error">No se pudo cargar la evolución</Alert>;
+
+  const { serie, porTipo, porEstado, porModalidad, topEspacios } = data;
+  const maxEsp = topEspacios.length ? Math.max(...topEspacios.map((e) => e.cantidad)) : 0;
+
+  return (
+    <Box>
+      <Typography variant="h6" fontWeight={600} mb={2}>Evolución de actividad (últimos 12 meses)</Typography>
+
+      <Grid container spacing={2}>
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2, height: 340 }}>
+            <Typography variant="subtitle2" fontWeight={600} mb={1}>
+              Relevamientos y actividades por mes
+            </Typography>
+            <ResponsiveContainer width="100%" height="88%">
+              <LineChart data={serie} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="mesNombre" fontSize={12} />
+                <YAxis fontSize={12} />
+                <ReTooltip />
+                <Legend />
+                <Line type="monotone" dataKey="relevamientos" name="Relevamientos" stroke="#2e7d32" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="actividades" name="Actividades" stroke="#1565c0" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="programasIniciados" name="Programas iniciados" stroke="#ed6c02" strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2, height: 320 }}>
+            <Typography variant="subtitle2" fontWeight={600} mb={1}>
+              Asistentes a actividades por mes
+            </Typography>
+            <ResponsiveContainer width="100%" height="88%">
+              <BarChart data={serie} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="mesNombre" fontSize={12} />
+                <YAxis fontSize={12} />
+                <ReTooltip />
+                <Bar dataKey="asistentes" name="Asistentes" fill="#7b1fa2" />
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2, height: 320 }}>
+            <Typography variant="subtitle2" fontWeight={600} mb={1}>
+              Programas por tipo
+            </Typography>
+            {porTipo.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">Sin datos</Typography>
+            ) : (
+              <ResponsiveContainer width="100%" height="88%">
+                <PieChart>
+                  <Pie data={porTipo} dataKey="cantidad" nameKey="tipo" outerRadius={90} label={(e) => `${e.tipo}: ${e.cantidad}`}>
+                    {porTipo.map((_, i) => (
+                      <Cell key={i} fill={COLOR_TIPO_PALETTE[i % COLOR_TIPO_PALETTE.length]} />
+                    ))}
+                  </Pie>
+                  <ReTooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2, height: 320 }}>
+            <Typography variant="subtitle2" fontWeight={600} mb={1}>
+              Programas por estado
+            </Typography>
+            {porEstado.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">Sin datos</Typography>
+            ) : (
+              <ResponsiveContainer width="100%" height="88%">
+                <PieChart>
+                  <Pie data={porEstado} dataKey="cantidad" nameKey="estado" outerRadius={90} label={(e) => `${e.estado}: ${e.cantidad}`}>
+                    {porEstado.map((e) => (
+                      <Cell key={e.estado} fill={COLOR_ESTADO[e.estado] || '#999'} />
+                    ))}
+                  </Pie>
+                  <ReTooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2, height: 320 }}>
+            <Typography variant="subtitle2" fontWeight={600} mb={1}>
+              Relevamientos por modalidad alimentaria
+            </Typography>
+            {porModalidad.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">Sin datos</Typography>
+            ) : (
+              <ResponsiveContainer width="100%" height="88%">
+                <BarChart data={porModalidad} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" fontSize={11} />
+                  <YAxis dataKey="modalidad" type="category" fontSize={11} width={100} />
+                  <ReTooltip />
+                  <Bar dataKey="cantidad" fill="#2e7d32" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle2" fontWeight={600} mb={1}>
+              Espacios con más actividades (últimos 6 meses)
+            </Typography>
+            {topEspacios.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">Sin actividades registradas en el período</Typography>
+            ) : (
+              <Stack spacing={1}>
+                {topEspacios.map((e) => (
+                  <Box key={e.id}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+                      <Typography variant="body2">{e.nombre}</Typography>
+                      <Typography variant="body2" fontWeight={600}>{e.cantidad}</Typography>
+                    </Box>
+                    <Box sx={{ height: 6, bgcolor: 'action.hover', borderRadius: 3, overflow: 'hidden' }}>
+                      <Box sx={{ height: '100%', width: `${maxEsp > 0 ? (e.cantidad / maxEsp) * 100 : 0}%`, bgcolor: 'primary.main' }} />
+                    </Box>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+          </Paper>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }

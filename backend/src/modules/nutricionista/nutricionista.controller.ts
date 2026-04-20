@@ -28,6 +28,13 @@ export class NutricionistaController {
     return this.svc.dashboard(req.user.id, req.user.rol);
   }
 
+  @Get('evolucion')
+  @Roles(...ROLES_NUTRI)
+  @ApiOperation({ summary: 'Serie mensual de relevamientos/actividades + distribuciones' })
+  evolucion() {
+    return this.svc.evolucion();
+  }
+
   // ── Subir foto ────────────────────────────────────────────────────────────
   @Post('upload')
   @Roles(...ROLES_NUTRI)
